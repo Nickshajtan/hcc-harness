@@ -1,0 +1,8 @@
+[tools]
+node = "24.19.0"
+
+[tasks.bootstrap]
+run = "npm run bootstrap"
+
+[tasks.check]
+run = "npm run check"
