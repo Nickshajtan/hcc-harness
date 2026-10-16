@@ -100,6 +100,12 @@ Skipped POSIX signal tests on Windows are complemented by real Windows console
 tests. Windows ARM64 remains unverified. Cross-platform completion requires the
 corrected hosted matrix to pass.
 
+The final corrective code commit `bb35dab` passed the complete
+[hosted matrix](https://github.com/Nickshajtan/hcc-harness/actions/runs/38829564913).
+Ubuntu and macOS each ran 64 passing tests with two Windows-only skips. Native
+Windows ran 63 passing tests with three POSIX-only skips. All matrix type checking,
+linting and builds passed. The corrective report records per-suite counts.
+
 ## Manual interactive smoke test
 
 1. Activate mise in a fresh terminal. Initialize two scratch projects with different

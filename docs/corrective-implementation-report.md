@@ -27,7 +27,9 @@ Production files changed: `src/process.ts`, `src/setup.ts`, `src/core.ts`, and
 `src/events.ts`. The small event-bus change centralizes existing diagnostic error
 handling instead of duplicating it in Core. `src/middleware.ts` is intentionally
 unchanged. README, architecture/testing documentation and this report describe
-changed behavior.
+changed behavior. Test files are enumerated below; `tests/support.ts` sets the
+fixture package scope and `tests/fixtures/native.cjs` supplies the acknowledged
+SIGTERM-ignoring behavior used by the real POSIX cancellation regression.
 
 ## Regression coverage
 
@@ -68,8 +70,9 @@ defects above; the environment suite passed unchanged. After corrections:
 - `npm run lint`: passed.
 - `npm run build`: passed.
 - `npm run test:unit`: passed, 47 tests passed and one Windows-inapplicable test skipped.
-- `npm run test:integration`: passed in the targeted run before the extra fixture
-  regression, 12 passed and two POSIX-only tests skipped.
+- `npm run test:integration`: passed in the earlier targeted run (12 passed and
+  two POSIX-only tests skipped); the final expanded integration suite passes in
+  full local validation and CI as detailed below.
 - `npm run test:acceptance`: passed, one complete black-box scenario.
 - `npm run check`: passed locally on native Windows x64, Node 24.19.0 / mise
   2026.10.11: **10 test files, 63 passed, 3 platform-specific skips, zero failures**.
@@ -77,15 +80,22 @@ defects above; the environment suite passed unchanged. After corrections:
   POSIX symlink test. Windows Ctrl+C/Ctrl+Break tests passed. Cancellation state and
   escalation logic also run on Windows through deterministic unit tests.
 
-Hosted run [38829071462](https://github.com/Nickshajtan/hcc-harness/actions/runs/38829071462)
-passed Ubuntu, macOS and Windows for commit `3e6e9c5`: Ubuntu/macOS each ran 48 unit,
-13 integration, one feasibility and one acceptance test successfully (two Windows-only
-integration skips); Windows ran 47 unit, 13 integration, one feasibility and one
-acceptance test successfully (three POSIX-only skips). Type checking, linting and
-build passed on all three. A subsequent final-review regression reproduced external
-wrapper re-entry in unconfigured projects; a one-line passthrough guard and that
-regression are being validated in a subsequent matrix run. Final results will be
-recorded after it completes. The baseline matrix result above is not evidence for these changes.
+Final hosted run [38829564913](https://github.com/Nickshajtan/hcc-harness/actions/runs/38829564913)
+passed for implementation commit `bb35dab`, including the final passthrough recursion
+guard. Type checking, linting, build, the routing experiment, unit tests, integration
+tests and black-box acceptance passed on **all three runners**.
+
+| Runner | Unit passed | Integration passed | Experiment passed | Acceptance passed | Platform-only skips |
+|---|---:|---:|---:|---:|---:|
+| ubuntu-latest | 48 | 14 | 1 | 1 | 2 |
+| macos-latest | 48 | 14 | 1 | 1 | 2 |
+| windows-latest | 47 | 14 | 1 | 1 | 3 |
+
+The earlier corrective run [38829071462](https://github.com/Nickshajtan/hcc-harness/actions/runs/38829071462)
+also passed all three runners before final review added the extra recursion
+regression. The failing baseline run above is kept as root-cause evidence, not as
+verification of the corrected code. The follow-up commit recording these final
+results changes documentation only.
 Local Linux execution is unavailable: WSL reports that Virtual Machine Platform/
 virtualization must be enabled, and the Docker Linux daemon is unavailable.
 
@@ -109,4 +119,6 @@ virtualization must be enabled, and the Docker Linux daemon is unavailable.
   and run the required matrix. No environment rewrite was made for the disproven
   finding. Callback return types explicitly accept promises in a backward-compatible
   manner so rejected diagnostics cannot become unhandled rejections.
-- Cross-platform completion is not claimed until the corrected hosted matrix passes.
+- The requested hosted Ubuntu/macOS/native Windows matrix is verified. Windows
+  ARM64 and real third-party interactive TUI smoke tests remain outside the executed
+  validation; no verification is claimed for those environments.

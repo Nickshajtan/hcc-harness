@@ -122,8 +122,8 @@ per-execution event bus through `execute()`.
 
 ## Limits
 
-- Local verification is native Windows x64 with Node 24.19.0 and mise 2026.10.11.
-  Ubuntu/macOS CI is configured but has not run in this session; ARM64 is unverified.
+- Local native Windows x64 validation and hosted Ubuntu, macOS and native Windows
+  CI pass with Node 24.19.0 and mise 2026.10.11. ARM64 remains unverified.
 - Native Windows `.exe`/`.com` and npm `.cmd` shims targeting Node scripts or native
   executables are supported. Arbitrary batch scripts and custom shell functions/
   aliases are outside the executable contract and must be invoked explicitly.
@@ -132,7 +132,8 @@ per-execution event bus through `execute()`.
 - Windows force termination (`taskkill /F`, Task Manager) cannot run cleanup. On
   supported console signals Arch manages its direct child, with a 3-second hard-kill
   fallback on POSIX. Descendant processes remain the native tool's responsibility.
-- No cross-platform MVP completion is claimed until the CI matrix is green.
+- Exact corrective test results and runner evidence are recorded in the
+  [corrective implementation report](docs/corrective-implementation-report.md).
 
 RTK, MCP/skills/context management, provider routing, budgets, DLP, sandboxing,
 sessions, remote transports, and agent orchestration are deferred. No placeholders
