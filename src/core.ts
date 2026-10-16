@@ -9,8 +9,8 @@ export const defaultRegistry: Registry = new Map([['demo', demo]]);
 export interface ExecuteOptions {
   command: string; args: readonly string[]; cwd: string;
   env?: NodeJS.ProcessEnv; signal?: AbortSignal; registry?: Registry;
-  observe?: (bus: EventBus) => void;
-  reportObserverError?: (error: unknown) => void;
+  observe?: (bus: EventBus) => void | Promise<void>;
+  reportObserverError?: (error: unknown) => void | Promise<void>;
 }
 
 export async function execute(options: ExecuteOptions): Promise<LaunchResult> {
@@ -20,7 +20,7 @@ export async function execute(options: ExecuteOptions): Promise<LaunchResult> {
   const configuration = await discoverConfiguration(options.cwd);
   if (!configuration) {
     const native = await resolveExecutable(options.command, options.cwd, env);
-    return launch(native, options.args, options.cwd, env, signal);
+    return launch(native, options.args, options.cwd, { ...env, ARCH_ACTIVE: randomUUID() }, signal);
   }
   const context: ExecutionContext = Object.freeze({
     executionId: randomUUID(), projectRoot: configuration.projectRoot, command: options.command,
@@ -32,7 +32,7 @@ export async function execute(options: ExecuteOptions): Promise<LaunchResult> {
   let stage = 'registration';
   const errors: unknown[] = [];
   try {
-    try { options.observe?.(bus); } catch { /* observer setup is diagnostic only */ }
+    try { await options.observe?.(bus); } catch (error) { await bus.reportObserverError(error); }
     await bus.publish(event('execution.started', context.executionId, { command: context.command, projectRoot: context.projectRoot }));
     const registry = options.registry ?? defaultRegistry;
     for (const entry of configuration.middleware) {

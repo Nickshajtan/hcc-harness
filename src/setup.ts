@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile, unlink, chmod } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, unlink, chmod, rename } from 'node:fs/promises';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
@@ -8,6 +8,7 @@ import { routerMarker } from './process.js';
 const configText = 'schema = 1\n\n[[middleware]]\nid = "demo"\nenabled = true\n';
 const routePath = '.config/mise/conf.d/arch.toml';
 const statePath = '.arch/bootstrap.json';
+const uninstallPath = '.arch/uninstall.json';
 interface State { files: Record<string, string>; createdHarness: boolean }
 const digest = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
 const quote = (value: string) => "'" + value.replaceAll("'", "'\\''") + "'";
@@ -18,19 +19,22 @@ async function readOptional(file: string): Promise<Buffer | undefined> {
 }
 function stateFrom(text: Buffer): State {
   const state = JSON.parse(text.toString()) as State;
-  if (!state.files || typeof state.createdHarness !== 'boolean' || Object.entries(state.files).some(([file, hash]) =>
-    !(file === routePath || /^\.arch\/bin\/[a-zA-Z0-9_.-]+$/.test(file)) || !/^[a-f0-9]{64}$/.test(hash))) throw new Error('Invalid bootstrap state');
+  if (!state || typeof state !== 'object' || Array.isArray(state) || !state.files || typeof state.files !== 'object' || Array.isArray(state.files) ||
+    typeof state.createdHarness !== 'boolean' || Object.entries(state.files).some(([file, hash]) =>
+    !(file === routePath || /^\.arch\/bin\/(?!\.{1,2}$)[a-zA-Z0-9_.-]+$/.test(file)) || typeof hash !== 'string' || !/^[a-f0-9]{64}$/.test(hash))) throw new Error('Invalid bootstrap state');
   return state;
 }
-async function checkFiles(root: string, files: Record<string, string>) {
+async function checkFiles(root: string, files: Record<string, string>, recovering = false) {
   for (const [file, hash] of Object.entries(files)) {
     const contents = await readOptional(join(root, file));
+    if (contents === undefined && recovering) continue;
     if (!contents || digest(contents) !== hash) throw new Error(`Managed file changed; refusing to overwrite/remove: ${file}`);
   }
 }
 
 export async function setup(root: string, commands: readonly string[]): Promise<void> {
   root = resolve(root);
+  if (await readOptional(join(root, uninstallPath)) !== undefined) throw new Error('Uninstall in progress; run uninstall before initialization');
   if (!commands.length || new Set(commands.map(c => process.platform === 'win32' ? c.toLowerCase() : c)).size !== commands.length || commands.some(c => !/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(c) || ['node', 'mise', 'arch'].includes(c.toLowerCase()))) {
     throw new Error('Supply unique executable names (node, mise, and arch are reserved)');
   }
@@ -78,12 +82,25 @@ export async function setup(root: string, commands: readonly string[]): Promise<
 
 export async function uninstall(root: string): Promise<void> {
   root = resolve(root);
-  const stateFile = join(root, statePath), text = await readOptional(stateFile);
-  if (!text) return;
-  const state = stateFrom(text);
-  await checkFiles(root, state.files);
-  for (const file of Object.keys(state.files)) await unlink(join(root, file));
+  const stateFile = join(root, statePath), journalFile = join(root, uninstallPath);
+  const [text, recovery] = await Promise.all([readOptional(stateFile), readOptional(journalFile)]);
+  if (text === undefined && recovery === undefined) return;
+  if (text !== undefined && recovery !== undefined) throw new Error('Conflicting bootstrap and uninstall state; refusing to remove files');
+  const state = stateFrom((recovery ?? text)!);
+  await checkFiles(root, state.files, recovery !== undefined);
+  if (recovery === undefined) {
+    // Atomic rename retains the complete ownership manifest before the first deletion.
+    try { await rename(stateFile, journalFile); }
+    catch (error) { throw new Error(`Unable to start uninstall: ${stateFile}`, { cause: error }); }
+  }
+  const remove = async (file: string, operation: string) => {
+    try { await unlink(file); }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw new Error(`Unable to ${operation}: ${file}`, { cause: error });
+    }
+  };
+  for (const file of Object.keys(state.files)) await remove(join(root, file), 'remove managed file');
   const harnessFile = join(root, '.arch/harness.toml');
-  if (state.createdHarness && (await readOptional(harnessFile))?.toString() === configText) await unlink(harnessFile);
-  await unlink(stateFile);
+  if (state.createdHarness && (await readOptional(harnessFile))?.toString() === configText) await remove(harnessFile, 'remove generated configuration');
+  await remove(journalFile, 'remove uninstall state');
 }

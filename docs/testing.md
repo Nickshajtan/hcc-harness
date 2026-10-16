@@ -64,6 +64,22 @@ generate Ctrl+C/Ctrl+Break, and assert cleanup and no surviving direct child.
 They do not simulate a console event with `process.kill()` on Windows. That API
 force-terminates processes and cannot validate graceful cleanup.
 
+## Corrective regression coverage
+
+The unit suite now deterministically injects startup aborts, repeated cancellation,
+child exit/error races, synchronous termination failures and fake-timer escalation.
+It also injects uninstall deletion failures and simulates interruption at the
+ownership-checkpoint boundary, then proves retry. Environment identity assertions
+select the host platform's case rules; observer setup/reporter failures and rejected
+promises are contained. Resolver tests use real files under misleading directory
+names and verify PATH order and Arch marker identity.
+
+The integration suite resumes an interrupted uninstall through the actual CLI and
+proves native routing returns. On POSIX, a real fixture acknowledges and ignores
+SIGTERM, exercising the forced-kill fallback. Readiness is signalled through output,
+not a timed startup sleep. Each fixture root declares CommonJS so extensionless
+fake Node tools cannot inherit the repository's ESM package scope.
+
 ## CI and verification status
 
 `.github/workflows/ci.yml` runs type checking, linting, build, routing experiments,
@@ -76,13 +92,19 @@ Node-only bootstrap and the exact mise bootstrap task succeeded with clean
 lockfile installs; mise downloaded and activated a fresh Node installation in
 isolated project-local state. On this machine mise warned that optional version
 alias symlinks could not be created; the managed Node and task still succeeded.
-The final `npm run check` passed all checks and six test files: 23 passed, one
-platform-specific skip, zero failures. See the [implementation report](implementation-report.md).
-A skipped POSIX signal test on
-Windows is replaced by a real Windows console test; the converse applies on POSIX.
-Ubuntu/macOS and hosted GitHub Actions have **not** been executed in this session.
-Windows ARM64 is also unverified. Cross-platform acceptance is pending those CI
-results; the MVP must not be declared cross-platform complete before they pass.
+The corrective local `npm run check` passed all checks and ten test files:
+63 passed, three platform-specific skips, zero failures. See the
+[corrective report](corrective-implementation-report.md) for current hosted matrix
+results and the [initial report](implementation-report.md) for historical results.
+Skipped POSIX signal tests on Windows are complemented by real Windows console
+tests. Windows ARM64 remains unverified. Cross-platform completion requires the
+corrected hosted matrix to pass.
+
+The final corrective code commit `bb35dab` passed the complete
+[hosted matrix](https://github.com/Nickshajtan/hcc-harness/actions/runs/38829564913).
+Ubuntu and macOS each ran 64 passing tests with two Windows-only skips. Native
+Windows ran 63 passing tests with three POSIX-only skips. All matrix type checking,
+linting and builds passed. The corrective report records per-suite counts.
 
 ## Manual interactive smoke test
 

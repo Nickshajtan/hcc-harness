@@ -16,16 +16,18 @@ type EventMap = { [T in EventType]: ArchEvent<T> };
 
 export class EventBus {
   private readonly emitter = new Emittery<EventMap>();
-  constructor(private readonly reportError: (error: unknown) => void = () => {
-    console.error('[arch] event subscriber failed');
+  constructor(private readonly reportError: (error: unknown) => void | Promise<void> = () => {
+    console.error('[arch] observer failed');
   }) {}
+
+  async reportObserverError(error: unknown): Promise<void> {
+    try { await this.reportError(error); } catch { /* diagnostics cannot change execution */ }
+  }
 
   subscribe<T extends EventType>(type: T, handler: (event: ArchEvent<T>) => void | Promise<void>): () => void {
     return this.emitter.on(type, async ({ data }) => {
       try { await handler(data as ArchEvent<T>); }
-      catch (error) {
-        try { this.reportError(error); } catch { /* diagnostics cannot change execution */ }
-      }
+      catch (error) { await this.reportObserverError(error); }
     });
   }
 

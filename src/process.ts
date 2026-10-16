@@ -33,8 +33,6 @@ export async function resolveExecutable(command: string, cwd: string, env: NodeJ
     ? extname(command) ? [''] : (env[pathExtKey] ?? '.COM;.EXE;.BAT;.CMD').split(';').map(ext => ext.toLowerCase()).filter(ext => ['.exe', '.com', '.cmd', '.bat'].includes(ext))
     : [''];
   for (const dir of dirs) {
-    // Project activation normally supplies real tool paths. Do not recurse into mise's dispatcher.
-    if (/[/\\](?:command-wrappers[/\\]bin|mise[/\\]shims)$/i.test(dir)) continue;
     for (const extension of extensions) {
       const candidate = resolve(cwd, dir, command + extension);
       try {
@@ -42,7 +40,6 @@ export async function resolveExecutable(command: string, cwd: string, env: NodeJ
         if (!(await stat(candidate)).isFile()) continue;
         const native = await realpath(candidate);
         if (await isRouter(dirname(native))) continue;
-        if (/[/\\](?:command-wrappers[/\\]bin|mise[/\\]shims)[/\\]/i.test(native)) continue;
         return native;
       } catch (error) {
         if (!['ENOENT', 'EACCES', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error;
@@ -54,6 +51,7 @@ export async function resolveExecutable(command: string, cwd: string, env: NodeJ
 
 export async function launch(executable: string, args: readonly string[], cwd: string, env: NodeJS.ProcessEnv,
   signal: AbortSignal): Promise<LaunchResult> {
+  signal.throwIfAborted();
   let target = executable;
   let nativeArgs = [...args];
   if (process.platform === 'win32' && /\.(cmd|bat)$/i.test(extname(executable))) {
@@ -75,20 +73,40 @@ export async function launch(executable: string, args: readonly string[], cwd: s
   return new Promise((resolveResult, reject) => {
     const child = spawn(target, nativeArgs, { cwd, env, stdio: 'inherit', shell: false });
     let timer: NodeJS.Timeout | undefined;
+    let settled = false, cancelled = false;
+    const dispose = () => {
+      signal.removeEventListener('abort', abort);
+      clearTimeout(timer);
+      child.off('error', failed);
+      child.off('close', closed);
+    };
+    const failed = (error: Error) => {
+      if (settled) return;
+      settled = true; dispose(); reject(error);
+    };
+    const closed = (code: number | null, nativeSignal: NodeJS.Signals | null) => {
+      if (settled) return;
+      settled = true; dispose();
+      resolveResult(Object.freeze({ exitCode: code ?? 1, signal: nativeSignal }));
+    };
     const abort = () => {
+      if (cancelled || settled || child.exitCode !== null || child.signalCode !== null) return;
+      cancelled = true;
       const reason = signal.reason;
       const forwarded = ['SIGINT', 'SIGTERM', 'SIGHUP'].includes(reason as string) ? reason as NodeJS.Signals : 'SIGTERM';
-      child.kill(process.platform === 'win32' ? 'SIGTERM' : forwarded);
-      timer = setTimeout(() => { child.kill('SIGKILL'); }, 3000);
+      try { child.kill(process.platform === 'win32' ? 'SIGTERM' : forwarded); }
+      catch (error) { failed(error as Error); return; }
+      if (settled) return;
+      timer = setTimeout(() => {
+        if (settled || child.exitCode !== null || child.signalCode !== null) return;
+        try { child.kill('SIGKILL'); } catch (error) { failed(error as Error); }
+      }, 3000);
       timer.unref();
     };
-    const dispose = () => { signal.removeEventListener('abort', abort); clearTimeout(timer); };
-    child.once('error', error => { dispose(); reject(error); });
-    child.once('close', (code, nativeSignal) => {
-      dispose();
-      resolveResult(Object.freeze({ exitCode: code ?? 1, signal: nativeSignal }));
-    });
+    child.once('error', failed);
+    child.once('close', closed);
     signal.addEventListener('abort', abort, { once: true });
-    if (signal.aborted) abort();
+    if (child.exitCode !== null || child.signalCode !== null) closed(child.exitCode, child.signalCode);
+    else if (signal.aborted) abort();
   });
 }

@@ -112,3 +112,33 @@ it('rejects recursive invocations and aborted launches', async () => {
   await expect(execute({ ...launchOptions(), env: { ARCH_ACTIVE: 'existing' } })).rejects.toThrow('Recursive');
   await expect(execute({ ...launchOptions(), signal: AbortSignal.abort('SIGTERM') })).rejects.toThrow();
 });
+
+it('reports observer initialization errors by identity and continues native execution', async () => {
+  await configure([]);
+  const error = new Error('observer setup failed'), received: unknown[] = [];
+  const result = await execute({ ...launchOptions(), observe() { throw error; }, reportObserverError(value) { received.push(value); } });
+  expect(result.exitCode).toBe(7); expect(received).toEqual([error]);
+});
+
+it('contains observer diagnostic errors while preserving middleware denial and listener disposal', async () => {
+  await configure(['deny']);
+  const error = new Error('observer setup failed'), received: unknown[] = [];
+  let bus: EventBus | undefined;
+  const registry: Registry = new Map([['deny', () => ({ id: 'deny', register(api) {
+    api.on('preflight', () => { throw new Error('denied'); });
+  } })]]);
+  await expect(execute({ ...launchOptions(), registry, observe(value) {
+    bus = value; value.subscribe('execution.started', () => {}); throw error;
+  }, reportObserverError(value) { received.push(value); throw new Error('reporter failed'); } })).rejects.toThrow('preflight');
+  expect(received).toEqual([error]); expect(bus?.listenerCount).toBe(0);
+  await configure([]);
+  expect((await execute({ ...launchOptions(), observe() { throw error; }, reportObserverError() { throw error; } })).exitCode).toBe(7);
+});
+
+it('contains rejected observer and reporter promises without unhandled rejections', async () => {
+  await configure([]);
+  const error = new Error('async observer error'), received: unknown[] = [];
+  const result = await execute({ ...launchOptions(), async observe() { await Promise.resolve(); throw error; },
+    async reportObserverError(value) { received.push(value); await Promise.resolve(); throw new Error('async reporter error'); } });
+  expect(result.exitCode).toBe(7); expect(received).toEqual([error]);
+});
