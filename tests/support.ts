@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, copyFile, chmod, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, copyFile, chmod, readFile, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { resolve, join, dirname, delimiter } from 'node:path';
 import { spawn, type ChildProcess } from 'node:child_process';
@@ -33,6 +33,8 @@ export async function world() {
   const paths = Object.fromEntries(['home', 'data', 'cache', 'config', 'native', 'A', 'B', 'C'].map(name => [name, join(root, name)])) as Record<string, string>;
   await Promise.all(Object.values(paths).map(path => mkdir(path, { recursive: true })));
   const native = paths.native!;
+  // Extensionless Node fixtures must not inherit the repository's ESM package scope.
+  await writeFile(join(root, 'package.json'), '{"type":"commonjs"}\n');
   if (process.platform === 'win32') {
     const csc = join(process.env.SystemRoot || 'C:/Windows', 'Microsoft.NET/Framework64/v4.0.30319/csc.exe');
     const built = await run(csc, ['/nologo', `/out:${join(native, 'claude.exe')}`, resolve('tests/fixtures/native.cs')], root, process.env);

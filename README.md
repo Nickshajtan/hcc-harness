@@ -75,7 +75,13 @@ node /absolute/path/to/arch/dist/cli.js uninstall
 Refresh the shell prompt. Uninstall removes only matching managed files. It removes
 the starter harness configuration only if it created that file and it is unchanged;
 edited or preexisting harness configurations remain. It leaves unrelated files and
-other projects alone. Repeated uninstall is safe. Empty directories may remain.
+other projects alone. Before deleting files, uninstall atomically renames the
+ownership manifest to `.arch/uninstall.json`. If interrupted or denied a deletion,
+run the same uninstall command again; it verifies remaining files and resumes.
+Only this checkpoint permits already-removed managed files. Modified remaining
+files still block removal. The checkpoint is deleted last. Initialization is
+refused while recovery is pending. Repeated uninstall is safe. Empty directories
+may remain.
 
 ## Tests
 
