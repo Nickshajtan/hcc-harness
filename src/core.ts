@@ -20,7 +20,7 @@ export async function execute(options: ExecuteOptions): Promise<LaunchResult> {
   const configuration = await discoverConfiguration(options.cwd);
   if (!configuration) {
     const native = await resolveExecutable(options.command, options.cwd, env);
-    return launch(native, options.args, options.cwd, env, signal);
+    return launch(native, options.args, options.cwd, { ...env, ARCH_ACTIVE: randomUUID() }, signal);
   }
   const context: ExecutionContext = Object.freeze({
     executionId: randomUUID(), projectRoot: configuration.projectRoot, command: options.command,

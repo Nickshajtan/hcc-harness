@@ -94,7 +94,9 @@ Native resolution checks PATH entries and actual files, avoiding only directorie
 with Arch's exact routing marker (including realpath aliases). Directory names such
 as `mise/shims` or `command-wrappers/bin` alone never disqualify a native executable.
 The execution-local `ARCH_ACTIVE` guard remains the last recursion defense when an
-external wrapper routes back into Arch. Native executable absence fails explicitly. On Windows, npm's
+external wrapper routes back into Arch. It is set for both configured execution
+and native passthrough; passthrough emits no harness events or middleware activity.
+Native executable absence fails explicitly. On Windows, npm's
 `read-cmd-shim` resolves standard `.cmd` launchers to their targets; Node shebang
 scripts launch with the running Node executable, native targets launch directly.
 Arbitrary `.bat`/non-npm `.cmd` files fail instead of entering a shell.

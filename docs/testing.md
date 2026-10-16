@@ -93,7 +93,7 @@ lockfile installs; mise downloaded and activated a fresh Node installation in
 isolated project-local state. On this machine mise warned that optional version
 alias symlinks could not be created; the managed Node and task still succeeded.
 The corrective local `npm run check` passed all checks and ten test files:
-62 passed, three platform-specific skips, zero failures. See the
+63 passed, three platform-specific skips, zero failures. See the
 [corrective report](corrective-implementation-report.md) for current hosted matrix
 results and the [initial report](implementation-report.md) for historical results.
 Skipped POSIX signal tests on Windows are complemented by real Windows console

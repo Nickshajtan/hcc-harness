@@ -12,7 +12,7 @@ No dependencies or product subsystems were added.
 | P1 uninstall recovery | **Fixed — reproduced and corrected** | Injected deletion failure left the original manifest referencing a deleted routing file, preventing retry. Uninstall now validates ownership, atomically renames that complete manifest to `.arch/uninstall.json`, and removes it only after all cleanup succeeds. Only a validated recovery checkpoint allows absent managed files; remaining modified files still fail. Init refuses pending recovery, and errors name the operation/path. |
 | P2 environment conflict lookup | **Not reproduced — failure not demonstrated** | Existing `setEnv()` uses the same canonical `key` for lookup and storage. New tests pass unchanged on Windows for mixed-case identical/conflicting values, validation, phase restrictions and concurrent isolation. No working middleware code was changed. POSIX assertions retain case-sensitive identity. |
 | P2 observer initialization diagnostics | **Fixed — reproduced and corrected** | Initialization exceptions reached neither the reporter nor diagnostics. Core now uses the event bus's shared protected reporting path, preserving error identity. Synchronous exceptions and rejected observer/reporter promises are contained; denial remains effective. No new event type or stdout diagnostic was added. |
-| P2 native PATH exclusions | **Fixed — reproduced and corrected** | Real candidates in directories named `command-wrappers/bin` and `mise/shims` were incorrectly rejected. Both name-based exclusions were removed. Exact Arch markers and real executable identity still exclude owned routing locations; the execution recursion guard remains. PATH order, Windows PATHEXT and supported npm shim handling remain intact. |
+| P2 native PATH exclusions | **Fixed — reproduced and corrected** | Real candidates in directories named `command-wrappers/bin` and `mise/shims` were incorrectly rejected. Both name-based exclusions were removed. Exact Arch markers and real executable identity still exclude owned routing locations. A bounded real external-wrapper regression also exposed missing recursion marking in native passthrough; the same execution guard now covers configured and passthrough launches. PATH order, Windows PATHEXT and supported npm shim handling remain intact. |
 
 ## Root causes and scope
 
@@ -72,13 +72,20 @@ defects above; the environment suite passed unchanged. After corrections:
   regression, 12 passed and two POSIX-only tests skipped.
 - `npm run test:acceptance`: passed, one complete black-box scenario.
 - `npm run check`: passed locally on native Windows x64, Node 24.19.0 / mise
-  2026.10.11: **10 test files, 62 passed, 3 platform-specific skips, zero failures**.
+  2026.10.11: **10 test files, 63 passed, 3 platform-specific skips, zero failures**.
   The skips are POSIX signal delivery, a real POSIX signal-ignoring child, and a
   POSIX symlink test. Windows Ctrl+C/Ctrl+Break tests passed. Cancellation state and
   escalation logic also run on Windows through deterministic unit tests.
 
-The corrected branch's hosted matrix is pending; final results will be recorded
-after it runs. The baseline matrix result above is not evidence for these changes.
+Hosted run [38829071462](https://github.com/Nickshajtan/hcc-harness/actions/runs/38829071462)
+passed Ubuntu, macOS and Windows for commit `3e6e9c5`: Ubuntu/macOS each ran 48 unit,
+13 integration, one feasibility and one acceptance test successfully (two Windows-only
+integration skips); Windows ran 47 unit, 13 integration, one feasibility and one
+acceptance test successfully (three POSIX-only skips). Type checking, linting and
+build passed on all three. A subsequent final-review regression reproduced external
+wrapper re-entry in unconfigured projects; a one-line passthrough guard and that
+regression are being validated in a subsequent matrix run. Final results will be
+recorded after it completes. The baseline matrix result above is not evidence for these changes.
 Local Linux execution is unavailable: WSL reports that Virtual Machine Platform/
 virtualization must be enabled, and the Docker Linux daemon is unavailable.
 

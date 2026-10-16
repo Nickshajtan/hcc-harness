@@ -1,5 +1,5 @@
 import { beforeAll, afterAll, expect, it } from 'vitest';
-import { writeFile, readFile, mkdir, unlink, copyFile, rename } from 'node:fs/promises';
+import { writeFile, readFile, mkdir, unlink, copyFile, rename, chmod } from 'node:fs/promises';
 import { join, dirname, delimiter } from 'node:path';
 import { world, events, records, run, start, cli, mise } from '../support.js';
 
@@ -131,6 +131,24 @@ it('rejects recursion and wrapper-only resolution', async () => {
   const unresolved = await run(process.execPath, [cli, 'run', 'claude', '--'], fixture.A, { ...fixture.env, PATH: path });
   expect(unresolved.code).toBe(1);
   expect(unresolved.stderr).toContain('Native executable not found');
+});
+
+it('prevents external wrappers from re-entering Arch in passthrough and configured projects', async () => {
+  const script = join(fixture.native, 'reenter.cjs');
+  await writeFile(script, '#!/usr/bin/env node\n' +
+    `if (Number(process.env.FAKE_DEPTH || 0) >= 2) process.exit(77);\n` +
+    `const result = require('node:child_process').spawnSync(process.execPath, [${JSON.stringify(cli)}, 'run', 'reenter', '--'], {stdio:'inherit', env:{...process.env, FAKE_DEPTH:String(Number(process.env.FAKE_DEPTH || 0)+1)}});\nprocess.exit(result.status ?? 1);\n`);
+  if (process.platform === 'win32') {
+    await writeFile(join(fixture.native, 'reenter.cmd'), '@echo off\r\nnode "%~dp0\\reenter.cjs" %*\r\n');
+  } else {
+    await copyFile(script, join(fixture.native, 'reenter'));
+    await chmod(join(fixture.native, 'reenter'), 0o755);
+  }
+  for (const project of [fixture.C, fixture.A]) {
+    const result = await run(process.execPath, [cli, 'run', 'reenter', '--'], project, fixture.env);
+    expect(result, result.stderr).toMatchObject({ code: 1 });
+    expect(result.stderr).toContain('Recursive Arch invocation');
+  }
 });
 
 it('does not reject unrelated native directories merely named shims', async () => {
