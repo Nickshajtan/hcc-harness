@@ -57,6 +57,32 @@ These tests validate Arch's terminal interaction and ownership behavior. They do
 not verify installed AI tool TUIs, every terminal emulator, or refreshed parent-shell
 activation. Those remain separate manual checks in [testing.md](testing.md).
 
-Validation status: the local Windows command passed all 14 unit tests and 13 real
-terminal scenarios and exited successfully. Lint passed. Hosted matrix verification
-is in progress; no hosted pass is claimed yet.
+## Verified evidence
+
+Implementation commit: `9df37254914af1cf51a17bb7c8c450b857898216` on
+`ci/wizard-checks`. The local Windows command passed all 14 unit tests and 13
+terminal scenarios and exited successfully. Local `npm run check` also passed:
+116 tests, 3 platform skips, zero failures; type checking, lint and build passed.
+
+The [dedicated wizard matrix](https://github.com/Nickshajtan/hcc-harness/actions/runs/39868928145)
+completed successfully, with no terminal scenarios skipped:
+
+| Platform job | Unit tests | Real terminal scenarios | Result |
+| --- | --- | --- | --- |
+| [Ubuntu](https://github.com/Nickshajtan/hcc-harness/actions/runs/39868928145/job/120138131671) | 14 passed | 13 passed | PASS |
+| [macOS](https://github.com/Nickshajtan/hcc-harness/actions/runs/39868928145/job/120138131652) | 14 passed | 13 passed | PASS |
+| [Windows](https://github.com/Nickshajtan/hcc-harness/actions/runs/39868928145/job/120138131303) | 14 passed | 13 passed | PASS |
+
+The [full regression matrix](https://github.com/Nickshajtan/hcc-harness/actions/runs/39868928105)
+also passed on all three platforms at that commit. Results were verified from
+completed job conclusions and test-evidence annotations; transcripts and JSON
+are available in each wizard run's uploaded artifacts.
+
+The [initial wizard run](https://github.com/Nickshajtan/hcc-harness/actions/runs/39868293424)
+passed Ubuntu and Windows but failed macOS before starting the CLI. The corrected
+run explicitly recorded `executable bit restored true` for
+`node-pty/prebuilds/darwin-arm64/spawn-helper`, then passed all scenarios. The
+initial failed result is retained rather than treated as a successful run.
+
+The development PTY harness and workflow changed; production wizard, Core, events,
+middleware and native execution files did not. No merge or release was performed.
