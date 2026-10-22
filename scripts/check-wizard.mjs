@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile, chmod } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile, chmod, access } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve, delimiter } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
@@ -16,6 +18,7 @@ const project = join(sandbox, 'project'), native = join(sandbox, 'native');
 const cli = resolve('dist/cli.js');
 const { inspectInstallation } = await import(pathToFileURL(resolve('dist/lifecycle.js')).href);
 const results = [], sessions = [];
+const ptyPreparation = [];
 const env = {};
 for (const name of ['SystemRoot', 'WINDIR', 'ComSpec', 'TEMP', 'TMP', 'TMPDIR', 'LANG']) {
   if (process.env[name]) env[name] = process.env[name];
@@ -93,6 +96,21 @@ async function state(expected, routes) {
 
 let failure;
 try {
+  if (process.platform === 'darwin') {
+    const packageRoot = dirname(createRequire(import.meta.url).resolve('node-pty/package.json'));
+    // node-pty 1.1's packaged Darwin helper can lack its executable bit. Repair
+    // only known files within this pinned development dependency, not PATH tools.
+    for (const relative of ['build/Release/spawn-helper', 'build/Debug/spawn-helper', `prebuilds/darwin-${process.arch}/spawn-helper`]) {
+      const helper = join(packageRoot, relative);
+      try { await access(helper, constants.F_OK); }
+      catch (error) { if (error.code === 'ENOENT') continue; throw error; }
+      let restored = false;
+      try { await access(helper, constants.X_OK); }
+      catch (error) { if (error.code !== 'EACCES') throw error; await chmod(helper, 0o755); restored = true; }
+      ptyPreparation.push({ helper: `node-pty/${relative}`, executableBitRestored: restored });
+      if (restored) console.log(`Restored execute permission: node-pty/${relative}`);
+    }
+  }
   await Promise.all([project, native, env.HOME].map(path => mkdir(path)));
   for (const command of ['claude', 'codex']) {
     const path = join(native, command + (process.platform === 'win32' ? '.exe' : ''));
@@ -182,7 +200,8 @@ finally {
   const normalize = text => text.replaceAll(JSON.stringify(sandbox).slice(1, -1), '<sandbox>').replaceAll(sandbox, '<sandbox>');
   for (const session of sessions) await writeFile(join(evidence, `${session.label}.txt`), normalize(session.text()));
   await writeFile(join(evidence, 'results.json'), JSON.stringify({ schema: 1, platform: process.platform, arch: process.arch,
-    node: process.version, result: failure ? 'FAIL' : 'PASS', checks: results.map(result => ({ ...result, ...(result.error ? { error: normalize(result.error) } : {}) })) }, null, 2) + '\n');
+    node: process.version, result: failure ? 'FAIL' : 'PASS', ptyPreparation,
+    checks: results.map(result => ({ ...result, ...(result.error ? { error: normalize(result.error) } : {}) })) }, null, 2) + '\n');
   // Delete only this verified, generated child of the OS temporary directory.
   assert.equal(dirname(sandbox), temporary); assert.ok(basename(sandbox).startsWith('arch-wizard-ci-'));
   await rm(sandbox, { recursive: true, force: true });

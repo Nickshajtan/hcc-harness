@@ -36,6 +36,9 @@ does not replace or bypass any CLI exit-status assertion.
 See the [official node-pty documentation](https://github.com/microsoft/node-pty)
 for platform and native build prerequisites; supported prebuilt binaries are
 used when supplied by the pinned package.
+On macOS the runner checks the known `spawn-helper` paths within that dependency
+and restores a missing executable bit, recording the repair in JSON and CI
+annotations. It never applies this repair to discovered/native CLI tools.
 
 Tests create an isolated project/home/PATH in OS temporary storage, which must
 support hard links for route changes. Suggested tools are presence-only fixtures;

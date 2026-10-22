@@ -64,6 +64,7 @@ jobs:
           if (terminal) {
             lines.push('', `Terminal host: ${terminal.platform}/${terminal.arch}, Node ${terminal.node}.`, '', '| Scenario | Result |', '| --- | --- |');
             for (const check of terminal.checks) lines.push(`| ${check.name} | ${check.result} |`);
+            for (const preparation of terminal.ptyPreparation ?? []) console.log(`::notice title=Wizard PTY preparation::${preparation.helper}: executable bit restored ${preparation.executableBitRestored}`);
           }
           lines.push('', 'Transcripts and JSON evidence are uploaded as artifacts. No installed AI CLI is invoked.');
           appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n') + '\n');
