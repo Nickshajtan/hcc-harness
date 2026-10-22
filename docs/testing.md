@@ -167,5 +167,7 @@ Extend the manual checklist above:
 4. Run `deinit` and decline, then accept. Confirm prompt refresh restores native
    command resolution and another project's routes are unaffected.
 
-Simulated interaction does not establish full real-TTY behavior or native AI CLI
-TUI compatibility. Record those as NOT TESTED until performed.
+The M2 implementation session performed a native Windows PTY walkthrough of custom
+init, validation, confirmation, configure, default-No/accepted deinit, and Ctrl+C
+without writes. This establishes that tested Arch interaction only. Installed AI
+CLI TUI compatibility and refreshed parent-shell activation remain NOT TESTED.

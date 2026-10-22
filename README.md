@@ -185,7 +185,7 @@ per-execution event bus through `execute()`.
 
 - M1's local/hosted validation used Node 24.19.0 and mise 2026.10.11. M2 validation
   and remaining platform/TTY limitations are recorded separately in the
-  [M2 implementation report](docs/m2-implementation-report.md). ARM64 remains unverified.
+  [M2 implementation report](docs/m2-implementation-report.md). Windows ARM64 remains unverified.
 - Native Windows `.exe`/`.com` and npm `.cmd` shims targeting Node scripts or native
   executables are supported. Arbitrary batch scripts and custom shell functions/
   aliases are outside the executable contract and must be invoked explicitly.
