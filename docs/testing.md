@@ -118,3 +118,54 @@ linting and builds passed. The corrective report records per-suite counts.
 5. Uninstall one project and confirm native commands and the other project still work.
 
 These manual TTY/TUI checks have not been performed against installed AI CLIs.
+
+## M2 lifecycle coverage and evidence
+
+`m1-compatibility.test.ts` uses the frozen pre-M2 generator in
+`tests/fixtures/m1-setup.ts` (provenance in `tests/fixtures/M1.md`). It first passed
+against the original ownership format before stricter routing checks were added.
+Each CI host generates its native M1 layout and tests M2 reading, reordered keys,
+captured old paths, ownership flags, missing/edited configuration and uninstall
+checkpoints. No fixture snapshot contains a machine-specific path.
+
+`lifecycle.test.ts` unit tests planning, validation, states, collisions, symlinks,
+hash/payload refusal, hard-link errors, checkpoint retries, manifest replacement
+errors, config/native preservation and installation independent of activation.
+Discovery never launches its invalid executable fixtures. Wizard tests inject
+terminal responses for defaults, custom names, duplicate/reserved rejection,
+EOF/cancel/default-No and configuration/removal operations.
+
+`tests/integration/lifecycle.test.ts` builds on real dispatcher/native fixtures.
+An IPC worker calls the public reconciliation service and acknowledges a persisted
+checkpoint, then waits. The parent forcibly terminates it, inspects the pending
+journal through the real CLI, invokes a retained route, and resumes through
+`configure <commands...>`. Checkpoints include journal publication, complete staging,
+launcher publication, Windows exe/shim separation, removal, before/after bootstrap
+replacement and cleanup. The publication test checks hard-link count and complete
+bytes, and the resumed new route must launch exactly once. Production has no
+test-only environment hooks. The optional programmatic checkpoint observer is
+awaited so deterministic interruption can happen at an actual boundary.
+
+M2 routing tests use the OS temporary directory: this checkout's D: volume is
+exFAT, while Windows temporary storage supports hard links. Unsupported filesystems
+are tested as a failure before any live route changes. Tests do not silently skip
+hard-link publication; CI must run them on its supported local filesystem.
+
+The existing Ubuntu/macOS/native-Windows matrix runs all new tests. Its JSON
+Vitest reports are uploaded per platform alongside historical routing experiment
+evidence. [M2's report](m2-implementation-report.md) is the source for actual run
+links and PASS/FAIL/NOT TESTED results; historical M1 CI links do not validate M2.
+
+Extend the manual checklist above:
+
+1. Run bare init in a real terminal; inspect installed/missing suggestions, enter a
+   custom name, reject duplicates, and cancel at both selection and final summary.
+2. Complete init, and confirm the output distinguishes installation from activation.
+   Test a fresh unactivated shell separately from mise-exec routing.
+3. Use configure to inspect, change routes, cancel, and remove with default No.
+   Test Ctrl+C and EOF during input without filesystem changes.
+4. Run `deinit` and decline, then accept. Confirm prompt refresh restores native
+   command resolution and another project's routes are unaffected.
+
+Simulated interaction does not establish full real-TTY behavior or native AI CLI
+TUI compatibility. Record those as NOT TESTED until performed.

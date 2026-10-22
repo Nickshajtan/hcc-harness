@@ -24,8 +24,14 @@ node /absolute/path/to/arch/dist/cli.js init
 ```
 
 On Windows, for example: `node D:/AI/projects/projects/harness/dist/cli.js init`.
-Refresh the shell prompt after initialization and trust the project configuration
-when mise asks. Then use ordinary commands:
+In a terminal, bare `init` opens a wizard with detected CLI suggestions and custom
+command entry. Discovery never executes tools or reads credentials. Choose routes,
+review the summary, and confirm; cancellation changes no files. Outside a terminal,
+supply names explicitly: `node /absolute/path/to/arch/dist/cli.js init claude codex`.
+
+Initialization installs project routing resources; **it does not verify shell
+activation**. Activate mise, refresh the shell prompt, and trust the project
+configuration when mise asks. Then use ordinary commands:
 
 ```sh
 claude --help
@@ -38,11 +44,49 @@ To route other executable names, supply them explicitly at initialization:
 
 Arch writes only `.arch/harness.toml`, owned bootstrap state/launchers under `.arch/`,
 and `.config/mise/conf.d/arch.toml` for project PATH activation. Existing files and
-native binaries are preserved. Repeating initialization with the same installation
-and commands validates the managed files and makes no changes. Different setup
-arguments or modified managed files produce an explicit error. Keep this Arch
+native binaries are preserved. Repeating initialization with the same commands
+validates the recorded managed files and makes no changes. To change routes, use
+`configure` or `route` below. Modified managed files produce an explicit error. Keep this Arch
 checkout and its Node installation at the captured paths; uninstall/reinitialize
 projects when moving them. Do not commit generated absolute-path launchers/state.
+
+## Routing and inspection
+
+The examples below use `arch` for `node /absolute/path/to/arch/dist/cli.js`;
+no global executable is installed.
+
+```sh
+arch configure                     # interactive routing menu
+arch configure claude gemini       # replace the desired route set without prompts
+arch route list                    # configured commands, one per line
+arch route add aider               # retain other routes; idempotent
+arch route remove codex            # retain Arch and other routes
+arch status
+arch status --json
+arch --help
+```
+
+The wizard manages routes, not middleware settings. Route changes never rewrite
+`.arch/harness.toml`. Removing the last route is refused; use `deinit` instead.
+Known CLI tools are suggestions, and missing/custom executables may be configured
+before they are installed. Names must start with a letter and contain only letters,
+digits, `_` or `-`; `arch`, `node`, and `mise` are reserved. Windows route identity
+is case-insensitive.
+
+Status separates installation health from activation observations. `initialized`
+means owned files are valid on disk. Mise availability or project-bin presence in
+PATH does not prove that parent-shell hooks, trust, aliases, or functions resolve
+commands through Arch. JSON reports `activation.shellActivation: "unknown"` and
+the individual observations. `mise exec -- <command>` explicitly activates routing
+for that subprocess. Installation succeeds even when mise is absent.
+
+Routing changes require hard-link support (for example NTFS on Windows); exFAT is
+unsupported for reconciliation. Unsupported publication fails before changing live
+routes. A journal plus complete staged files allows safe retry after interruption.
+`status` describes a pending update; resume using `configure` with its recorded
+desired names, or remove using `deinit --yes`. Different desired updates are blocked
+until recovery finishes. Run only one setup/routing/removal operation per project
+at a time; the journals detect conflicting operations, not every filesystem race.
 
 ## Configuration
 
@@ -64,15 +108,21 @@ Set `ARCH_TRACE=1` in your shell for local lifecycle JSON and demo diagnostics o
 stderr. No arguments or environment dumps appear in events. `ARCH_DEMO_DENY=1`
 makes the demonstration middleware deny execution for deterministic tests.
 
-## Uninstall
+## Deinitialize
 
 From the initialized project's root:
 
 ```sh
-node /absolute/path/to/arch/dist/cli.js uninstall
+node /absolute/path/to/arch/dist/cli.js deinit
+# Unattended/scripted removal:
+node /absolute/path/to/arch/dist/cli.js deinit --yes
 ```
 
-Refresh the shell prompt. Uninstall removes only matching managed files. It removes
+Interactive `deinit` displays a plan and defaults to No. Outside a terminal it
+requires `--yes`. The deprecated `uninstall` alias preserves M1's prompt-free
+behavior, including scripts and recovery; it emits a deprecation notice on stderr.
+Both use the same ownership checks. Refresh the shell prompt after removal.
+Removal deletes only matching managed files. It removes
 the starter harness configuration only if it created that file and it is unchanged;
 edited or preexisting harness configurations remain. It leaves unrelated files and
 other projects alone. Before deleting files, uninstall atomically renames the
@@ -82,6 +132,17 @@ Only this checkpoint permits already-removed managed files. Modified remaining
 files still block removal. The checkpoint is deleted last. Initialization is
 refused while recovery is pending. Repeated uninstall is safe. Empty directories
 may remain.
+
+Routing recovery uses `.arch/routing.json`. Unexpected or modified remaining bytes
+block recovery; Arch never guesses ownership or deletes unrelated files. A partial
+private staging write is preserved and diagnosed with its exact path; restore its
+journal-recorded bytes before retrying. An orphan `.arch/routing.stage` from an
+interruption before journal publication must be inspected and moved aside manually.
+Fresh initialization retains M1's caught-error rollback; force termination before
+its bootstrap is published may leave files requiring manual ownership inspection.
+These operations provide recoverable checkpoints, not a fully atomic route-set
+switch or power-loss durability guarantee. Windows exe/shim pairs can be partially
+published at interruption; recorded recovery completes them.
 
 ## Tests
 
@@ -122,8 +183,9 @@ per-execution event bus through `execute()`.
 
 ## Limits
 
-- Local native Windows x64 validation and hosted Ubuntu, macOS and native Windows
-  CI pass with Node 24.19.0 and mise 2026.10.11. ARM64 remains unverified.
+- M1's local/hosted validation used Node 24.19.0 and mise 2026.10.11. M2 validation
+  and remaining platform/TTY limitations are recorded separately in the
+  [M2 implementation report](docs/m2-implementation-report.md). ARM64 remains unverified.
 - Native Windows `.exe`/`.com` and npm `.cmd` shims targeting Node scripts or native
   executables are supported. Arbitrary batch scripts and custom shell functions/
   aliases are outside the executable contract and must be invoked explicitly.

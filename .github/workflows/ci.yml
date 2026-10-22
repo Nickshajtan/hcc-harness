@@ -20,12 +20,14 @@ jobs:
       - run: npm run lint
       - run: npm run build
       - run: npm run experiment
-      - run: npm run test:unit
-      - run: npm run test:integration
-      - run: npm run test:acceptance
+      - run: npm run test:unit -- --reporter=default --reporter=json --outputFile=.test-state/m2-unit.json
+      - run: npm run test:integration -- --reporter=default --reporter=json --outputFile=.test-state/m2-integration.json
+      - run: npm run test:acceptance -- --reporter=default --reporter=json --outputFile=.test-state/m2-acceptance.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: routing-evidence-${{ matrix.os }}
-          path: .test-state/mise-*.json
+          path: |
+            .test-state/mise-*.json
+            .test-state/m2-*.json
           include-hidden-files: true

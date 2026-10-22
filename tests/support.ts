@@ -26,8 +26,7 @@ export async function run(command: string, args: string[], cwd: string, env: Nod
 }
 export function stop(child: ChildProcess) { child.kill('SIGTERM'); }
 
-export async function world() {
-  const temporary = resolve('.test-state/fixtures');
+export async function world(temporary = resolve('.test-state/fixtures')) {
   await mkdir(temporary, { recursive: true });
   const root = await mkdtemp(join(temporary, 'arch-fixture-'));
   const paths = Object.fromEntries(['home', 'data', 'cache', 'config', 'native', 'A', 'B', 'C'].map(name => [name, join(root, name)])) as Record<string, string>;
