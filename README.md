@@ -149,6 +149,7 @@ published at interruption; recorded recovery completes them.
 ```sh
 npm run check
 npm run test:acceptance
+npm run test:wizard
 ```
 
 `check` runs type checking, linting, a build, and every test. The second command
@@ -158,6 +159,11 @@ concurrency, denial, passthrough and uninstall. Tests require mise on PATH, or
 OS-provided .NET Framework C# compiler; production does not require that compiler.
 See [testing](docs/testing.md) for platform results and [architecture](docs/architecture.md)
 for the routing experiment and contracts.
+
+The separate [Wizard checks workflow](.github/workflows/wizard.yml) runs focused
+unit tests and real-terminal CLI scenarios on Ubuntu, macOS and Windows. It supports
+manual dispatch, publishes a scenario summary, and uploads terminal transcripts.
+See [wizard workflow](docs/wizard-workflow.md) for coverage and local use.
 
 ## Registering middleware
 

@@ -21,6 +21,7 @@ npm run experiment
 npm run test:unit
 npm run test:integration
 npm run test:acceptance
+npm run test:wizard
 ```
 
 Run `build` before individual integration tests after changing production code.
@@ -171,3 +172,10 @@ The M2 implementation session performed a native Windows PTY walkthrough of cust
 init, validation, confirmation, configure, default-No/accepted deinit, and Ctrl+C
 without writes. This establishes that tested Arch interaction only. Installed AI
 CLI TUI compatibility and refreshed parent-shell activation remain NOT TESTED.
+
+The dedicated [Wizard checks workflow](../.github/workflows/wizard.yml) automates
+actual CLI interaction in POSIX PTYs and native Windows ConPTY, including Ctrl+C,
+EOF, confirmation and cancellation. Its [workflow guide](wizard-workflow.md)
+documents the 13 terminal scenarios, focused unit suite and per-platform transcripts.
+It runs separately from the general matrix; `npm run check` retains its existing
+test scope, while `npm run test:wizard` additionally runs the native PTY checks.
