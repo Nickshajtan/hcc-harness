@@ -48,7 +48,7 @@ jobs:
       - name: Wizard and discovery unit tests
         run: npm exec -- vitest run tests/unit/wizard.test.ts tests/unit/discovery.test.ts --reporter=default --reporter=json --outputFile=.test-state/wizard/unit.json
       - name: Real terminal wizard scenarios
-        run: node scripts/check-wizard.mjs
+        run: npm run test:wizard:terminal
       - name: Publish wizard test summary
         if: always()
         shell: bash

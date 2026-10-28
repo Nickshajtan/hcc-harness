@@ -62,7 +62,9 @@ export async function world(temporary = resolve('.test-state/fixtures')) {
     init: (cwd: string, commands = ['claude', 'codex']) => run(process.execPath, [cli, 'init', ...commands], cwd, env),
     invoke: (cwd: string, command = 'claude', args: string[] = [], overrides: NodeJS.ProcessEnv = {}, stdin = '') =>
       run(command, args, cwd, { ...env, ...overrides }, stdin),
-    dispose: () => rm(root, { recursive: true, force: true })
+    // Windows may retain an executable's file handle briefly after process exit.
+    // Bounded retries tolerate that release delay; persistent locks still fail.
+    dispose: () => rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   };
 }
 
