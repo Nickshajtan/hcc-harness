@@ -1,5 +1,11 @@
 # Testing
 
+For first-class npm CLI installation/linking, unsupported hard-link capability
+regressions, and current three-platform evidence, see the
+[M2.1 implementation report](m2.1-implementation-report.md) and
+[filesystem compatibility](filesystem-compatibility.md). Npm link/unlink tests use
+an isolated temporary prefix and never modify the user's global installation.
+
 ## Commands
 
 Prerequisites: Node 24.15+ (24.x), dependencies installed, and mise 2026.10.11 on PATH.

@@ -35,6 +35,11 @@ jobs:
             const report = JSON.parse(readFileSync(path, 'utf8'));
             console.log(`::notice title=M2 ${suite}::${report.numPassedTests} passed; ${report.numFailedTests} failed; ${report.numPendingTests} pending`);
             for (const file of report.testResults ?? []) {
+              if (file.message) {
+                const message = `${file.name}: ${file.message}`.slice(0, 12000)
+                  .replaceAll('%', '%25').replaceAll('\r', '%0D').replaceAll('\n', '%0A');
+                console.log(`::error title=M2 ${suite} suite error::${message}`);
+              }
               for (const test of file.assertionResults ?? []) {
                 if (test.status !== 'failed') continue;
                 const message = `${test.fullName}: ${(test.failureMessages ?? []).join('\n')}`
