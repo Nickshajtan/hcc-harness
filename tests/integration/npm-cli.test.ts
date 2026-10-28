@@ -2,7 +2,8 @@ import { afterAll, beforeAll, expect, it } from 'vitest';
 import { mkdir, readFile, readdir, realpath, writeFile, access } from 'node:fs/promises';
 import { delimiter, join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { cli, records, run, start, world } from '../support.js';
+import { spawn } from 'node:child_process';
+import { cli, records, run, start, world, type Result } from '../support.js';
 
 let fixture: Awaited<ReturnType<typeof world>>;
 let prefix: string, executable: string, env: NodeJS.ProcessEnv;
@@ -26,12 +27,22 @@ afterAll(async () => { await fixture?.dispose(); });
 
 async function arch(args: string[], cwd = fixture.A, overrides: NodeJS.ProcessEnv = {}, stdin = '') {
   if (process.platform !== 'win32') return run(executable, args, cwd, { ...env, ...overrides }, stdin);
-  // Exercise npm's PowerShell shim without cmd.exe altering forwarded arguments.
-  const quote = (value: string) => `'${value.replaceAll("'", "''")}'`;
-  const command = `& ${quote(executable)} ${args.map(quote).join(' ')}; exit $LASTEXITCODE`;
-  return run(join(process.env.SystemRoot!, 'System32/WindowsPowerShell/v1.0/powershell.exe'),
-    ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(command, 'utf16le').toString('base64')],
-    cwd, { ...env, ...overrides }, stdin);
+  // These fixtures use cmd-safe values; literal metacharacter forwarding remains
+  // covered by the direct-Node execution tests. Pass cmd's raw command line so
+  // Node's normal Windows argv quoting cannot escape cmd's outer quote pair.
+  const values = [join(prefix, 'arch.cmd'), ...args];
+  for (const value of values) expect(value).not.toMatch(/["%&|<>^!\r\n]/);
+  const command = `"${values.map(value => `"${value}"`).join(' ')}"`;
+  return new Promise<Result>((done, reject) => {
+    const child = spawn(process.env.ComSpec!, ['/d', '/s', '/c', command],
+      { cwd, env: { ...env, ...overrides }, windowsVerbatimArguments: true, stdio: ['pipe', 'pipe', 'pipe'] });
+    let stdout = '', stderr = '';
+    child.stdout.on('data', data => { stdout += data; });
+    child.stderr.on('data', data => { stderr += data; });
+    child.once('error', reject);
+    child.once('close', (code, signal) => done({ code, signal, stdout, stderr }));
+    child.stdin.end(stdin);
+  });
 }
 
 it('links the existing CLI, dispatches help, and leaves the target project untouched', async () => {
@@ -41,6 +52,12 @@ it('links the existing CLI, dispatches help, and leaves the target project untou
   const direct = await run(process.execPath, [cli, '--help'], fixture.C, env);
   expect(linked.code, linked.stderr).toBe(0);
   expect(linked.stdout).toBe(direct.stdout);
+  if (process.platform === 'win32') {
+    const powershell = await run(join(process.env.SystemRoot!, 'System32/WindowsPowerShell/v1.0/powershell.exe'),
+      ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', executable, '--help'], fixture.C, env);
+    expect(powershell.code, powershell.stderr).toBe(0);
+    expect(powershell.stdout).toBe(direct.stdout);
+  }
   expect(await readdir(fixture.C)).toEqual(['sentinel.txt']);
 });
 
