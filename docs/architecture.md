@@ -117,6 +117,59 @@ a process-tree supervisor: grandchildren are owned by the launched tool.
 
 ## Bootstrap and extensions
 
+### M2 project lifecycle
+
+`setup.ts` retains M1 initialization/removal and exposes shared validation/rendering
+primitives. `lifecycle.ts` provides read-only inspection, deterministic route plans,
+reconciliation and recovery; `discovery.ts` uses native PATH resolution without
+executing candidates. `commands.ts` parses the public CLI and `wizard.ts` adapts
+terminal selections to the same services. Core, events, middleware and native
+process execution contracts are unchanged. There is no new interaction dependency.
+
+Installation states derive from bootstrap and operation journals: uninitialized,
+initialized, recovery_pending, invalid_state. Valid ownership on disk is independent
+of shell activation: status reports mise presence and PATH presence, and leaves
+parent-shell activation unknown. Init success does not prove active routing.
+
+M1 manifests remain unversioned `{ files, createdHarness }`; their recorded hashes
+and original captured launcher paths remain authoritative. Completeness checks for
+healthy routing do not require today's renderer output or JSON property order.
+Uninstall retains safe ownership-based handling even for legacy manifests from
+which a complete route set cannot be inferred. The frozen M1 generator fixture is
+tested against M2 inspection, repeated initialization, reconciliation and removal.
+
+Route reconciliation preserves shared launchers, the router marker, mise integration
+and harness ownership. A versioned `.arch/routing.json` stores before/after manifests
+and base64 payloads for new launchers, without environment values or credentials.
+Complete sibling staging writes are published with exclusive hard links for new
+destinations. Ordinary rename cannot provide portable no-replace semantics; it is
+used only to replace the already-owned bootstrap after validation. Additions are
+verified before old launchers are removed; the journal is removed last after cleanup.
+Windows exe/shim pairs use the same protocol. Unsupported hard links, Windows
+sharing failures and ownership mismatches produce errors with checkpoints retained.
+The journal does not make an entire route set atomically visible or guarantee
+power-loss durability. Partial private staging writes are preserved for inspection
+and restoration, and pre-journal orphan staging is never guessed to be owned.
+
+Recovery accepts absent additions/removals only where the recorded plan permits
+them; retained files must still exist and match. Bootstrap must match old or new
+ownership. A different desired set is rejected until recovery finishes. Confirmed
+deinitialization completes an interrupted route update before normal uninstall.
+Conflicting removal/routing journals and symlinked managed paths block mutation.
+Only one mutator per project is supported; journal exclusivity detects conflicts
+but is not a general interprocess lock or defense against hostile filesystem races.
+
+`deinit` confirms with default No, requiring `--yes` outside TTY. Deprecated
+`uninstall` remains prompt-free for M1 compatibility. Both use the same removal
+service and preserve existing ownership/recovery behavior. Interactive init/configure
+have deterministic `init <commands...>` / `configure <commands...>` equivalents;
+menu inspection/removal map to `status` / `deinit --yes`.
+
+The approved [M2 design](research/m2-routing-lifecycle-design.md) gives failure-mode
+comparisons and [the report](m2-implementation-report.md) records measured evidence.
+
+### Existing bootstrap guarantees
+
 Setup writes only owned files with exclusive creation. It records SHA-256 hashes,
 validates repeated setups, refuses collisions, and rolls back files created by a
 failed setup. Uninstall checks all hashes before removing any managed file, then

@@ -20,12 +20,35 @@ jobs:
       - run: npm run lint
       - run: npm run build
       - run: npm run experiment
-      - run: npm run test:unit
-      - run: npm run test:integration
-      - run: npm run test:acceptance
+      - run: npm run test:unit -- --reporter=default --reporter=json --outputFile=.test-state/m2-unit.json
+      - run: npm run test:integration -- --reporter=default --reporter=json --outputFile=.test-state/m2-integration.json
+      - run: npm run test:acceptance -- --reporter=default --reporter=json --outputFile=.test-state/m2-acceptance.json
+      - name: Summarize test evidence
+        if: always()
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { existsSync, readFileSync } from 'node:fs';
+          for (const suite of ['unit', 'integration', 'acceptance']) {
+            const path = `.test-state/m2-${suite}.json`;
+            if (!existsSync(path)) continue;
+            const report = JSON.parse(readFileSync(path, 'utf8'));
+            console.log(`::notice title=M2 ${suite}::${report.numPassedTests} passed; ${report.numFailedTests} failed; ${report.numPendingTests} pending`);
+            for (const file of report.testResults ?? []) {
+              for (const test of file.assertionResults ?? []) {
+                if (test.status !== 'failed') continue;
+                const message = `${test.fullName}: ${(test.failureMessages ?? []).join('\n')}`
+                  .slice(0, 12000).replaceAll('%', '%25').replaceAll('\r', '%0D').replaceAll('\n', '%0A');
+                console.log(`::error title=M2 ${suite} failure::${message}`);
+              }
+            }
+          }
+          NODE
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: routing-evidence-${{ matrix.os }}
-          path: .test-state/mise-*.json
+          path: |
+            .test-state/mise-*.json
+            .test-state/m2-*.json
           include-hidden-files: true

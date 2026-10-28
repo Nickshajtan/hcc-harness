@@ -7,11 +7,12 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src tests",
+    "lint": "eslint src tests scripts/check-wizard.mjs",
     "test": "vitest run",
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
     "test:acceptance": "npm run build && vitest run tests/acceptance",
+    "test:wizard": "npm run build && vitest run tests/unit/wizard.test.ts tests/unit/discovery.test.ts && node scripts/check-wizard.mjs",
     "check": "npm run typecheck && npm run lint && npm run build && npm test",
     "bootstrap": "npm ci && npm run build",
     "experiment": "vitest run tests/feasibility"
@@ -25,8 +26,12 @@
   "devDependencies": {
     "@types/node": "24.19.2",
     "eslint": "10.12.0",
+    "node-pty": "1.1.0",
     "typescript": "6.0.3",
     "typescript-eslint": "8.71.2",
     "vitest": "5.0.5"
+  },
+  "allowScripts": {
+    "node-pty@1.1.0": true
   }
 }
