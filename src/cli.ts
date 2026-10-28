@@ -1,16 +1,12 @@
 #!/usr/bin/env node
 import { constants } from 'node:os';
 import { execute } from './core.js';
-import { setup, uninstall } from './setup.js';
+import { publicCommand, UsageError } from './commands.js';
 
 async function main(): Promise<void> {
   const [operation, command, ...rest] = process.argv.slice(2);
-  if (operation === 'init') {
-    await setup(process.cwd(), command ? [command, ...rest] : ['claude', 'codex']);
-    return;
-  }
-  if (operation === 'uninstall') { await uninstall(process.cwd()); return; }
-  if (operation !== 'run' || !command || rest[0] !== '--') {
+  if (operation !== 'run') { await publicCommand(process.argv.slice(2)); return; }
+  if (!command || rest[0] !== '--') {
     throw new Error('Usage: node /path/to/arch/dist/cli.js init [commands...] | uninstall | run <command> -- [args...]');
   }
   const controller = new AbortController();
@@ -48,5 +44,5 @@ async function main(): Promise<void> {
 main().catch(error => {
   console.error('[arch]', error instanceof Error ? error.message : String(error));
   if (error instanceof Error && error.cause instanceof Error) console.error('[arch]', error.cause.message);
-  process.exitCode = 1;
+  process.exitCode = error instanceof UsageError ? 2 : 1;
 });
