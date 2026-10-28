@@ -184,6 +184,8 @@ concurrency, denial, passthrough and uninstall. Tests require mise on PATH, or
 OS-provided .NET Framework C# compiler; production does not require that compiler.
 See [testing](docs/testing.md) for platform results and [architecture](docs/architecture.md)
 for the routing experiment and contracts.
+First-class command installation and filesystem diagnostics are tracked in the
+[M2.1 implementation report](docs/m2.1-implementation-report.md).
 
 The separate [Wizard checks workflow](.github/workflows/wizard.yml) runs focused
 unit tests and real-terminal CLI scenarios on Ubuntu, macOS and Windows. It supports
