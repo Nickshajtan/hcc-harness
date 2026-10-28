@@ -8,6 +8,8 @@ import { basename, dirname, join, resolve, delimiter } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import * as pty from 'node-pty';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 
 // Standalone rather than a Vitest worker: node-pty's native bindings are not
 // thread-safe. All sessions below run serially in this process, without a shell.
@@ -15,7 +17,11 @@ const evidence = resolve('.test-state/wizard');
 const temporary = await realpath(tmpdir());
 const sandbox = await realpath(await mkdtemp(join(temporary, 'arch-wizard-ci-')));
 const project = join(sandbox, 'project'), native = join(sandbox, 'native');
-const cli = resolve('dist/cli.js');
+const prefix = join(sandbox, 'npm-prefix');
+const linkedCli = join(prefix, process.platform === 'win32' ? 'arch.cmd' : 'bin/arch');
+const npmEnv = { ...process.env, npm_config_prefix: prefix, npm_config_cache: join(sandbox, 'npm-cache'),
+  npm_config_userconfig: join(sandbox, 'npmrc'), npm_config_globalconfig: join(sandbox, 'global-npmrc'),
+  npm_config_offline: 'true', npm_config_ignore_scripts: 'true', npm_config_audit: 'false', npm_config_fund: 'false' };
 const { inspectInstallation } = await import(pathToFileURL(resolve('dist/lifecycle.js')).href);
 const results = [], sessions = [];
 const ptyPreparation = [];
@@ -26,8 +32,8 @@ for (const name of ['SystemRoot', 'WINDIR', 'ComSpec', 'TEMP', 'TMP', 'TMPDIR', 
 Object.assign(env, { HOME: join(sandbox, 'home'), USERPROFILE: join(sandbox, 'home'),
   PATH: [native, dirname(process.execPath)].join(delimiter), TERM: 'xterm-256color', NO_COLOR: '1' });
 
-function terminal(label, args) {
-  const child = pty.spawn(process.execPath, args, { name: 'xterm-256color', cols: 240, rows: 60, cwd: project, env });
+function terminal(label, args, command = process.execPath) {
+  const child = pty.spawn(command, args, { name: 'xterm-256color', cols: 240, rows: 60, cwd: project, env });
   let raw = '', cursor = 0, exit;
   const changed = new Set();
   const text = () => stripVTControlCharacters(raw).replaceAll('\r', '');
@@ -72,7 +78,9 @@ function terminal(label, args) {
   };
   sessions.push(session); return session;
 }
-const wizard = (label, operation) => terminal(label, [cli, operation]);
+const wizard = (label, operation) => process.platform === 'win32'
+  ? terminal(label, `/d /s /c ""${linkedCli}" ${operation}"`, process.env.ComSpec)
+  : terminal(label, [operation], linkedCli);
 async function snapshot(root = project) {
   const entries = [];
   async function walk(directory, prefix = '') {
@@ -96,6 +104,8 @@ async function state(expected, routes) {
 
 let failure;
 try {
+  assert.ok(process.env.npm_execpath, 'Run through npm run test:wizard or npm run test:wizard:terminal');
+  await promisify(execFile)(process.execPath, [process.env.npm_execpath, 'link'], { env: npmEnv });
   if (process.platform === 'darwin') {
     const packageRoot = dirname(createRequire(import.meta.url).resolve('node-pty/package.json'));
     // node-pty 1.1's packaged Darwin helper can lack its executable bit. Repair
@@ -200,7 +210,7 @@ finally {
   const normalize = text => text.replaceAll(JSON.stringify(sandbox).slice(1, -1), '<sandbox>').replaceAll(sandbox, '<sandbox>');
   for (const session of sessions) await writeFile(join(evidence, `${session.label}.txt`), normalize(session.text()));
   await writeFile(join(evidence, 'results.json'), JSON.stringify({ schema: 1, platform: process.platform, arch: process.arch,
-    node: process.version, result: failure ? 'FAIL' : 'PASS', ptyPreparation,
+    node: process.version, invocation: 'npm-linked arch', result: failure ? 'FAIL' : 'PASS', ptyPreparation,
     checks: results.map(result => ({ ...result, ...(result.error ? { error: normalize(result.error) } : {}) })) }, null, 2) + '\n');
   // Delete only this verified, generated child of the OS temporary directory.
   assert.equal(dirname(sandbox), temporary); assert.ok(basename(sandbox).startsWith('arch-wizard-ci-'));

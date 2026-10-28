@@ -17,17 +17,24 @@ This selects Node 24.19.0, runs `npm ci`, and builds `dist/`. Nothing installs m
 because the repository was cloned. Alternatively, with Node 24.15+ (24.x):
 `npm run bootstrap`.
 
-From a target project's root, run this command with the actual absolute checkout path:
+Install the command using npm's standard local-development link (keep this checkout):
 
 ```sh
-node /absolute/path/to/arch/dist/cli.js init
+npm link
+arch --help
 ```
 
-On Windows, for example: `node D:/AI/projects/projects/harness/dist/cli.js init`.
+This links `arch` to the existing `dist/cli.js`; it does not publish the private
+package. Your npm global executable directory must already be on PATH. On Windows,
+npm supplies command/PowerShell shims; PowerShell execution policy may require using
+`arch.cmd`. Installation does not edit PATH, shell profiles, or target project
+configuration. Rebuild with `npm run build` after changing the source.
+
+From a target project's root, run `arch init`.
 In a terminal, bare `init` opens a wizard with detected CLI suggestions and custom
 command entry. Discovery never executes tools or reads credentials. Choose routes,
 review the summary, and confirm; cancellation changes no files. Outside a terminal,
-supply names explicitly: `node /absolute/path/to/arch/dist/cli.js init claude codex`.
+supply names explicitly: `arch init claude codex`.
 
 Initialization installs project routing resources; **it does not verify shell
 activation**. Activate mise, refresh the shell prompt, and trust the project
@@ -40,7 +47,19 @@ codex --help
 
 For a script, CI, or an unactivated shell, use `mise exec -- claude --help`.
 To route other executable names, supply them explicitly at initialization:
-`node /absolute/path/to/arch/dist/cli.js init mytool another-tool`.
+`arch init mytool another-tool`.
+
+Installing the CLI and initializing project routing are separate operations.
+`arch init` does not install the global command. The original invocation remains
+available without a link: `node /absolute/path/to/arch/dist/cli.js --help` (for
+example `node D:/AI/projects/projects/harness/dist/cli.js --help` on Windows).
+
+To remove the global development link, run `npm unlink --global arch-harness`
+using the same npm prefix used for installation. This removes the `arch` command
+link; it does not deinitialize projects. Project launchers retain absolute paths
+to this checkout and its Node runtime, so both must remain available even after
+unlinking. Use `arch deinit` before unlinking, or the direct Node invocation later,
+to remove project routing. No project-local `npm link arch-harness` is needed.
 
 Arch writes only `.arch/harness.toml`, owned bootstrap state/launchers under `.arch/`,
 and `.config/mise/conf.d/arch.toml` for project PATH activation. Existing files and
@@ -52,8 +71,7 @@ projects when moving them. Do not commit generated absolute-path launchers/state
 
 ## Routing and inspection
 
-The examples below use `arch` for `node /absolute/path/to/arch/dist/cli.js`;
-no global executable is installed.
+After `npm link`, use the installed `arch` command:
 
 ```sh
 arch configure                     # interactive routing menu
@@ -64,6 +82,7 @@ arch route remove codex            # retain Arch and other routes
 arch status
 arch status --json
 arch --help
+arch run claude -- --help          # explicit harness execution
 ```
 
 The wizard manages routes, not middleware settings. Route changes never rewrite
@@ -80,9 +99,15 @@ commands through Arch. JSON reports `activation.shellActivation: "unknown"` and
 the individual observations. `mise exec -- <command>` explicitly activates routing
 for that subprocess. Installation succeeds even when mise is absent.
 
-Routing changes require hard-link support (for example NTFS on Windows); exFAT is
-unsupported for reconciliation. Unsupported publication fails before changing live
-routes. A journal plus complete staged files allows safe retry after interruption.
+Routing changes require hard-link support. exFAT is consciously unsupported for
+M2 reconciliation; other filesystems or mounts may also lack this capability.
+Use a hard-link-capable local filesystem such as NTFS, APFS, or ext4 where supported
+and configured appropriately. Arch attempts the operation rather than guessing
+support from volume names or OS. No alternative publication fallback is used.
+Initial M1-style setup and deinitialization without pending routing recovery do
+not inherently require hard links. Recovery of a pending routing update may require
+them, including when requested by deinit. See [filesystem compatibility](docs/filesystem-compatibility.md).
+A journal plus complete staged files allows safe retry after interruption.
 `status` describes a pending update; resume using `configure` with its recorded
 desired names, or remove using `deinit --yes`. Different desired updates are blocked
 until recovery finishes. Run only one setup/routing/removal operation per project
@@ -113,9 +138,9 @@ makes the demonstration middleware deny execution for deterministic tests.
 From the initialized project's root:
 
 ```sh
-node /absolute/path/to/arch/dist/cli.js deinit
+arch deinit
 # Unattended/scripted removal:
-node /absolute/path/to/arch/dist/cli.js deinit --yes
+arch deinit --yes
 ```
 
 Interactive `deinit` displays a plan and defaults to No. Outside a terminal it

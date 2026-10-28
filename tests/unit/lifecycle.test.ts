@@ -67,12 +67,53 @@ it('rejects a file that appears at exclusive publication without overwriting it'
   await expect(deinitialize(root)).rejects.toThrow('Managed file changed');
   expect(await readFile(join(root, route('other')))).toBeDefined();
 });
-it('leaves existing routes usable if hard links are unsupported', async () => {
-  vi.mocked(link).mockRejectedValue(Object.assign(new Error('hard links unsupported'), { code: 'ENOTSUP' }));
-  await expect(reconcileRoutes(root, ['newtool'])).rejects.toThrow('filesystem without hard-link support');
+it.each(['ENOTSUP', 'EOPNOTSUPP', 'ENOSYS', 'EPERM'])('fails safely without fallback when hard-link publication returns %s', async code => {
+  const before = await readFile(stateFile());
+  const owned = stateFrom(before);
+  const originals = await Promise.all(Object.keys(owned.files).map(path => readFile(join(root, path))));
+  await writeFile(join(root, 'unrelated.txt'), 'keep');
+  vi.mocked(link).mockRejectedValue(Object.assign(new Error('hard links unsupported'), { code }));
+  await expect(reconcileRoutes(root, ['newtool'])).rejects.toThrow(`exclusively (${code}). Routing reconciliation requires hard-link support; exFAT`);
+  expect(link).toHaveBeenCalledTimes(1);
+  expect(rename).not.toHaveBeenCalled();
+  expect(await readFile(stateFile())).toEqual(before);
+  expect(await Promise.all(Object.keys(owned.files).map(path => readFile(join(root, path))))).toEqual(originals);
+  expect(await readFile(join(root, 'unrelated.txt'), 'utf8')).toBe('keep');
   expect((await inspectInstallation(root)).state).toBe('initialized');
   expect(await readFile(join(root, route('tool')))).toBeDefined();
   await expect(readFile(join(root, route('newtool')))).rejects.toThrow();
+  await expect(readFile(join(root, '.arch/routing.json'))).rejects.toThrow();
+  expect(await readFile(join(root, '.arch/routing.stage'))).toBeDefined();
+  // M1 removal needs no link when no routing journal has been published.
+  await deinitialize(root);
+  expect(await readFile(join(root, 'unrelated.txt'), 'utf8')).toBe('keep');
+});
+
+it('initializes and deinitializes without calling hard-link publication', async () => {
+  vi.mocked(link).mockRejectedValue(new Error('unsupported'));
+  await deinitialize(root);
+  await setup(root, ['tool']);
+  await deinitialize(root);
+  expect(link).not.toHaveBeenCalled();
+});
+
+it('preserves recovery evidence and all old routes when capability fails after journal publication', async () => {
+  const before = await readFile(stateFile());
+  vi.mocked(link).mockImplementation(async (source, destination) => {
+    if (destination.toString() !== join(root, '.arch/routing.json')) throw Object.assign(new Error('unsupported'), { code: 'ENOTSUP' });
+    await actual.link(source, destination);
+  });
+  await expect(reconcileRoutes(root, ['newtool'])).rejects.toThrow('No fallback was attempted');
+  expect(await readFile(stateFile())).toEqual(before);
+  expect(await readFile(join(root, route('tool')))).toBeDefined();
+  expect(await readFile(join(root, route('other')))).toBeDefined();
+  expect((await inspectInstallation(root)).state).toBe('recovery_pending');
+  const journal = await readFile(join(root, '.arch/routing.json'));
+  await expect(deinitialize(root)).rejects.toThrow('hard-link support');
+  expect(await readFile(join(root, '.arch/routing.json'))).toEqual(journal);
+  vi.mocked(link).mockImplementation(actual.link);
+  await reconcileRoutes(root, ['newtool']);
+  expect((await inspectInstallation(root)).routes).toEqual(['newtool']);
 });
 it('retains the journal on manifest replacement failure and retries without unlinking bootstrap', async () => {
   const old = await readFile(stateFile());

@@ -7,7 +7,7 @@ async function main(): Promise<void> {
   const [operation, command, ...rest] = process.argv.slice(2);
   if (operation !== 'run') { await publicCommand(process.argv.slice(2)); return; }
   if (!command || rest[0] !== '--') {
-    throw new Error('Usage: node /path/to/arch/dist/cli.js init [commands...] | uninstall | run <command> -- [args...]');
+    throw new Error('Usage: arch run <command> -- [args...]');
   }
   const controller = new AbortController();
   const handlers = new Map<NodeJS.Signals, () => void>();

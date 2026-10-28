@@ -16,6 +16,10 @@ npm run test:wizard
 
 This builds the CLI, runs 14 focused wizard/discovery unit tests, then runs 13
 serial scenarios against actual CLI subprocesses attached to pseudoterminals.
+For M2.1 these scenarios invoke npm-linked `arch` (Windows uses npm's `.cmd`
+shim). The link and npm configuration/cache live in isolated temporary storage;
+the user's npm prefix and target project configuration are untouched. To run only
+the terminal scenarios after a build, use `npm run test:wizard:terminal`.
 The first scenario asserts that both stdin and stdout really are TTYs. The rest
 cover selection cancellation, EOF, Ctrl+C (exit 130), installed default suggestions,
 final-summary cancellation, custom names, reserved/duplicate rejection, accepted

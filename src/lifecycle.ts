@@ -76,7 +76,10 @@ async function removeOptional(root: string, path: string) {
 async function publishExclusive(root: string, stage: string, target: string) {
   await assertSafePath(root, target);
   try { await link(join(root, stage), join(root, target)); }
-  catch (error) { throw new Error(`Unable to publish ${target} exclusively; a collision, permissions, or a filesystem without hard-link support may prevent this operation (use NTFS on Windows). Existing owned files were not overwritten`, { cause: error }); }
+  catch (error) {
+    const code = (error as NodeJS.ErrnoException).code ?? 'unknown error';
+    throw new Error(`Unable to publish ${target} exclusively (${code}). Routing reconciliation requires hard-link support; exFAT does not provide it, and other filesystems or mounts may also lack it. Use a hard-link-capable local filesystem such as NTFS, APFS, or ext4 where supported and configured appropriately. Also check destination collisions and permissions. No fallback was attempted; existing owned files were not overwritten. Preserve any staging/journal files and use status to inspect recovery`, { cause: error });
+  }
 }
 
 async function validateRecovery(root: string, journal: RoutingJournal) {

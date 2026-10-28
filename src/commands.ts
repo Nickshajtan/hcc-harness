@@ -3,7 +3,7 @@ import { setup } from './setup.js';
 import { confirmRemoval, installedMessage, removedMessage, setupWizard, terminalInteraction } from './wizard.js';
 
 export class UsageError extends Error {}
-export const help = `Arch project routing\nUsage:\n  arch init [commands...]\n  arch configure [commands...]\n  arch route list\n  arch route add <commands...>\n  arch route remove <commands...>\n  arch status [--json]\n  arch deinit [--yes]\n  arch uninstall [--yes]  (deprecated, prompt-free compatibility alias)\n  arch --help\nBare init/configure require an interactive terminal. Explicit command sets never prompt.\nInstallation does not verify activation in the current shell.`;
+export const help = `Arch project routing\nUsage:\n  arch init [commands...]\n  arch configure [commands...]\n  arch route list\n  arch route add <commands...>\n  arch route remove <commands...>\n  arch status [--json]\n  arch deinit [--yes]\n  arch uninstall [--yes]  (deprecated, prompt-free compatibility alias)\n  arch run <command> -- [args...]\n  arch --help\nBare init/configure require an interactive terminal. Explicit command sets never prompt.\nInstallation does not verify activation in the current shell.`;
 function usage(message: string): never { throw new UsageError(`${message}\n${help}`); }
 export async function publicCommand(args: readonly string[]): Promise<void> {
   const [operation, ...rest] = args, root = process.cwd();
