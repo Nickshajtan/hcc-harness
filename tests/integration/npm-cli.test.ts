@@ -30,7 +30,7 @@ async function arch(args: string[], cwd = fixture.A, overrides: NodeJS.ProcessEn
   const quote = (value: string) => `'${value.replaceAll("'", "''")}'`;
   const command = `& ${quote(executable)} ${args.map(quote).join(' ')}; exit $LASTEXITCODE`;
   return run(join(process.env.SystemRoot!, 'System32/WindowsPowerShell/v1.0/powershell.exe'),
-    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(command, 'utf16le').toString('base64')],
+    ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(command, 'utf16le').toString('base64')],
     cwd, { ...env, ...overrides }, stdin);
 }
 
@@ -44,14 +44,20 @@ it('links the existing CLI, dispatches help, and leaves the target project untou
   expect(await readdir(fixture.C)).toEqual(['sentinel.txt']);
 });
 
-it('keeps lifecycle dispatch, non-interactive confirmation, and the reserved arch name', async () => {
+it('keeps explicit initialization and reserves the arch executable name', async () => {
   expect((await arch(['init'])).code).toBe(2);
   expect((await arch(['init', 'arch'])).code).toBe(1);
   expect((await arch(['init', 'claude', 'codex'])).code).toBe(0);
+});
+
+it('dispatches deterministic reconciliation through the npm executable', async () => {
   expect((await arch(['configure', 'claude', 'codex'])).code).toBe(0);
   expect((await arch(['route', 'remove', 'codex'])).code).toBe(0);
   expect((await arch(['route', 'add', 'codex'])).code).toBe(0);
   expect((await arch(['route', 'list'])).stdout.trim().split(/\r?\n/)).toEqual(['claude', 'codex']);
+});
+
+it('retains non-interactive confirmation and prevents recursive route creation', async () => {
   expect(JSON.parse((await arch(['status', '--json'])).stdout).state).toBe('initialized');
   expect((await arch(['deinit'])).code).toBe(2);
   const before = await readFile(join(fixture.A, '.arch/bootstrap.json'));
