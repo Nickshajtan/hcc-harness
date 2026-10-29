@@ -5,7 +5,8 @@ it does not authorize Structural Refactoring or M2.2 B2.
 
 Starting commit: `9c7ea4fec83a32c0566710c7a6d8ae9144615125` (main after PR #9).
 Measurements below are Windows x64 / Node 24.19.0 unless explicitly labeled otherwise.
-Hosted validation for the new gates remains **NOT TESTED** until inspected below.
+Validated code/test/tooling commit: `cc36fac6c2f01ddc1ac139d35438fabb558b6d08`.
+Hosted validation for the new gates is **PASS**, with inspected artifacts below.
 
 ## Reproduction
 
@@ -31,19 +32,19 @@ eslint-config-prettier 10.1.8 and dependency-cruiser 18.7.0. No dependency added
 
 | Measurement                                          |                             Starting commit |                                        Hardened local result |
 | ---------------------------------------------------- | ------------------------------------------: | -----------------------------------------------------------: |
-| Ordinary lint errors / warnings                      |                                     0 / 141 |                                                      0 / 119 |
+| Ordinary lint errors / warnings                      |                                     0 / 141 |                                                      0 / 118 |
 | Analysis warnings (including metrics)                |                                         192 |                                                          172 |
-| Complexity / depth / params / length review findings |                            11 / 19 / 3 / 18 |                                             12 / 19 / 3 / 19 |
-| V8 lines                                             |                            73.57% (607/825) |                                             75.32% (629/835) |
-| V8 branches                                          |                            65.70% (387/589) |                                             67.79% (402/593) |
-| V8 statements / functions                            |                             73.87% / 82.40% |                                              75.58% / 88.09% |
+| Complexity / depth / params / length review findings |                            11 / 19 / 3 / 18 |                                             13 / 19 / 3 / 19 |
+| V8 lines                                             |                            73.57% (607/825) |                                             75.56% (631/835) |
+| V8 branches                                          |                            65.70% (387/589) |                                             67.95% (403/593) |
+| V8 statements / functions                            |                             73.87% / 82.40% |                                              75.81% / 88.09% |
 | Config mutation                                      |          87 killed / 1 survived / 5 timeout |                                                    Unchanged |
 | Import graph                                         | 25 modules / 44 dependencies; no violations | Same graph; additional established presentation restrictions |
 
 Baseline ordinary tests: **134 passed / 30 existing platform or optional skips**;
 coverage reproduced the same counts. Local runs overlapped and the baseline check
 took 81 seconds; this is not a clean isolated speed comparison.
-Final ordinary regression: **165 passed / 30 existing skips**, 38.35 seconds;
+Final ordinary regression: **167 passed / 30 existing skips**, 37.36 seconds;
 the gated coverage rerun passes with the same test counts.
 Wizard: **14 unit tests and 13 real-terminal scenarios PASS**.
 
@@ -60,7 +61,7 @@ metadata remain accepted; parser diagnostics and formats are unchanged.
 | --------------------------------------------------- | --------------: | --------------: | ----------------------------------------------------------------------------------------------- |
 | Non-null assertions                                 |              44 |              37 | Remaining test runtime provisioning and state invariants need local characterization            |
 | Unnecessary conditions                              |              13 |              11 | Typed guarantees differ from runtime external/platform state; do not mechanically delete guards |
-| Unsafe test assignment / member / return / argument | 11 / 27 / 6 / 8 | 10 / 27 / 2 / 8 | Per-fixture JSON and npm module boundaries still need validation                                |
+| Unsafe test assignment / member / return / argument | 11 / 27 / 6 / 8 | 10 / 26 / 2 / 8 | Per-fixture JSON and npm module boundaries still need validation                                |
 | Template / plus operands                            |           8 / 6 |           7 / 4 | Explicit numeric/string boundary handling remains                                               |
 | Optional / nullish preferences                      |           1 / 4 |           1 / 4 | Empty environment values may intentionally behave differently from absent values                |
 | Conversion / dynamic delete                         |           2 / 1 |           2 / 1 | Runtime TTY truthiness and Windows case-insensitive environment replacement preserved           |
@@ -85,7 +86,7 @@ remain visible; there are no eslint-disable blocks or production exclusions.
 
 | Module / critical responsibility                    | Before line / branch | After line / branch | Remaining work                                                                                                      |
 | --------------------------------------------------- | -------------------: | ------------------: | ------------------------------------------------------------------------------------------------------------------- |
-| core: orchestration/failure precedence              |       87.50 / 70.00% |      92.18 / 80.00% | Passthrough in-process measurement, standalone finalize-hook failure and launch-stage failures                      |
+| core: orchestration/failure precedence              |       87.50 / 70.00% |      95.31 / 83.33% | Defensive finalize-hook infrastructure failures and launch-stage failures                                           |
 | process: resolution/settlement/cancellation         |       66.11 / 59.77% |      68.29 / 62.06% | Windows shim branches have separate real integration evidence; kill races use deterministic supplemental unit tests |
 | lifecycle: planning/publication/recovery/inspection |       92.08 / 84.39% |      92.08 / 84.39% | Journal shape combinations, staging and cleanup failure precedence; retain real interruption tests                  |
 | setup: ownership/rendering/removal                  |       90.51 / 89.28% |      90.75 / 89.77% | Rollback cleanup precedence, uncommon read/architecture failures                                                    |
@@ -116,17 +117,17 @@ historical compatibility and additional metadata remain protected.
 ## Focused mutation evidence and gates
 
 Local Windows x64; no mutator exclusions or ignored mutants. Config uses five tests;
-Core/middleware/events use 26 focused tests with real Node execution where needed.
+Core/middleware/events use 28 focused tests with real Node execution where needed.
 
 | Scope      | Total | Killed | Survived | No coverage | Timeout | Errors | Score / assertion-only |
 | ---------- | ----: | -----: | -------: | ----------: | ------: | -----: | ---------------------: |
 | config     |    93 |     87 |        1 |           0 |       5 |      0 |         98.92 / 93.55% |
-| core       |   103 |     74 |       20 |           9 |       0 |      0 |         71.84 / 71.84% |
+| core       |   103 |     78 |       18 |           7 |       0 |      0 |         75.73 / 75.73% |
 | middleware |    96 |     92 |        4 |           0 |       0 |      0 |         95.83 / 95.83% |
 | events     |    15 |     15 |        0 |           0 |       0 |      0 |             100 / 100% |
 
 Expanded initial pilot: **160 killed / 39 survived / 15 uncovered**, 52 seconds.
-After survivor-driven assertions: **181 killed / 24 survived / 9 uncovered**, 70 seconds.
+After survivor-driven assertions: **185 killed / 22 survived / 7 uncovered**, 56 seconds.
 Config baseline rerun took 32 seconds. Timeouts are included in Stryker score but
 excluded from assertion kills; conservative assertion score divides kills by all mutants.
 Gates: config >=90% assertion kills, middleware >=85%, events >=95%. Core remains
@@ -137,10 +138,9 @@ Survivor review:
 
 - Config's redundant prefix guard remains equivalent for valid TOML. Five loop/progress
   mutants time out and are not credited as behavioral assertions.
-- Core survivors concentrate on platform selection/case-folded env deletion, optional
-  observer handling, cancellation/stage labels and terminal-event guard. Several are
+- Core survivors concentrate on platform selection/case-folded env deletion, launch-stage labels and terminal-event guard. Several are
   platform-equivalent, but native environment casing and diagnostics need stronger
-  assertions. Nine uncovered mutants concern passthrough and finalize-only paths.
+  assertions. Seven uncovered mutants concern defensive finalize-hook infrastructure failures.
 - Middleware survivors concern the runtime string-type guard (unsupported typed input),
   platform key identity, phase reset and hook removal. Phase reset/hook removal are
   genuine characterization gaps; not equivalent-mutant exclusions.
@@ -178,7 +178,8 @@ inspection 26 / journal parser 20 / recovery validation 13 / application 14,
 process resolution 16 / launch 15, setup 15 / uninstall 14, wizard 27.
 Commands grows six nonblank lines for explicit presentation branches; no additional
 production nesting/complexity trigger. Added metric findings are the mutation-report
-validator (complexity 13, explicit fail-closed cases) and a test function length.
+validator (complexity 13, explicit fail-closed cases), explicit multi-format test-record
+validation, and a test function length. These are visible tooling/test review debt.
 Metrics are review triggers, not proof of human comprehensibility.
 
 Next authorized-refactoring priorities:
@@ -201,6 +202,38 @@ Quality CI adds the ratchet and focused mutation gates; summaries require actual
 nonempty reports rather than treating step success as measurement success.
 Mutation runs on relevant source/test/tooling PRs and weekly/manual invocations.
 
-New cross-platform run links, hosted measurements and job durations: **NOT TESTED**
-until recorded after inspection. Prior baseline evidence is available from
-[PR #9](https://github.com/Nickshajtan/hcc-harness/pull/9); it does not verify this change.
+At the validated commit:
+
+| Area       | Result and hosted duration                                          | Inspected evidence                                                                          |
+| ---------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Regression | PASS Ubuntu 55s / macOS 41s / Windows 103s                          | [Arch checks](https://github.com/Nickshajtan/hcc-harness/actions/runs/40954401675)          |
+| Wizard     | PASS Ubuntu 26s / macOS 35s / Windows 52s                           | [Wizard checks](https://github.com/Nickshajtan/hcc-harness/actions/runs/40954401794)        |
+| Runtime    | PASS Ubuntu 45s / macOS 50s / Windows 116s; required aggregate PASS | [Runtime portability](https://github.com/Nickshajtan/hcc-harness/actions/runs/40954401632)  |
+| Quality    | PASS 87s total, including both mutation pilots                      | [Quality measurements](https://github.com/Nickshajtan/hcc-harness/actions/runs/40954401627) |
+
+Downloaded JSON confirms 53 linted files / 0 errors / 172 analysis warnings
+(118 legacy + 54 metrics); no new warning fingerprints. Ubuntu coverage:
+**74.73% lines (624/835), 66.61% branches (395/593)**; 164 passed / 32 existing skips.
+Ubuntu mutation: config 87 killed / 1 survived / 5 timeout; Core 78 killed / 6 survived /
+19 uncovered; middleware 90 killed / 5 survived / 1 uncovered; events 15 killed / no gaps.
+No compile/runtime errors or ignored mutants. All scopes pass their reviewed gates;
+Core's score remains 75.73%, not compliance with its higher target. Platform-specific
+mutant reachability differs; do not interchange survivor/uncovered counts with Windows.
+
+The first hosted runtime run caught a decoder mistake: the new shared JSON validator
+assumed the older native fixture format. B1 has full runtime and minimal PID/Node
+console formats too. An initial correction covered the runtime format; Windows then
+caught the minimal console format. All callers were inspected, and explicit typed
+format selection now validates each contract without making required native fields
+optional. Unit cases cover valid and malformed formats. Actual Windows console and
+all shared runtime tests pass; no existing assertions, skips or timeouts were weakened.
+These were test-infrastructure defects introduced during hardening, not production
+runtime regressions or excuses to bypass mandatory CI.
+
+The starting main's regression, wizard and runtime matrices were separately inspected
+at `9c7ea4f`: [regression](https://github.com/Nickshajtan/hcc-harness/actions/runs/40935602961),
+[wizard](https://github.com/Nickshajtan/hcc-harness/actions/runs/40935602837),
+[runtime](https://github.com/Nickshajtan/hcc-harness/actions/runs/40935602680), all PASS.
+Branch protection was inspected: strict mode and the existing required runtime
+context remain unchanged. Full mutation, ownership/recovery mutation, Windows ARM64
+and B2 production portability remain NOT TESTED in this milestone.
