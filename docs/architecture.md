@@ -45,15 +45,37 @@ is overwritten. Existing aliases/functions may take precedence over PATH.
 
 ## Lifecycle and contracts
 
-`execute()` discovers the nearest configuration, creates an immutable execution
-context and event bus, registers fresh factories in TOML order, resolves the native
-executable, and runs `preflight -> prepareLaunch -> native process -> finalize`.
-Cleanup always follows finalization, including registration, resolution, denial,
-launch, and finalization failures. All finalizers and cleanups are attempted; cleanup
-callbacks run in reverse registration order. Errors are aggregated. A native nonzero
-exit is a completed execution with its original status, not a middleware failure.
-Malformed configuration and recursion fail before an execution context exists and
-therefore do not emit an execution envelope.
+`execute()` in `core.ts` prepares the native environment, refuses recursion, then
+discovers the nearest configuration. Without configuration it resolves and launches
+the native command directly, with no configured event lifecycle. Invalid configuration
+and recursion fail before a context exists.
+
+For configured execution, the facade freezes the identity, original arguments, cwd,
+project root and signal into an execution context, then creates one `ExecutionSession`:
+
+- `execution-session.ts` owns the execution-local bus, pipeline, current stage and
+  native result. `run()` reads as start/observe, register, native lifecycle, finalize,
+  terminal publication. Factories are selected after awaited started observers and
+  instantiated in TOML order. Disabled entries never instantiate factories.
+- `execution-failures.ts` retains error objects in observation order and the first
+  failing stage. It produces the existing AggregateError message/cause; nonzero
+  native exit statuses remain results rather than failures.
+- `execution-environment.ts` composes a fresh environment: middleware overrides
+  replace case-insensitive native keys on Windows and exact keys on POSIX; the
+  execution identity becomes ARCH_ACTIVE. It does not select a runtime or alter PATH.
+
+These are internal modules, not new supported entrypoints. Two small stateful
+objects encapsulate lifecycle and failure history; the environment operation is pure.
+No inheritance, service container, process adapter or new middleware API is involved.
+
+The session resolves the native executable before `preflight`, then runs
+`preflight -> prepareLaunch -> native process -> finalize`. Cleanup follows finalization
+on success and after registration, resolution, denial and launch failures. Pipeline
+finalizers and reverse-order cleanup retain their existing aggregation. Secondary
+finalize/disposal errors cannot replace the primary execution stage. Terminal events
+follow cleanup, then the bus is disposed even if publication fails. A terminal
+publication infrastructure rejection retains its existing precedence over the execution
+aggregate; ordinary observer/reporter failures remain contained by EventBus.
 
 `hookable` owns hook dispatch. Arch exposes `context`, `on(phase, handler)`,
 `setEnv(name, value)`, and `cleanup(handler)`. Hooks run sequentially. Identity,

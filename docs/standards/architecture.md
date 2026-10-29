@@ -108,6 +108,15 @@ selection, authoritative legacy ownership hashes, modified-file protection and
 explicit rebind preserving edited middleware. See [active design](../runtime-portability.md)
 for the source of these requirements; no automatic discovery, downloads or migrations.
 
+## Core execution boundaries
+
+The public `execute()` facade owns discovery/passthrough. The internal execution
+session coordinates configured stages and owns per-run resources. Failure accumulation
+is a separate ordered state object; environment composition is a deterministic function.
+Keep process resolution/cancellation in process.ts and hook dispatch/cleanup in the
+existing pipeline. Do not bypass those contracts through session-specific alternatives.
+See [the current responsibility map](../architecture.md#lifecycle-and-contracts).
+
 ## Existing technical-debt baseline
 
 See the [measured quality baseline](quality-baseline.md) for concrete responsibilities,

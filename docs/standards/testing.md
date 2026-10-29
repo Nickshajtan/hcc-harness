@@ -92,9 +92,9 @@ gap, not evidence that CLI acceptance tests do not exist. Do not exclude those
 files to improve the average. Cross-platform results are not interchangeable.
 
 `npm run test:mutation` writes JSON/HTML under `reports/mutation/`.
-`npm run test:mutation:core` measures Core/middleware/events separately.
+`npm run test:mutation:core` measures the Core facade, every extracted execution module, middleware and events separately.
 Stryker's timeout-inclusive break remains zero; `npm run test:mutation:check` instead
-enforces reviewed assertion-only thresholds (config 90%, middleware 85%, events 95%)
+enforces reviewed assertion-only thresholds (config 90%, middleware 85%, events 95%, each Core responsibility file 85%)
 and expected nonempty scopes. Tooling errors and failing tests remain fatal.
 Report Stryker's timeout-inclusive score alongside assertion-only kills and the
 full status counts. Relevant PRs (configuration, its tests, dependencies or pilot tooling) and
