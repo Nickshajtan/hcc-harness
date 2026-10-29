@@ -52,6 +52,16 @@ it('validates every native record and preserves missing-file semantics', async (
   const valid = { args: ['a', ''], cwd: directory, demo: '', pid: 1 };
   await writeFile(path, JSON.stringify(valid) + '\n');
   expect(await records(path)).toEqual([valid]);
+  const runtime = {
+    args: [],
+    cwd: directory,
+    pid: 2,
+    node: 'v22.12.0',
+    exec: 'node',
+    path: 'native',
+  };
+  await writeFile(path, JSON.stringify(runtime));
+  expect(await records(path)).toEqual([{ args: [], cwd: directory, pid: 2 }]);
   for (const value of [
     null,
     [],
@@ -59,6 +69,8 @@ it('validates every native record and preserves missing-file semantics', async (
     { ...valid, args: [1] },
     { ...valid, pid: 0 },
     { ...valid, cwd: null },
+    { ...valid, demo: null },
+    { ...runtime, path: null },
   ]) {
     await writeFile(path, JSON.stringify(value));
     await expect(records(path)).rejects.toThrow('Malformed native fixture record');

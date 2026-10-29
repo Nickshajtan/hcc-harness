@@ -333,6 +333,58 @@ it('rejects recursive invocations and aborted launches', async () => {
   ).rejects.toThrow();
 });
 
+it('cancels before preflight while still finalizing and cleaning exactly once', async () => {
+  await configure(['local']);
+  const calls: string[] = [];
+  const reason = new Error('cancel before launch');
+  const registry: Registry = new Map([
+    [
+      'local',
+      () => ({
+        id: 'local',
+        register(api) {
+          api.on('preflight', () => {
+            calls.push('preflight');
+          });
+          api.on('prepareLaunch', () => {
+            calls.push('prepareLaunch');
+          });
+          api.on('finalize', () => {
+            calls.push('finalize');
+          });
+          api.cleanup(() => {
+            calls.push('cleanup');
+          });
+        },
+      }),
+    ],
+  ]);
+  await expect(
+    execute({ ...launchOptions(), registry, signal: AbortSignal.abort(reason) }),
+  ).rejects.toMatchObject({ message: 'Arch execution failed during preflight', cause: reason });
+  expect(calls).toEqual(['finalize', 'cleanup']);
+});
+
+it('passes through without configuration, retaining recursion protection and no event envelope', async () => {
+  const file = join(root, 'passthrough-guard');
+  const received: ArchEvent[] = [];
+  const result = await execute({
+    ...launchOptions(),
+    args: [
+      '-e',
+      `require('fs').writeFileSync(${JSON.stringify(file)},process.env.ARCH_ACTIVE);process.exit(23)`,
+    ],
+    observe(bus) {
+      bus.subscribe('execution.started', (value) => {
+        received.push(value);
+      });
+    },
+  });
+  expect(result).toEqual({ exitCode: 23, signal: null });
+  expect(await readFile(file, 'utf8')).toMatch(/^[a-f0-9-]{36}$/);
+  expect(received).toEqual([]);
+});
+
 it('reports observer initialization errors by identity and continues native execution', async () => {
   await configure([]);
   const error = new Error('observer setup failed'),
