@@ -17,11 +17,11 @@ export function start(command: string, args: string[], cwd: string, env: NodeJS.
   const child = spawn(command, args, { cwd, env, shell: false, stdio: ['pipe', 'pipe', 'pipe'] });
   let stdout = '',
     stderr = '';
-  child.stdout.on('data', (data) => {
-    stdout += data;
+  child.stdout.on('data', (data: Buffer) => {
+    stdout += data.toString('utf8');
   });
-  child.stderr.on('data', (data) => {
-    stderr += data;
+  child.stderr.on('data', (data: Buffer) => {
+    stderr += data.toString('utf8');
   });
   const result = new Promise<Result>((done, reject) => {
     child.once('error', reject);
@@ -49,14 +49,18 @@ export function stop(child: ChildProcess) {
 export async function world(temporary = resolve('.test-state/fixtures')) {
   await mkdir(temporary, { recursive: true });
   const root = await mkdtemp(join(temporary, 'arch-fixture-'));
-  const paths = Object.fromEntries(
-    ['home', 'data', 'cache', 'config', 'native', 'A', 'B', 'C'].map((name) => [
-      name,
-      join(root, name),
-    ]),
-  ) as Record<string, string>;
+  const paths = {
+    home: join(root, 'home'),
+    data: join(root, 'data'),
+    cache: join(root, 'cache'),
+    config: join(root, 'config'),
+    native: join(root, 'native'),
+    A: join(root, 'A'),
+    B: join(root, 'B'),
+    C: join(root, 'C'),
+  };
   await Promise.all(Object.values(paths).map((path) => mkdir(path, { recursive: true })));
-  const native = paths.native!;
+  const native = paths.native;
   // Extensionless Node fixtures must not inherit the repository's ESM package scope.
   await writeFile(join(root, 'package.json'), '{"type":"commonjs"}\n');
   if ('win32' === process.platform) {
@@ -115,7 +119,7 @@ export async function world(temporary = resolve('.test-state/fixtures')) {
     MISE_DATA_DIR: paths.data,
     MISE_CACHE_DIR: paths.cache,
     MISE_CONFIG_DIR: paths.config,
-    MISE_GLOBAL_CONFIG_FILE: join(paths.config!, 'config.toml'),
+    MISE_GLOBAL_CONFIG_FILE: join(paths.config, 'config.toml'),
     MISE_SYSTEM_CONFIG_DIR: join(root, 'system'),
     MISE_CEILING_PATHS: root,
     MISE_TRUSTED_CONFIG_PATHS: root,
@@ -124,8 +128,8 @@ export async function world(temporary = resolve('.test-state/fixtures')) {
     MISE_NOT_FOUND_SYSTEM_FALLBACK: 'true',
     MISE_BIN: mise,
     PATH: [
-      join(paths.A!, '.arch/bin'),
-      join(paths.B!, '.arch/bin'),
+      join(paths.A, '.arch/bin'),
+      join(paths.B, '.arch/bin'),
       native,
       dirname(process.execPath),
       ...('mise' !== mise ? [dirname(mise)] : []),
@@ -135,9 +139,9 @@ export async function world(temporary = resolve('.test-state/fixtures')) {
   });
   return {
     root,
-    A: paths.A!,
-    B: paths.B!,
-    C: paths.C!,
+    A: paths.A,
+    B: paths.B,
+    C: paths.C,
     native,
     env,
     init: (cwd: string, commands = ['claude', 'codex']) =>
@@ -166,21 +170,106 @@ export function events(result: Result): {
   return result.stderr
     .split(/\r?\n/)
     .filter((line) => line.startsWith('[arch:event] '))
-    .map((line) => JSON.parse(line.slice(13)));
+    .map((line) => {
+      const value: unknown = JSON.parse(line.slice(13));
+      if (
+        !isObject(value) ||
+        'string' !== typeof value.id ||
+        'string' !== typeof value.type ||
+        'string' !== typeof value.executionId ||
+        'string' !== typeof value.timestamp ||
+        1 !== value.schemaVersion ||
+        !isObject(value.payload)
+      ) {
+        throw new Error('Malformed Arch event fixture output');
+      }
+      return {
+        id: value.id,
+        type: value.type,
+        executionId: value.executionId,
+        timestamp: value.timestamp,
+        schemaVersion: value.schemaVersion,
+        payload: value.payload,
+      };
+    });
 }
+interface NativeRecord {
+  args: string[];
+  cwd: string;
+  demo: string;
+  pid: number;
+}
+interface ProcessRecord {
+  node: string;
+  pid: number;
+}
+interface RuntimeRecord extends ProcessRecord {
+  args: string[];
+  cwd: string;
+  exec: string;
+  path: string;
+}
+
+export function records(file: string): Promise<NativeRecord[]>;
+export function records(file: string, format: 'runtime'): Promise<RuntimeRecord[]>;
+export function records(file: string, format: 'process'): Promise<ProcessRecord[]>;
 export async function records(
   file: string,
-): Promise<{ args: string[]; cwd: string; demo: string; pid: number }[]> {
+  format: 'native' | 'runtime' | 'process' = 'native',
+): Promise<(NativeRecord | RuntimeRecord | ProcessRecord)[]> {
   try {
     return (await readFile(file, 'utf8'))
       .trim()
       .split(/\r?\n/)
       .filter(Boolean)
-      .map((line) => JSON.parse(line));
+      .map((line) => {
+        const value: unknown = JSON.parse(line);
+        if (
+          !isObject(value) ||
+          'number' !== typeof value.pid ||
+          !Number.isInteger(value.pid) ||
+          0 >= value.pid
+        ) {
+          throw new Error('Malformed native fixture record');
+        }
+        if ('process' === format) {
+          if ('string' !== typeof value.node) {
+            throw new Error('Malformed process fixture record');
+          }
+          return { node: value.node, pid: value.pid };
+        }
+        if (!isStringArray(value.args) || 'string' !== typeof value.cwd) {
+          throw new Error('Malformed native fixture record');
+        }
+        const args: string[] = value.args;
+        const record = { args, cwd: value.cwd, pid: value.pid };
+        if ('native' === format) {
+          if ('string' !== typeof value.demo) {
+            throw new Error('Malformed native fixture record');
+          }
+          return { ...record, demo: value.demo };
+        }
+        if (
+          'string' !== typeof value.node ||
+          'string' !== typeof value.exec ||
+          'string' !== typeof value.path
+        ) {
+          throw new Error('Malformed native fixture record');
+        }
+        return { ...record, node: value.node, exec: value.exec, path: value.path };
+      });
   } catch (error) {
     if ('ENOENT' === (error as NodeJS.ErrnoException).code) {
       return [];
     }
     throw error;
   }
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return null !== value && 'object' === typeof value && !Array.isArray(value);
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((argument: unknown) => 'string' === typeof argument);
 }

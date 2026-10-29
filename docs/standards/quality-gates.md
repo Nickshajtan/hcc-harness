@@ -6,20 +6,21 @@ no deterministic context-delivery guarantee or context injector is implemented.
 
 ## Current enforcement
 
-| Control              | Command                                                         | CI behavior                                                                              |
-| -------------------- | --------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Format               | `npm run format:check`                                          | Blocking in existing Ubuntu/macOS/Windows checks                                         |
-| Type safety          | `npm run typecheck`                                             | Blocking strict TypeScript, noUncheckedIndexedAccess, exactOptionalPropertyTypes         |
-| Typed lint           | `npm run lint`                                                  | Errors block on all three platforms; documented legacy warnings remain visible           |
-| Dependencies         | `npm run check:dependencies`                                    | Blocking no-cycles and presentation-boundary rules                                       |
-| Build and regression | `npm run build`, unit/integration/acceptance/experiment scripts | Existing three-platform jobs retained                                                    |
-| Wizard               | `npm run test:wizard`                                           | Existing path-filtered/manual three-platform workflow retained                           |
-| Runtime portability  | Existing shared subprocess and Windows console/TTY suites       | Required aggregate remains exactly `M2.2 runtime portability required`                   |
-| Coverage             | `npm run test:coverage`                                         | Ubuntu PR/weekly/manual measurement; test failures block, no percentage gate             |
-| Mutation pilot       | `npm run test:mutation`                                         | Relevant PRs and weekly/manual focused pilot; tooling/test failures block, no score gate |
-| Debt report          | `npm run lint:report`, `npm run report:dependencies`            | JSON artifacts in quality measurement job                                                |
+| Control              | Command                                                                              | CI behavior                                                                                            |
+| -------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| Format               | `npm run format:check`                                                               | Blocking in existing Ubuntu/macOS/Windows checks                                                       |
+| Type safety          | `npm run typecheck`                                                                  | Blocking strict TypeScript, noUncheckedIndexedAccess, exactOptionalPropertyTypes                       |
+| Typed lint           | `npm run lint`, `npm run lint:baseline`                                              | Errors and new warning fingerprints block on all three platforms; legacy warnings remain visible       |
+| Dependencies         | `npm run check:dependencies`                                                         | Blocking no-cycles and presentation-boundary rules                                                     |
+| Build and regression | `npm run build`, unit/integration/acceptance/experiment scripts                      | Existing three-platform jobs retained                                                                  |
+| Wizard               | `npm run test:wizard`                                                                | Existing path-filtered/manual three-platform workflow retained                                         |
+| Runtime portability  | Existing shared subprocess and Windows console/TTY suites                            | Required aggregate remains exactly `M2.2 runtime portability required`                                 |
+| Coverage             | `npm run test:coverage`                                                              | Config/events/middleware >=95% lines / >=90% branches; other scopes measured                           |
+| Mutation pilots      | `npm run test:mutation`, `npm run test:mutation:core`, `npm run test:mutation:check` | Relevant PRs/weekly/manual; assertion-only gates config 90%, middleware 85%, events 95%; Core measured |
+| Debt report          | `npm run lint:report`, `npm run report:dependencies`                                 | JSON artifacts in quality measurement job                                                              |
 
-`npm run check` combines format, typecheck, lint, dependency rules, build and the
+`npm run check` combines format, typecheck, lint, warning regression protection,
+quality-tooling tests, dependency rules, build and the
 ordinary suite. Run wizard and relevant runtime suites additionally. Existing main
 branch protection is unchanged; formatting/lint failures fail CI, but this milestone
 does not claim a new separately required branch-protection context. Preserve the
@@ -48,15 +49,17 @@ The configuration names specific legacy rules at warning severity with rationale
 These warnings are **deferred debt, not compliance**: no-non-null-assertion,
 no-unnecessary-condition, prefer-optional-chain, prefer-nullish-coalescing,
 no-dynamic-delete, restrict-template-expressions, no-confusing-void-expression,
-no-unnecessary-type-conversion and no-nested-ternary; tests additionally retain
-unsafe boundary/assertion/plus-operand and test-double async/empty-function warnings.
+no-unnecessary-type-conversion; tests additionally retain
+unsafe boundary/assertion/plus-operand and empty-function warnings.
 They remain reported and reviewable, not hidden by eslint-disable blocks.
 
 Before promoting one of these rules, characterize the affected behavior, remediate
 one cohesive category, rerun contracts, then change severity. New code MUST follow
-the readability/safety standards even where automation still warns. There is no
-reliable changed-code baseline enforcement today; reviewers must prevent new debt.
-Do not invent a custom lint framework or arbitrary enlarged limits to hide this gap.
+the readability/safety standards even where automation still warns. No-nested-ternary
+and require-await now block. A small source-context fingerprint ratchet rejects new
+ordinary warnings and requires pruning resolved debt. The measured baseline explains
+its limits: identical contexts remain indistinguishable. Snapshot additions need review
+and MUST NOT conceal new debt. Do not create a generic lint framework.
 Strict-boolean-expressions remains unadopted pending review of intentional length,
 optional-state and environment truthiness conventions; existing constant/unnecessary
 condition diagnostics are not evidence of complete misleading-boolean detection.
@@ -77,11 +80,14 @@ CI-only scripts require reference checks. No automatic dead-code deletion.
 ## Measurement adoption and cost
 
 Coverage includes all executable production files. Numeric targets in
-[testing](testing.md) remain nonblocking until baseline review; uncovered branches
+[testing](testing.md) remain nonblocking outside the achieved config/events/middleware
+scopes; uncovered branches
 must be explained rather than excluded. Mutation remains a focused pilot, not a
 repository-wide PR suite. Relevant-change selection avoids duplicating its cost on unrelated PRs.
-The 15-second focused pilot justifies configuration-related PR runs; extend its
-source scope only after isolation and runtime are measured; full-repository scheduled/release mutation remains a proposal.
+The measured config and execution pilots take approximately 32 and 70 seconds locally.
+Timeouts do not count toward assertion-only thresholds. Missing/erroneous reports fail;
+Core mutation remains below target and nonblocking. Full-repository scheduled/release
+mutation remains a proposal.
 
 Each gate expansion MUST state expected defect detection, measured minutes,
 platforms, maintenance cost and adoption/rollback path. Preserve regression suites;

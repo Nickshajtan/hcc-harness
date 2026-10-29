@@ -27,25 +27,33 @@ export async function readOptional(file: string): Promise<Buffer | undefined> {
   }
 }
 export function stateFrom(text: Buffer): State {
-  const state = JSON.parse(text.toString()) as State;
+  const state: unknown = JSON.parse(text.toString());
+  if (!isOwnershipState(state)) {
+    throw new Error('Invalid bootstrap state');
+  }
+  return state;
+}
+function isOwnershipState(state: unknown): state is State {
   if (
-    !state ||
+    null === state ||
     'object' !== typeof state ||
     Array.isArray(state) ||
-    !state.files ||
+    !('files' in state) ||
+    null === state.files ||
     'object' !== typeof state.files ||
     Array.isArray(state.files) ||
+    !('createdHarness' in state) ||
     'boolean' !== typeof state.createdHarness ||
     Object.entries(state.files).some(
-      ([file, hash]) =>
+      ([file, hash]: [string, unknown]) =>
         !(file === routePath || /^\.arch\/bin\/(?!\.{1,2}$)[a-zA-Z0-9_.-]+$/.test(file)) ||
         'string' !== typeof hash ||
         !/^[a-f0-9]{64}$/.test(hash),
     )
   ) {
-    throw new Error('Invalid bootstrap state');
+    return false;
   }
-  return state;
+  return true;
 }
 export async function checkFiles(root: string, files: Record<string, string>, recovering = false) {
   for (const [file, hash] of Object.entries(files)) {

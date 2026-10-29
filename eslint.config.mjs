@@ -51,7 +51,7 @@ export default ts.config(
       '@typescript-eslint/no-unnecessary-type-assertion': 'warn',
       '@typescript-eslint/restrict-plus-operands': 'warn',
       '@typescript-eslint/no-empty-function': 'warn',
-      '@typescript-eslint/require-await': 'warn',
+      '@typescript-eslint/require-await': 'error',
     },
   },
   prettier,
@@ -69,8 +69,7 @@ export default ts.config(
       eqeqeq: 'error',
       curly: ['error', 'all'],
       yoda: ['error', 'always', { exceptRange: true }],
-      // Existing presentation/resolution variants need a deliberate readability change.
-      'no-nested-ternary': 'warn',
+      'no-nested-ternary': 'error',
     },
   },
 );

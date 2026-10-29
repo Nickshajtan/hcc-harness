@@ -182,3 +182,44 @@ it('rejects synchronous spawn failure without installing cancellation resources'
   await expect(run()).rejects.toThrow('spawn throws');
   disposed();
 });
+
+it('still escalates when the graceful kill reports no delivered signal', async () => {
+  child.kill.mockReturnValue(false);
+  const result = run();
+  controller.abort('SIGINT');
+  expect(child.kill).toHaveBeenCalledWith('win32' === process.platform ? 'SIGTERM' : 'SIGINT');
+  await vi.advanceTimersByTimeAsync(2999);
+  expect(child.kill).toHaveBeenCalledTimes(1);
+  await vi.advanceTimersByTimeAsync(1);
+  expect(child.kill).toHaveBeenLastCalledWith('SIGKILL');
+  child.emit('close', null, 'SIGKILL');
+  await expect(result).resolves.toEqual({ exitCode: 1, signal: 'SIGKILL' });
+  disposed();
+});
+
+it('rejects an escalation error by identity and removes cancellation resources', async () => {
+  const error = new Error('escalation failed');
+  child.kill.mockImplementation((signal?: string) => {
+    if ('SIGKILL' === signal) {
+      throw error;
+    }
+    return true;
+  });
+  const result = run();
+  const rejected = expect(result).rejects.toBe(error);
+  controller.abort();
+  await vi.advanceTimersByTimeAsync(3000);
+  await rejected;
+  disposed();
+});
+
+it('does not escalate a child whose signal termination becomes visible before close', async () => {
+  const result = run();
+  controller.abort();
+  child.signalCode = 'SIGTERM';
+  await vi.advanceTimersByTimeAsync(3000);
+  expect(child.kill).toHaveBeenCalledTimes(1);
+  child.emit('close', null, 'SIGTERM');
+  await result;
+  disposed();
+});

@@ -9,14 +9,15 @@ const reports = [
 ];
 const areas = reports.map(([area, file]) => {
   const report = read(file);
-  const status = !report
-    ? 'NOT TESTED'
-    : report.success &&
-        0 < report.numPassedTests &&
-        0 === report.numFailedTests &&
-        0 === report.numPendingTests
-      ? 'PASS'
-      : 'FAIL';
+  let status = 'NOT TESTED';
+  if (report) {
+    const passed =
+      report.success &&
+      0 < report.numPassedTests &&
+      0 === report.numFailedTests &&
+      0 === report.numPendingTests;
+    status = passed ? 'PASS' : 'FAIL';
+  }
   return {
     area,
     status,

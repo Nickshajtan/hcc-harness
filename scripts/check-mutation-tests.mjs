@@ -1,0 +1,32 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mutationEvidence, enforceMutation } from './check-mutation.mjs';
+
+const report = (statuses) => ({
+  files: { 'src/config.ts': { mutants: statuses.map((status) => ({ status })) } },
+});
+test('timeouts are visible and cannot substitute for assertion kills at the gate', () => {
+  const scopes = mutationEvidence(report(['Killed', 'Timeout']));
+  assert.equal(scopes[0].score, 100);
+  assert.equal(scopes[0].assertionScore, 50);
+  assert.throws(() => enforceMutation(scopes), /below 90%/);
+});
+test('missing, empty and infrastructure error reports fail closed', () => {
+  for (const value of [
+    {},
+    { files: {} },
+    report([]),
+    report(['RuntimeError']),
+    report(['CompileError']),
+    report(['Ignored']),
+    report(['Unexpected']),
+  ]) {
+    assert.throws(() => mutationEvidence(value));
+  }
+});
+test('a measured passing scope passes and a survivor reduces its score', () => {
+  const scopes = mutationEvidence(report(['Killed']));
+  assert.doesNotThrow(() => enforceMutation(scopes));
+  assert.equal(mutationEvidence(report(['Survived']))[0].assertionScore, 0);
+  assert.throws(() => enforceMutation(scopes, ['src/events.ts']), /Missing mutation scope/);
+});

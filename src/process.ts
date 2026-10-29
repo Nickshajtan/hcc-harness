@@ -49,15 +49,13 @@ export async function resolveExecutable(
   const pathKey = Object.keys(env).find((k) => 'PATH' === k.toUpperCase());
   const dirs = (env[pathKey ?? 'PATH'] ?? '').split(delimiter).filter(Boolean);
   const pathExtKey = Object.keys(env).find((k) => 'PATHEXT' === k.toUpperCase()) ?? 'PATHEXT';
-  const extensions =
-    'win32' === process.platform
-      ? extname(command)
-        ? ['']
-        : (env[pathExtKey] ?? '.COM;.EXE;.BAT;.CMD')
-            .split(';')
-            .map((ext) => ext.toLowerCase())
-            .filter((ext) => ['.exe', '.com', '.cmd', '.bat'].includes(ext))
-      : [''];
+  let extensions = [''];
+  if ('win32' === process.platform && !extname(command)) {
+    extensions = (env[pathExtKey] ?? '.COM;.EXE;.BAT;.CMD')
+      .split(';')
+      .map((ext) => ext.toLowerCase())
+      .filter((ext) => ['.exe', '.com', '.cmd', '.bat'].includes(ext));
+  }
   for (const dir of dirs) {
     for (const extension of extensions) {
       const candidate = resolve(cwd, dir, command + extension);

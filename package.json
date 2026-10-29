@@ -19,7 +19,7 @@
     "test:acceptance": "npm run build && vitest run tests/acceptance",
     "test:wizard": "npm run build && vitest run tests/unit/wizard.test.ts tests/unit/discovery.test.ts && node scripts/check-wizard.mjs",
     "test:wizard:terminal": "node scripts/check-wizard.mjs",
-    "check": "npm run format:check && npm run typecheck && npm run lint && npm run check:dependencies && npm run build && npm test",
+    "check": "npm run format:check && npm run typecheck && npm run lint && npm run lint:baseline && npm run test:quality && npm run check:dependencies && npm run build && npm test",
     "bootstrap": "npm ci && npm run build",
     "experiment": "vitest run tests/feasibility",
     "format": "prettier --write .",
@@ -28,7 +28,12 @@
     "test:coverage": "npm run build && vitest run --coverage --reporter=default --reporter=json --outputFile=coverage/tests.json",
     "test:mutation": "stryker run",
     "check:dependencies": "depcruise src --config .dependency-cruiser.cjs",
-    "report:dependencies": "depcruise src --config .dependency-cruiser.cjs --output-type json --output-to reports/dependencies.json"
+    "report:dependencies": "depcruise src --config .dependency-cruiser.cjs --output-type json --output-to reports/dependencies.json",
+    "lint:baseline": "node scripts/check-lint-baseline.mjs",
+    "test:quality": "node --test scripts/check-lint-baseline-tests.mjs scripts/check-mutation-tests.mjs scripts/quality-evidence-tests.mjs",
+    "test:mutation:core": "stryker run stryker.core.config.json",
+    "lint:baseline:prune": "node scripts/check-lint-baseline.mjs --prune",
+    "test:mutation:check": "node scripts/check-mutation.mjs config core"
   },
   "dependencies": {
     "emittery": "2.1.0",

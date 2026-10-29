@@ -1,4 +1,4 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { EventBus, event, type ArchEvent } from '../../src/events.js';
 
 it('awaits delivery, handles sync/async subscriber failures, unsubscribes, and disposes', async () => {
@@ -52,4 +52,20 @@ it('isolates buses and contains failures in diagnostic reporting', async () => {
   expect(ids).toEqual(['b']);
   a.dispose();
   b.dispose();
+});
+
+it('reports a contained observer failure through the default diagnostic exactly once', async () => {
+  const diagnostic = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  try {
+    const bus = new EventBus();
+    bus.subscribe('execution.failed', () => {
+      throw new Error('observer failure');
+    });
+    await bus.publish(event('execution.failed', 'run', { stage: 'resolution' }));
+    expect(diagnostic.mock.calls).toEqual([['[arch] observer failed']]);
+    bus.dispose();
+    expect(bus.listenerCount).toBe(0);
+  } finally {
+    diagnostic.mockRestore();
+  }
 });

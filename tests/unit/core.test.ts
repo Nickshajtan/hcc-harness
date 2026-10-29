@@ -105,10 +105,51 @@ it('uses configuration order, immutable identity, fresh middleware, lifecycle ev
   expect(new Set(received.map((e) => e.executionId)).size).toBe(1);
   expect(received.map((e) => e.type)).toEqual([
     'execution.started',
-    ...Array(6).fill('middleware.completed'),
+    ...Array.from({ length: 6 }, () => 'middleware.completed'),
     'execution.completed',
   ]);
   expect(bus?.listenerCount).toBe(0);
+  expect(received[0]?.payload).toEqual({ command: basename(process.execPath), projectRoot: root });
+  expect(
+    received.filter((value) => 'middleware.completed' === value.type).map((value) => value.payload),
+  ).toEqual(
+    ['preflight', 'prepareLaunch', 'finalize'].flatMap((phase) =>
+      ['second', 'first'].map((middlewareId) => ({ middlewareId, phase })),
+    ),
+  );
+});
+
+it('skips disabled unknown middleware and supports an omitted observer', async () => {
+  await writeFile(
+    join(root, '.arch/harness.toml'),
+    'schema=1\n[[middleware]]\nid="unknown"\nenabled=false\n',
+  );
+  const diagnostics: unknown[] = [];
+  expect(
+    (
+      await execute({
+        ...launchOptions(),
+        reportObserverError(error) {
+          diagnostics.push(error);
+        },
+      })
+    ).exitCode,
+  ).toBe(7);
+  expect(diagnostics).toEqual([]);
+});
+
+it('uses the default registry and preserves native environment case semantics', async () => {
+  await configure(['demo']);
+  const file = join(root, 'native-env.json');
+  const env = { ...launchOptions().env, ARCH_DEMO: 'incoming' };
+  const result = await execute({
+    ...launchOptions(),
+    env,
+    args: ['-e', `require('fs').writeFileSync(${JSON.stringify(file)},process.env.ARCH_DEMO)`],
+  });
+  expect(result.exitCode).toBe(0);
+  expect(await readFile(file, 'utf8')).toBe('1');
+  expect(env.ARCH_DEMO).toBe('incoming');
 });
 
 it('denial prevents launch and observer failures cannot reverse it; all finalizers and cleanup run', async () => {
@@ -187,13 +228,15 @@ it('cleans partially registered middleware and rejects unknown/mismatched module
     }),
   ).rejects.toThrow('registration');
   expect(cleaned).toBe(true);
-  await expect(execute({ ...launchOptions(), registry: new Map() })).rejects.toThrow();
+  await expect(execute({ ...launchOptions(), registry: new Map() })).rejects.toMatchObject({
+    cause: new Error('Unknown middleware: broken'),
+  });
   await expect(
     execute({
       ...launchOptions(),
       registry: new Map([['broken', () => ({ id: 'different', register() {} })]]),
     }),
-  ).rejects.toThrow();
+  ).rejects.toMatchObject({ cause: new Error('Middleware registration id mismatch: broken') });
 });
 
 it('validates launch changes and conflicts without allowing late hook registration', async () => {
@@ -290,6 +333,58 @@ it('rejects recursive invocations and aborted launches', async () => {
   ).rejects.toThrow();
 });
 
+it('cancels before preflight while still finalizing and cleaning exactly once', async () => {
+  await configure(['local']);
+  const calls: string[] = [];
+  const reason = new Error('cancel before launch');
+  const registry: Registry = new Map([
+    [
+      'local',
+      () => ({
+        id: 'local',
+        register(api) {
+          api.on('preflight', () => {
+            calls.push('preflight');
+          });
+          api.on('prepareLaunch', () => {
+            calls.push('prepareLaunch');
+          });
+          api.on('finalize', () => {
+            calls.push('finalize');
+          });
+          api.cleanup(() => {
+            calls.push('cleanup');
+          });
+        },
+      }),
+    ],
+  ]);
+  await expect(
+    execute({ ...launchOptions(), registry, signal: AbortSignal.abort(reason) }),
+  ).rejects.toMatchObject({ message: 'Arch execution failed during preflight', cause: reason });
+  expect(calls).toEqual(['finalize', 'cleanup']);
+});
+
+it('passes through without configuration, retaining recursion protection and no event envelope', async () => {
+  const file = join(root, 'passthrough-guard');
+  const received: ArchEvent[] = [];
+  const result = await execute({
+    ...launchOptions(),
+    args: [
+      '-e',
+      `require('fs').writeFileSync(${JSON.stringify(file)},process.env.ARCH_ACTIVE);process.exit(23)`,
+    ],
+    observe(bus) {
+      bus.subscribe('execution.started', (value) => {
+        received.push(value);
+      });
+    },
+  });
+  expect(result).toEqual({ exitCode: 23, signal: null });
+  expect(await readFile(file, 'utf8')).toMatch(/^[a-f0-9-]{36}$/);
+  expect(received).toEqual([]);
+});
+
 it('reports observer initialization errors by identity and continues native execution', async () => {
   await configure([]);
   const error = new Error('observer setup failed'),
@@ -377,3 +472,87 @@ it('contains rejected observer and reporter promises without unhandled rejection
   expect(result.exitCode).toBe(7);
   expect(received).toEqual([error]);
 });
+
+it.each(['resolution', 'preflight', 'prepareLaunch', 'finalize'])(
+  'preserves the primary %s failure and ordered finalization failures',
+  async (failureStage) => {
+    await configure(['local']);
+    const primary = new Error('primary');
+    const finalizer = new Error('finalizer');
+    const cleanup = new Error('cleanup');
+    const calls: string[] = [];
+    const stages: string[] = [];
+    const registry: Registry = new Map([
+      [
+        'local',
+        () => ({
+          id: 'local',
+          register(api) {
+            api.on('preflight', () => {
+              calls.push('preflight');
+              if ('preflight' === failureStage) {
+                throw primary;
+              }
+            });
+            api.on('prepareLaunch', () => {
+              calls.push('prepareLaunch');
+              if ('prepareLaunch' === failureStage) {
+                throw primary;
+              }
+            });
+            api.on('finalize', () => {
+              calls.push('finalize');
+              throw finalizer;
+            });
+            api.cleanup(() => {
+              calls.push('cleanup');
+              throw cleanup;
+            });
+          },
+        }),
+      ],
+    ]);
+    const failure: unknown = await execute({
+      ...launchOptions(),
+      command:
+        'resolution' === failureStage ? 'missing-native-arch-test' : basename(process.execPath),
+      registry,
+      observe(bus) {
+        bus.subscribe('execution.failed', (value) => {
+          stages.push(value.payload.stage);
+          expect(calls.at(-1)).toBe('cleanup');
+        });
+      },
+    }).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(AggregateError);
+    if (!(failure instanceof AggregateError)) {
+      throw new Error('Expected aggregated execution failure');
+    }
+    expect(stages).toEqual([failureStage]);
+    expect(calls.filter((call) => 'finalize' === call)).toHaveLength(1);
+    expect(calls.filter((call) => 'cleanup' === call)).toHaveLength(1);
+    const errors: unknown[] = failure.errors;
+    const finalization = errors.at(-1);
+    expect(finalization).toBeInstanceOf(AggregateError);
+    if (!(finalization instanceof AggregateError)) {
+      throw new Error('Expected ordered finalization failures');
+    }
+    expect(finalization.errors).toEqual([finalizer, cleanup]);
+    expect(finalization.message).toBe('Finalization failed');
+    if ('finalize' === failureStage) {
+      expect(errors).toEqual([finalization]);
+      expect(failure.cause).toBe(finalization);
+    } else {
+      expect(errors).toHaveLength(2);
+      expect(failure.cause).toBe(errors[0]);
+      if ('resolution' === failureStage) {
+        expect(errors[0]).toEqual(
+          new Error('Native executable not found: missing-native-arch-test'),
+        );
+        expect(calls).toEqual(['finalize', 'cleanup']);
+      } else {
+        expect(errors[0]).toBe(primary);
+      }
+    }
+  },
+);

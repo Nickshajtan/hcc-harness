@@ -43,7 +43,8 @@ environment isolation, cwd, inherited streams/TTY, exit status and cancellation.
 ## Initial targets, not enforced thresholds
 
 Coverage and a focused mutation pilot are measured in the [baseline](quality-baseline.md).
-These remain adoption targets, not numeric CI thresholds:
+These are adoption targets. Config, events and middleware enforce the achieved
+95% line / 90% branch scopes; other coverage scopes remain nonblocking:
 
 | Metric          | Critical modules | Other production |
 | --------------- | ---------------: | ---------------: |
@@ -90,8 +91,11 @@ execution is not included in Vitest worker coverage; zero here is a measurement
 gap, not evidence that CLI acceptance tests do not exist. Do not exclude those
 files to improve the average. Cross-platform results are not interchangeable.
 
-`npm run test:mutation` writes JSON/HTML under `reports/mutation/`. The pilot has
-no score gate (`break: 0`); tooling failures and failing initial tests remain fatal.
+`npm run test:mutation` writes JSON/HTML under `reports/mutation/`.
+`npm run test:mutation:core` measures Core/middleware/events separately.
+Stryker's timeout-inclusive break remains zero; `npm run test:mutation:check` instead
+enforces reviewed assertion-only thresholds (config 90%, middleware 85%, events 95%)
+and expected nonempty scopes. Tooling errors and failing tests remain fatal.
 Report Stryker's timeout-inclusive score alongside assertion-only kills and the
 full status counts. Relevant PRs (configuration, its tests, dependencies or pilot tooling) and
 weekly/manual CI run the pilot; unrelated PRs collect coverage/lint reports. Full-repository mutation is

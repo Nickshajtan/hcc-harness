@@ -57,10 +57,16 @@ export async function publicCommand(args: readonly string[]): Promise<void> {
       usage('Expected status [--json]');
     }
     const status = await inspectInstallation(root);
+    let miseStatus = 'unknown';
+    if (true === status.activation.miseAvailable) {
+      miseStatus = 'detected';
+    } else if (false === status.activation.miseAvailable) {
+      miseStatus = 'not detected';
+    }
     console.log(
       '--json' === rest[0]
         ? JSON.stringify(status, null, 2)
-        : `Project: ${status.projectRoot}\nInstallation: ${status.state}\nConfigured routes: ${status.routes.join(', ') || '(none)'}\nIntegrity: ${status.integrity}\nPending recovery: ${status.recoveryPending}\nActivation: shell unknown; mise ${true === status.activation.miseAvailable ? 'detected' : false === status.activation.miseAvailable ? 'not detected' : 'unknown'}; project bin ${status.activation.projectBinOnPath ? 'on PATH' : 'not on PATH'}\n${status.warnings.join('\n')}`,
+        : `Project: ${status.projectRoot}\nInstallation: ${status.state}\nConfigured routes: ${status.routes.join(', ') || '(none)'}\nIntegrity: ${status.integrity}\nPending recovery: ${String(status.recoveryPending)}\nActivation: shell unknown; mise ${miseStatus}; project bin ${status.activation.projectBinOnPath ? 'on PATH' : 'not on PATH'}\n${status.warnings.join('\n')}`,
     );
     if ('invalid_state' === status.state) {
       process.exitCode = 1;

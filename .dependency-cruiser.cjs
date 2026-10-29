@@ -4,7 +4,9 @@ module.exports = {
     {
       name: 'no-presentation-in-execution-contracts',
       severity: 'error',
-      from: { path: '^src/(config|core|events|middleware)\\.ts$' },
+      from: {
+        path: '^src/(config|core|events|middleware|process|setup|lifecycle|discovery)\\.ts$',
+      },
       to: { path: '^src/(cli|commands|wizard)\\.ts$' },
     },
   ],

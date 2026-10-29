@@ -279,7 +279,7 @@ describe.skipIf('1' !== process.env.ARCH_RUNTIME_CONTRACT)('M2.2 shared runtime 
           invocation.child.kill('SIGKILL');
         }
       }
-      const native = await records(log);
+      const native = await records(log, 'runtime');
       expect(native).toHaveLength(1);
       expect(() => process.kill(native[0]!.pid, 0)).toThrow();
     }

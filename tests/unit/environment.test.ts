@@ -98,3 +98,45 @@ it('keeps concurrent environment contributions isolated', async () => {
     ),
   ).toEqual([{ NAME: 'one' }, { NAME: 'two' }]);
 });
+
+it('allows names containing, but not equal to, reserved variable names', async () => {
+  expect(
+    await prepare((api) => {
+      api.setEnv('MY_PATH', 'prefix');
+      api.setEnv('PATH_SUFFIX', 'suffix');
+    }),
+  ).toEqual({ MY_PATH: 'prefix', PATH_SUFFIX: 'suffix' });
+});
+
+it('ends registration after the first phase and clears listeners on disposal', async () => {
+  const bus = new EventBus();
+  const pipeline = createPipeline(
+    {
+      executionId: 'id',
+      projectRoot: '/',
+      command: 'tool',
+      originalArgs: [],
+      cwd: '/',
+      signal: new AbortController().signal,
+    },
+    bus,
+  );
+  let captured: MiddlewareAPI | undefined;
+  pipeline.register({
+    id: 'test',
+    register(api) {
+      captured = api;
+    },
+  });
+  await pipeline.run('preflight');
+  expect(() => {
+    pipeline.register({
+      id: 'late',
+      register() {
+        return undefined;
+      },
+    });
+  }).toThrow('Registration has ended');
+  expect(() => captured?.on('preflight', () => undefined)).toThrow('Invalid hook registration');
+  await pipeline.dispose();
+});
