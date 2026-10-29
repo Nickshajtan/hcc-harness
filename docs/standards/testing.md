@@ -93,6 +93,6 @@ files to improve the average. Cross-platform results are not interchangeable.
 `npm run test:mutation` writes JSON/HTML under `reports/mutation/`. The pilot has
 no score gate (`break: 0`); tooling failures and failing initial tests remain fatal.
 Report Stryker's timeout-inclusive score alongside assertion-only kills and the
-full status counts. Weekly/manual CI runs the pilot; PRs collect coverage and lint
-reports without duplicating mutation on every change. Full-repository mutation is
+full status counts. Relevant PRs (configuration, its tests, dependencies or pilot tooling) and
+weekly/manual CI run the pilot; unrelated PRs collect coverage/lint reports. Full-repository mutation is
 not enabled. Generated Stryker sandboxes are excluded from ordinary test discovery.

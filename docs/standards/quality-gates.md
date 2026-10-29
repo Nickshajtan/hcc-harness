@@ -1,4 +1,4 @@
-﻿# Quality gates and adoption
+п»ї# Quality gates and adoption
 
 A documented standard is not automatically enforced. See [policy levels](README.md)
 and the [measured baseline](quality-baseline.md). Reading references is procedural;
@@ -6,18 +6,18 @@ no deterministic context-delivery guarantee or context injector is implemented.
 
 ## Current enforcement
 
-| Control              | Command                                                         | CI behavior                                                                      |
-| -------------------- | --------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| Format               | `npm run format:check`                                          | Blocking in existing Ubuntu/macOS/Windows checks                                 |
-| Type safety          | `npm run typecheck`                                             | Blocking strict TypeScript, noUncheckedIndexedAccess, exactOptionalPropertyTypes |
-| Typed lint           | `npm run lint`                                                  | Errors block on all three platforms; documented legacy warnings remain visible   |
-| Dependencies         | `npm run check:dependencies`                                    | Blocking no-cycles and presentation-boundary rules                               |
-| Build and regression | `npm run build`, unit/integration/acceptance/experiment scripts | Existing three-platform jobs retained                                            |
-| Wizard               | `npm run test:wizard`                                           | Existing path-filtered/manual three-platform workflow retained                   |
-| Runtime portability  | Existing shared subprocess and Windows console/TTY suites       | Required aggregate remains exactly `M2.2 runtime portability required`           |
-| Coverage             | `npm run test:coverage`                                         | Ubuntu PR/weekly/manual measurement; test failures block, no percentage gate     |
-| Mutation pilot       | `npm run test:mutation`                                         | Weekly/manual focused pilot; tooling/test failures block, no score gate          |
-| Debt report          | `npm run lint:report`, `npm run report:dependencies`            | JSON artifacts in quality measurement job                                        |
+| Control              | Command                                                         | CI behavior                                                                              |
+| -------------------- | --------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Format               | `npm run format:check`                                          | Blocking in existing Ubuntu/macOS/Windows checks                                         |
+| Type safety          | `npm run typecheck`                                             | Blocking strict TypeScript, noUncheckedIndexedAccess, exactOptionalPropertyTypes         |
+| Typed lint           | `npm run lint`                                                  | Errors block on all three platforms; documented legacy warnings remain visible           |
+| Dependencies         | `npm run check:dependencies`                                    | Blocking no-cycles and presentation-boundary rules                                       |
+| Build and regression | `npm run build`, unit/integration/acceptance/experiment scripts | Existing three-platform jobs retained                                                    |
+| Wizard               | `npm run test:wizard`                                           | Existing path-filtered/manual three-platform workflow retained                           |
+| Runtime portability  | Existing shared subprocess and Windows console/TTY suites       | Required aggregate remains exactly `M2.2 runtime portability required`                   |
+| Coverage             | `npm run test:coverage`                                         | Ubuntu PR/weekly/manual measurement; test failures block, no percentage gate             |
+| Mutation pilot       | `npm run test:mutation`                                         | Relevant PRs and weekly/manual focused pilot; tooling/test failures block, no score gate |
+| Debt report          | `npm run lint:report`, `npm run report:dependencies`            | JSON artifacts in quality measurement job                                                |
 
 `npm run check` combines format, typecheck, lint, dependency rules, build and the
 ordinary suite. Run wizard and relevant runtime suites additionally. Existing main
@@ -79,9 +79,9 @@ CI-only scripts require reference checks. No automatic dead-code deletion.
 Coverage includes all executable production files. Numeric targets in
 [testing](testing.md) remain nonblocking until baseline review; uncovered branches
 must be explained rather than excluded. Mutation remains a focused pilot, not a
-repository-wide PR suite. Weekly/manual execution avoids duplicating its cost on
-unrelated PRs. Extend mutation to critical changes only after isolation and runtime
-are measured; full-repository scheduled/release mutation remains a proposal.
+repository-wide PR suite. Relevant-change selection avoids duplicating its cost on unrelated PRs.
+The 15-second focused pilot justifies configuration-related PR runs; extend its
+source scope only after isolation and runtime are measured; full-repository scheduled/release mutation remains a proposal.
 
 Each gate expansion MUST state expected defect detection, measured minutes,
 platforms, maintenance cost and adoption/rollback path. Preserve regression suites;

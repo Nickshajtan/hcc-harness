@@ -1,4 +1,4 @@
-РїВ»С—# Quality baseline and refactoring backlog
+Р С—Р’В»РЎвЂ”# Quality baseline and refactoring backlog
 
 This is the maintained starting point for Structural Refactoring, not authority to
 perform it or M2.2 B2. Baseline main: `769b528ea87ddc3992a872c4fefab8646a487682`
@@ -178,7 +178,8 @@ After targeted tests: 134 passed / 30 skips, 42 seconds. Wizard: 14 unit tests a
 lint analysis ~7 seconds; dependency check ~1 second. Pilot runtime is measured
 separately above. Provisioning dominates cold runs; hosted job durations are recorded after inspection below. New PR coverage/report job is Ubuntu-only;
 existing three-platform regression, wizard and mandatory runtime matrix remain.
-Mutation runs weekly/manual, not a repository-wide or per-PR mutation suite.
+The 15-second pilot runs on configuration/tooling-related PRs and weekly/manual;
+there is no repository-wide or unconditional per-PR mutation suite.
 
 Preserve strict/admin-enforced main protection and exact required runtime status
 name. Format, safe typed lint and two dependency rules now fail existing CI jobs.
