@@ -61,7 +61,12 @@ it('validates every native record and preserves missing-file semantics', async (
     path: 'native',
   };
   await writeFile(path, JSON.stringify(runtime));
-  expect(await records(path)).toEqual([{ args: [], cwd: directory, pid: 2 }]);
+  expect(await records(path, 'runtime')).toEqual([runtime]);
+  await expect(records(path)).rejects.toThrow('Malformed native fixture record');
+  await writeFile(path, JSON.stringify({ pid: 3, node: 'v20.19.0' }));
+  expect(await records(path, 'process')).toEqual([{ pid: 3, node: 'v20.19.0' }]);
+  await writeFile(path, JSON.stringify({ pid: 3, node: false }));
+  await expect(records(path, 'process')).rejects.toThrow('Malformed process fixture record');
   for (const value of [
     null,
     [],

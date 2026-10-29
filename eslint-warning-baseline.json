@@ -26,7 +26,6 @@
   "{\"file\":\"tests/feasibility/runtime-bootstrap.test.ts\",\"rule\":\"@typescript-eslint/no-non-null-assertion\",\"diagnostic\":\"noNonNull\",\"source\":\"expect(JSON.parse(result.stdout.split(/\\\\r?\\\\n/)[0]!)).toMatchObject({\"}",
   "{\"file\":\"tests/feasibility/runtime-bootstrap.test.ts\",\"rule\":\"@typescript-eslint/no-unnecessary-condition\",\"diagnostic\":\"neverOptionalChain\",\"source\":\"await f?.dispose();\"}",
   "{\"file\":\"tests/feasibility/runtime-bootstrap.test.ts\",\"rule\":\"@typescript-eslint/no-unsafe-assignment\",\"diagnostic\":\"anyAssignment\",\"source\":\"const record = JSON.parse(result.stdout.split(/\\\\r?\\\\n/)[0]!);\"}",
-  "{\"file\":\"tests/feasibility/runtime-bootstrap.test.ts\",\"rule\":\"@typescript-eslint/no-unsafe-member-access\",\"diagnostic\":\"unsafeMemberExpression\",\"source\":\"expect(JSON.parse((await readFile(log, 'utf8')).trim()).node).toMatch(/^v20\\\\./);\"}",
   "{\"file\":\"tests/feasibility/runtime-bootstrap.test.ts\",\"rule\":\"@typescript-eslint/no-unsafe-member-access\",\"diagnostic\":\"unsafeMemberExpression\",\"source\":\"expect(JSON.parse(result.stdout).state).toBe('uninitialized');\"}",
   "{\"file\":\"tests/feasibility/runtime-bootstrap.test.ts\",\"rule\":\"@typescript-eslint/no-unsafe-member-access\",\"diagnostic\":\"unsafeMemberExpression\",\"source\":\"return record.node as string;\"}",
   "{\"file\":\"tests/feasibility/runtime-bootstrap.test.ts\",\"rule\":\"@typescript-eslint/restrict-plus-operands\",\"diagnostic\":\"invalid\",\"source\":\"const dir = join(f.root, 'Node ' + name);\"}",

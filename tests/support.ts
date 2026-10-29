@@ -193,9 +193,30 @@ export function events(result: Result): {
       };
     });
 }
+interface NativeRecord {
+  args: string[];
+  cwd: string;
+  demo: string;
+  pid: number;
+}
+interface ProcessRecord {
+  node: string;
+  pid: number;
+}
+interface RuntimeRecord extends ProcessRecord {
+  args: string[];
+  cwd: string;
+  exec: string;
+  path: string;
+}
+
+export function records(file: string): Promise<NativeRecord[]>;
+export function records(file: string, format: 'runtime'): Promise<RuntimeRecord[]>;
+export function records(file: string, format: 'process'): Promise<ProcessRecord[]>;
 export async function records(
   file: string,
-): Promise<{ args: string[]; cwd: string; demo?: string; pid: number }[]> {
+  format: 'native' | 'runtime' | 'process' = 'native',
+): Promise<(NativeRecord | RuntimeRecord | ProcessRecord)[]> {
   try {
     return (await readFile(file, 'utf8'))
       .trim()
@@ -205,23 +226,29 @@ export async function records(
         const value: unknown = JSON.parse(line);
         if (
           !isObject(value) ||
-          !isStringArray(value.args) ||
-          'string' !== typeof value.cwd ||
           'number' !== typeof value.pid ||
           !Number.isInteger(value.pid) ||
           0 >= value.pid
         ) {
           throw new Error('Malformed native fixture record');
         }
+        if ('process' === format) {
+          if ('string' !== typeof value.node) {
+            throw new Error('Malformed process fixture record');
+          }
+          return { node: value.node, pid: value.pid };
+        }
+        if (!isStringArray(value.args) || 'string' !== typeof value.cwd) {
+          throw new Error('Malformed native fixture record');
+        }
         const args: string[] = value.args;
         const record = { args, cwd: value.cwd, pid: value.pid };
-        if ('demo' in value) {
+        if ('native' === format) {
           if ('string' !== typeof value.demo) {
             throw new Error('Malformed native fixture record');
           }
           return { ...record, demo: value.demo };
         }
-        // The active B1 native runtime fixture has runtime identity instead of demo.
         if (
           'string' !== typeof value.node ||
           'string' !== typeof value.exec ||
@@ -229,7 +256,7 @@ export async function records(
         ) {
           throw new Error('Malformed native fixture record');
         }
-        return record;
+        return { ...record, node: value.node, exec: value.exec, path: value.path };
       });
   } catch (error) {
     if ('ENOENT' === (error as NodeJS.ErrnoException).code) {

@@ -254,9 +254,9 @@ describe.skipIf(!enabled)(
         });
         expect([code, 0xc000013a], result.stdout + result.stderr).toContain(result.code);
         expect(result.stderr).toContain('[arch:demo] cleanup');
-        const native = await records(log);
+        const native = await records(log, 'process');
         expect(native).toHaveLength(1);
-        expect(JSON.parse((await readFile(log, 'utf8')).trim()).node).toMatch(/^v20\./);
+        expect(native[0]?.node).toMatch(/^v20\./);
         expect(() => process.kill(native[0]!.pid, 0)).toThrow();
       },
     );
