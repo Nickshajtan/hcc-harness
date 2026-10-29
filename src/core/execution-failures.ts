@@ -14,6 +14,7 @@ export class ExecutionFailures {
   }
 
   record(error: unknown, stage: ExecutionStage): void {
+    // Store original values without wrapping; the first failure owns both cause and stage.
     if (!this.hasFailures) {
       this.primaryStage = stage;
     }

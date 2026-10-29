@@ -33,10 +33,10 @@ test('a measured passing scope passes and a survivor reduces its score', () => {
 
 test('Core and every extracted execution scope reject surviving-only reports', () => {
   for (const file of [
-    'src/core.ts',
-    'src/execution-session.ts',
-    'src/execution-failures.ts',
-    'src/execution-environment.ts',
+    'src/core/index.ts',
+    'src/core/execution-session.ts',
+    'src/core/execution-failures.ts',
+    'src/core/execution-environment.ts',
   ]) {
     const scopes = mutationEvidence({ files: { [file]: { mutants: [{ status: 'Survived' }] } } });
     assert.throws(() => enforceMutation(scopes), /below 85%/);

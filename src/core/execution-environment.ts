@@ -5,6 +5,8 @@ export function composeLaunchEnvironment(
   executionId: string,
   platform: NodeJS.Platform = process.platform,
 ): NodeJS.ProcessEnv {
+  // Windows identifies environment names without case; spreading alone could retain both keys.
+  // Filtering into a fresh object keeps caller-owned inputs safe across concurrent executions.
   const retained = Object.entries(native).filter(
     ([key]) =>
       'win32' !== platform ||
