@@ -13,6 +13,10 @@ npm run test:acceptance             # builds, then black-box routing scenario
 npm run test:wizard                 # builds, focused unit tests + real terminals
 ```
 
+Quality controls: `npm run format:check`, `npm run lint:report`,
+`npm run check:dependencies`, `npm run test:coverage`, `npm run test:mutation`.
+See the [quality baseline](standards/quality-baseline.md) for measured limits and debt.
+
 Individual scripts: `typecheck`, `lint`, `build`, `experiment`, `test:unit`,
 `test:integration`, `test:acceptance`, `test:wizard:terminal`. Build before individual
 integration/terminal tests. Dependencies/tools need network for provisioning; tests

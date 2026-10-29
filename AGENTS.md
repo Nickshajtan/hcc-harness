@@ -10,6 +10,8 @@ Before implementing or modifying code:
 2. Inspect affected module boundaries, callers, public contracts and platform behavior.
 3. Identify applicable quality, ownership, recovery and compatibility requirements.
 4. Choose the simplest maintainable design and define a test strategy before editing.
+   Testability by Design, readable new production code, explicit subsystem contracts
+   and understandable critical failure semantics are MUSTs; see architecture standards.
 
 Before completing a task:
 

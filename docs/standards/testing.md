@@ -42,7 +42,8 @@ environment isolation, cwd, inherited streams/TTY, exit status and cancellation.
 
 ## Initial targets, not enforced thresholds
 
-No coverage or mutation baseline has been measured. These are adoption targets:
+Coverage and a focused mutation pilot are measured in the [baseline](quality-baseline.md).
+These remain adoption targets, not numeric CI thresholds:
 
 | Metric          | Critical modules | Other production |
 | --------------- | ---------------: | ---------------: |
@@ -62,9 +63,10 @@ uncovered branches, equivalent mutants and platform gaps separately.
 
 ## Mutation adoption
 
-StrykerJS is the preferred candidate, not installed or enabled. First pilot a small
-critical domain boundary, checking TypeScript/Vitest compatibility, test selection,
-determinism, runtime and meaningful surviving mutants. Record tool/version,
+StrykerJS is installed with the Vitest runner. `npm run test:mutation` pilots
+configuration validation and fail-closed discovery; `stryker.config.json` fixes the
+source/test scope and minimal sandbox inputs. Run the pilot before extending scope,
+checking compatibility, determinism, runtime and meaningful surviving mutants. Record tool/version,
 source scope, platform, duration, killed/survived/no-coverage/timeouts and exclusions.
 Do not count a timeout as evidence of the intended behavioral assertion.
 
@@ -78,3 +80,19 @@ full mutation belongs on scheduled runs or release gates if cost is acceptable.
 Measure execution minutes and flakiness before choosing frequency, caching or
 concurrency. Do not activate repository-wide mutation on every PR without evidence.
 Report only executed results and keep ordinary regression checks independent.
+
+## Measurement commands
+
+`npm run test:coverage` builds and runs the ordinary suite with V8 coverage of
+all executable `src/**/*.ts` (only declaration files excluded). Reports in
+`coverage/` include text, JSON, JSON summary, HTML and LCOV. Built CLI subprocess
+execution is not included in Vitest worker coverage; zero here is a measurement
+gap, not evidence that CLI acceptance tests do not exist. Do not exclude those
+files to improve the average. Cross-platform results are not interchangeable.
+
+`npm run test:mutation` writes JSON/HTML under `reports/mutation/`. The pilot has
+no score gate (`break: 0`); tooling failures and failing initial tests remain fatal.
+Report Stryker's timeout-inclusive score alongside assertion-only kills and the
+full status counts. Weekly/manual CI runs the pilot; PRs collect coverage and lint
+reports without duplicating mutation on every change. Full-repository mutation is
+not enabled. Generated Stryker sandboxes are excluded from ordinary test discovery.
