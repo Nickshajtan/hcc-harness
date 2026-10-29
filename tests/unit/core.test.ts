@@ -377,3 +377,86 @@ it('contains rejected observer and reporter promises without unhandled rejection
   expect(result.exitCode).toBe(7);
   expect(received).toEqual([error]);
 });
+
+it.each(['resolution', 'preflight', 'prepareLaunch', 'finalize'])(
+  'preserves the primary %s failure and ordered finalization failures',
+  async (failureStage) => {
+    await configure(['local']);
+    const primary = new Error('primary');
+    const finalizer = new Error('finalizer');
+    const cleanup = new Error('cleanup');
+    const calls: string[] = [];
+    const stages: string[] = [];
+    const registry: Registry = new Map([
+      [
+        'local',
+        () => ({
+          id: 'local',
+          register(api) {
+            api.on('preflight', () => {
+              calls.push('preflight');
+              if ('preflight' === failureStage) {
+                throw primary;
+              }
+            });
+            api.on('prepareLaunch', () => {
+              calls.push('prepareLaunch');
+              if ('prepareLaunch' === failureStage) {
+                throw primary;
+              }
+            });
+            api.on('finalize', () => {
+              calls.push('finalize');
+              throw finalizer;
+            });
+            api.cleanup(() => {
+              calls.push('cleanup');
+              throw cleanup;
+            });
+          },
+        }),
+      ],
+    ]);
+    const failure: unknown = await execute({
+      ...launchOptions(),
+      command:
+        'resolution' === failureStage ? 'missing-native-arch-test' : basename(process.execPath),
+      registry,
+      observe(bus) {
+        bus.subscribe('execution.failed', (value) => {
+          stages.push(value.payload.stage);
+          expect(calls.at(-1)).toBe('cleanup');
+        });
+      },
+    }).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(AggregateError);
+    if (!(failure instanceof AggregateError)) {
+      throw new Error('Expected aggregated execution failure');
+    }
+    expect(stages).toEqual([failureStage]);
+    expect(calls.filter((call) => 'finalize' === call)).toHaveLength(1);
+    expect(calls.filter((call) => 'cleanup' === call)).toHaveLength(1);
+    const errors: unknown[] = failure.errors;
+    const finalization = errors.at(-1);
+    expect(finalization).toBeInstanceOf(AggregateError);
+    if (!(finalization instanceof AggregateError)) {
+      throw new Error('Expected ordered finalization failures');
+    }
+    expect(finalization.errors).toEqual([finalizer, cleanup]);
+    if ('finalize' === failureStage) {
+      expect(errors).toEqual([finalization]);
+      expect(failure.cause).toBe(finalization);
+    } else {
+      expect(errors).toHaveLength(2);
+      expect(failure.cause).toBe(errors[0]);
+      if ('resolution' === failureStage) {
+        expect(errors[0]).toEqual(
+          new Error('Native executable not found: missing-native-arch-test'),
+        );
+        expect(calls).toEqual(['finalize', 'cleanup']);
+      } else {
+        expect(errors[0]).toBe(primary);
+      }
+    }
+  },
+);
