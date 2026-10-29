@@ -5,6 +5,7 @@ export default defineConfig({
   test: {
     include: [
       'tests/unit/core.test.ts',
+      'tests/unit/execution-policy.test.ts',
       'tests/unit/environment.test.ts',
       'tests/unit/events.test.ts',
     ],

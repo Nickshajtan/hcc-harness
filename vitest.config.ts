@@ -17,6 +17,10 @@ export default defineConfig({
       // Other production files remain included without a numeric gate.
       thresholds: {
         'src/config.ts': { lines: 95, branches: 90 },
+        'src/core.ts': { lines: 95, branches: 90 },
+        'src/execution-session.ts': { lines: 95, branches: 90 },
+        'src/execution-environment.ts': { lines: 95, branches: 90 },
+        'src/execution-failures.ts': { lines: 95, branches: 90 },
         'src/events.ts': { lines: 95, branches: 90 },
         'src/middleware.ts': { lines: 95, branches: 90 },
       },
