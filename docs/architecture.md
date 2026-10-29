@@ -98,7 +98,8 @@ external wrapper routes back into Arch. It is set for both configured execution
 and native passthrough; passthrough emits no harness events or middleware activity.
 Native executable absence fails explicitly. On Windows, npm's
 `read-cmd-shim` resolves standard `.cmd` launchers to their targets; Node shebang
-scripts launch with the running Node executable, native targets launch directly.
+scripts use the standard shim's adjacent Node when requested, otherwise native
+PATH Node; neither Arch's runtime nor ARCH_NODE is a fallback. Native targets launch directly.
 Arbitrary `.bat`/non-npm `.cmd` files fail instead of entering a shell.
 
 SIGINT, SIGTERM and SIGHUP abort the current execution. On POSIX, the signal is
@@ -165,8 +166,13 @@ service and preserve existing ownership/recovery behavior. Interactive init/conf
 have deterministic `init <commands...>` / `configure <commands...>` equivalents;
 menu inspection/removal map to `status` / `deinit --yes`.
 
-The approved [M2 design](research/m2-routing-lifecycle-design.md) gives failure-mode
-comparisons and [the report](m2-implementation-report.md) records measured evidence.
+The publication decision is deliberately narrow: a journal explains interrupted
+ownership, but cannot authorize overwriting a destination that appears after
+preflight. Ordinary rename lacks portable no-replace semantics; exclusive copy
+could expose a truncated live launcher. Hence hard links publish complete new
+files/journals exclusively, while staged rename replaces only already-owned state.
+Unsupported links fail without an alternate algorithm. See
+[compatibility](compatibility.md) and [test evidence](testing.md).
 
 ### Existing bootstrap guarantees
 
@@ -180,9 +186,28 @@ uninstall still rejects unexpectedly missing files. The manifest is retained thr
 deletion/configuration errors and removed last; errors identify the operation and
 affected path. Initialization is refused while that checkpoint exists. Edited or
 preexisting harness configuration remains. Generated launchers capture absolute
-runtime/checkout paths, so moving either requires uninstall/reinitialization.
+runtime/checkout paths. Missing targets do not invalidate unchanged ownership;
+use a working current Arch for explicit deinit/init [rebind](usage.md).
 
 New local module factories are registered explicitly in the registry without
-changing routing or lifecycle code. Future RTK integration should use this contract.
+changing routing or lifecycle code. For example, add a factory to `defaultRegistry`
+in `src/core.ts`, build, and enable its id in TOML:
+
+```ts
+import type { ArchMiddleware } from './middleware.js';
+export function example(): ArchMiddleware {
+  return { id: 'example', register(api) {
+    api.on('preflight', () => { api.context.signal.throwIfAborted(); });
+    api.on('prepareLaunch', () => { api.setEnv('MY_TOOL_MODE', 'local'); });
+    api.cleanup(() => { /* release execution-local resources */ });
+  } };
+}
+```
+
+Register `['example', example]`; factories must create execution-local state.
+Programmatic consumers may pass a registry and observe the per-execution bus through
+`execute()`. Current APIs, not the retired milestone spec, define the contract.
+M2.2 B1 is verified feasibility; B2 remains planned and requires separate approval.
+The [active portability design](runtime-portability.md) records those boundaries.
 Provider SDKs/loops, dynamic downloads, remote events, storage, MCP/skills/context,
 sandbox/DLP/budget systems, persistence and orchestration remain outside this MVP.
