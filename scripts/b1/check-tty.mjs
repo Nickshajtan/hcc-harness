@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { copyFile, cp, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { copyFile, cp, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
@@ -8,7 +8,7 @@ import * as pty from 'node-pty';
 // Like the wizard checker, keep node-pty outside Vitest worker threads.
 assert.equal(process.platform, 'win32', 'B1 bootstrap PTY check is Windows-only');
 assert.ok(process.env.ARCH_B1_BOOTSTRAP && process.env.ARCH_B1_NODE20, 'Provide the compiled prototype and real Node 20');
-const root = await mkdtemp(join(tmpdir(), 'arch-b1-terminal-'));
+const root = await mkdtemp(join(await realpath(tmpdir()), 'arch-b1-terminal-'));
 let term, ended = false;
 try {
   const app = join(root, 'Arch app'), native = join(root, 'native'), runtime = join(root, 'project Node');

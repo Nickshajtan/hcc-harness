@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { copyFile, cp, link, mkdir, readFile, rename, symlink, writeFile } from 'node:fs/promises';
+import { copyFile, cp, link, mkdir, readFile, realpath, rename, symlink, writeFile } from 'node:fs/promises';
 import { join, resolve, dirname, delimiter } from 'node:path';
 import { tmpdir } from 'node:os';
 import { world, run, records } from '../support.js';
@@ -13,7 +13,7 @@ describe.skipIf(!enabled)('B1 Windows executable feasibility (explicit bootstrap
   let app: string, entry: string, cli: string, route: string, path24: string, path20: string, path22: string;
   const hostile = ['', 'a"b', 'a\\"b', 'tail space\\', '\\\\server\\share\\', '%PATH% & | < > ^ !', '日本語 Україна', 'line\nbreak'];
   beforeAll(async () => {
-    f = await world(tmpdir());
+    f = await world(await realpath(tmpdir()));
     app = join(f.root, 'Arch bootstrap 空間');
     await mkdir(app); await cp(resolve('dist'), join(app, 'dist'), { recursive: true });
     await copyFile(resolve('package.json'), join(app, 'package.json'));

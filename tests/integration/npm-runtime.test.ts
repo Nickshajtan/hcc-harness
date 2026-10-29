@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
-import { copyFile, mkdir, writeFile, readFile } from 'node:fs/promises';
+import { copyFile, mkdir, realpath, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, delimiter, resolve } from 'node:path';
 import { createRequire } from 'node:module';
@@ -10,7 +10,7 @@ let fixture: Awaited<ReturnType<typeof world>>;
 let pathNode: string, adjacentNode: string;
 beforeAll(async () => {
   if (!windows) return;
-  fixture = await world(tmpdir());
+  fixture = await world(await realpath(tmpdir()));
   const pathDir = join(fixture.root, 'project Node');
   await mkdir(pathDir);
   pathNode = join(pathDir, 'node.exe'); adjacentNode = join(fixture.native, 'node.exe');
