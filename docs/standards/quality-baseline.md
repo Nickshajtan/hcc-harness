@@ -1,236 +1,206 @@
-Р В РЎвЂ”Р вЂ™Р’В»Р РЋРІР‚вЂќ# Quality baseline and refactoring backlog
+# Quality baseline and refactoring backlog
 
-This is the maintained starting point for Structural Refactoring, not authority to
-perform it or M2.2 B2. Baseline main: `769b528ea87ddc3992a872c4fefab8646a487682`
-(after PR #8). Measurements below are Windows x64, Node 24.19.0, unless identified
-as hosted evidence. Re-run commands after meaningful changes; counts are not budgets
-that permit adding debt. Human comprehensibility remains the review criterion.
+Human Comprehensibility First. This maintained baseline identifies evidence and debt;
+it does not authorize Structural Refactoring or M2.2 B2.
 
-## Reproduction and tools
+Starting commit: `9c7ea4fec83a32c0566710c7a6d8ae9144615125` (main after PR #9).
+Measurements below are Windows x64 / Node 24.19.0 unless explicitly labeled otherwise.
+Hosted validation for the new gates remains **NOT TESTED** until inspected below.
 
-| Tool                         | Pinned version   | Command / output                                                      |
-| ---------------------------- | ---------------- | --------------------------------------------------------------------- |
-| Prettier                     | 3.9.10           | `npm run format:check`; `.prettierrc.json`                            |
-| ESLint / typescript-eslint   | 10.12.0 / 8.71.2 | `npm run lint`; `npm run lint:report` produces `reports/lint.json`    |
-| eslint-config-prettier       | 10.1.8           | Removes layout conflicts, followed by semantic comparison/brace rules |
-| TypeScript                   | 6.0.3            | `npm run typecheck`                                                   |
-| Vitest / coverage-v8         | 5.0.5 / 5.0.5    | `npm run test:coverage`; JSON, HTML, LCOV in `coverage/`              |
-| Stryker core / Vitest runner | 10.1.1 / 10.1.1  | `npm run test:mutation`; JSON/HTML in `reports/mutation/`             |
-| dependency-cruiser           | 18.7.0           | `npm run check:dependencies`, `npm run report:dependencies`           |
-| Knip (evaluation only)       | 6.43.0           | `npm exec --yes --package=knip@6.43.0 --call "knip --reporter json"`  |
+## Reproduction
 
-All new installed tools are development dependencies. No runtime dependencies or
-public contracts changed. npm audit reports two moderate advisories through
-Stryker's dev-only `typed-rest-client -> qs@6.15.1`; a compatible `npm update qs`
-did not resolve them. No forced override/audit fix was applied. Review upstream
-updates before broadening mutation use; do not expose a report server to untrusted
-inputs. This is a recorded dependency limitation, not a clean-audit claim.
+Pinned tools remain Prettier 3.9.10, ESLint 10.12.0, typescript-eslint 8.71.2,
+TypeScript 6.0.3, Vitest/coverage-v8 5.0.5, Stryker core/runner 10.1.1,
+eslint-config-prettier 10.1.8 and dependency-cruiser 18.7.0. No dependency added.
 
-## Formatting and lint baseline
+| Command                       | Evidence                                                                                 |
+| ----------------------------- | ---------------------------------------------------------------------------------------- |
+| `npm run check`               | Format, types, lint, warning ratchet, tooling tests, dependencies, build, ordinary tests |
+| `npm run lint:report`         | `reports/lint.json`, including diagnostic complexity rules                               |
+| `npm run lint:baseline`       | `reports/lint-warning-diff.json`; rejects errors and new warning fingerprints            |
+| `npm run lint:baseline:prune` | Removes resolved debt only; cannot add fingerprints                                      |
+| `npm run test:quality`        | Eight negative/positive tooling contracts, including missing-artifact subprocess         |
+| `npm run test:coverage`       | V8 JSON/summary/HTML/LCOV and test JSON under `coverage/`                                |
+| `npm run test:mutation`       | Config pilot JSON/HTML under `reports/mutation/`                                         |
+| `npm run test:mutation:core`  | Core/middleware/events pilot under `reports/mutation-core/`                              |
+| `npm run test:mutation:check` | Validates expected scopes, errors and assertion-only thresholds                          |
+| `npm run report:dependencies` | `reports/dependencies.json`                                                              |
+| `npm run test:wizard`         | Unit plus real terminal contracts                                                        |
 
-Formatting used a dedicated commit and protected frozen M1 renderer/vendor bytes.
-String/template values in 20 src/script/fixture files were compared before/after
-formatting; unchanged. Prettier required a second pass on one multiline return-type
-signature in tests/support.ts; that isolated whitespace correction is recorded.
-No executable shebang, launcher payload or serialized manifest format was changed.
-Unsupported C/C++, PowerShell, shell and TOML are manually reviewed, not silently
-claimed as formatter/linter coverage.
+## Reproduced before / after
 
-Initial strict probe (before remediation) found 150 Yoda and 170 brace findings.
-Mechanical literal reordering/braces and type-only import cleanup were applied;
-production semantic edits are limited to explicit `unknown` annotations for the
-CLI catch callback and AbortSignal.reason. No workflows or functions were split.
-Final ordinary lint: **0 errors, 141 visible legacy warnings**. Analysis mode adds
-51 metric findings: **192 warnings across 44 linted files**, with no hidden source
-or eslint-disable blocks. Configuration is authoritative for exact per-rule severity.
+| Measurement                                          |                             Starting commit |                                        Hardened local result |
+| ---------------------------------------------------- | ------------------------------------------: | -----------------------------------------------------------: |
+| Ordinary lint errors / warnings                      |                                     0 / 141 |                                                      0 / 119 |
+| Analysis warnings (including metrics)                |                                         192 |                                                          172 |
+| Complexity / depth / params / length review findings |                            11 / 19 / 3 / 18 |                                             12 / 19 / 3 / 19 |
+| V8 lines                                             |                            73.57% (607/825) |                                             75.32% (629/835) |
+| V8 branches                                          |                            65.70% (387/589) |                                             67.79% (402/593) |
+| V8 statements / functions                            |                             73.87% / 82.40% |                                              75.58% / 88.09% |
+| Config mutation                                      |          87 killed / 1 survived / 5 timeout |                                                    Unchanged |
+| Import graph                                         | 25 modules / 44 dependencies; no violations | Same graph; additional established presentation restrictions |
 
-| Diagnostic category                                          | Remaining findings |
-| ------------------------------------------------------------ | -----------------: |
-| Non-null assertions                                          |                 44 |
-| Unnecessary conditions                                       |                 13 |
-| Unsafe test JSON assignments/member access/returns/arguments |    11 / 27 / 6 / 8 |
-| Template/plus operand restrictions                           |              8 / 6 |
-| Optional/nullish-chain preferences                           |              1 / 4 |
-| Unnecessary conversion / dynamic delete                      |              2 / 1 |
-| Empty test callbacks / async without await                   |              4 / 2 |
-| Nested ternaries (including script)                          |                  3 |
-| Complexity >12 / depth >3 / params >4 / function length >60  |   11 / 19 / 3 / 18 |
+Baseline ordinary tests: **134 passed / 30 existing platform or optional skips**;
+coverage reproduced the same counts. Local runs overlapped and the baseline check
+took 81 seconds; this is not a clean isolated speed comparison.
+Final ordinary regression: **165 passed / 30 existing skips**, 38.35 seconds;
+the gated coverage rerun passes with the same test counts.
+Wizard: **14 unit tests and 13 real-terminal scenarios PASS**.
 
-Unsafe calls, floating/misused promises, explicit any, production unsafe boundaries,
-production unnecessary assertions, exhaustive switches, type imports, strict equality,
-braces and Yoda comparisons block CI. Existing warning categories need focused
-characterization and remediation before promotion; no baseline-aware new-warning
-ratchet is available. Review must reject new violations. Strict boolean-expression
-policy remains deferred while intentional truthiness conventions are examined.
+## Static analysis and warning policy
 
-## Complexity, cohesion and coverage
+No-nested-ternary and require-await are now errors after narrowly scoped remediation.
+Promise-returning wizard doubles still return promises; no observer, cleanup or native
+process scheduling contract was changed. Unsafe shared test JSON now narrows real
+values; a fixed fixture-path object replaces unchecked indexing. Ownership JSON is
+validated from unknown by a local predicate. Historical incomplete manifests and extra
+metadata remain accepted; parser diagnostics and formats are unchanged.
 
-ESLint uses its default classic complexity calculation; line counts below are
-physical module lines, not a defect ranking. Function length counts nonblank,
-noncomment lines; braces increase that metric without changing behavior.
-Coverage includes every executable production file, excludes only declarations,
-and does not credit built child-process execution to Vitest's in-process collector.
+| Deferred category                                   |          Before |           After | Reason / follow-up                                                                              |
+| --------------------------------------------------- | --------------: | --------------: | ----------------------------------------------------------------------------------------------- |
+| Non-null assertions                                 |              44 |              37 | Remaining test runtime provisioning and state invariants need local characterization            |
+| Unnecessary conditions                              |              13 |              11 | Typed guarantees differ from runtime external/platform state; do not mechanically delete guards |
+| Unsafe test assignment / member / return / argument | 11 / 27 / 6 / 8 | 10 / 27 / 2 / 8 | Per-fixture JSON and npm module boundaries still need validation                                |
+| Template / plus operands                            |           8 / 6 |           7 / 4 | Explicit numeric/string boundary handling remains                                               |
+| Optional / nullish preferences                      |           1 / 4 |           1 / 4 | Empty environment values may intentionally behave differently from absent values                |
+| Conversion / dynamic delete                         |           2 / 1 |           2 / 1 | Runtime TTY truthiness and Windows case-insensitive environment replacement preserved           |
+| Confusing void / empty callbacks                    |           1 / 4 |           1 / 4 | Preserve wizard close return and intentional test no-ops; no broad exception                    |
+| Nested ternary / async without await                |           3 / 2 |           0 / 0 | Errors now block recurrence                                                                     |
 
-**Coverage: lines 73.57% (607/825), branches 65.70% (387/589), statements 73.87%,
-functions 82.40%.** These are measured results, not the 95%/90% critical targets.
-No numeric threshold is enabled. CLI/commands/demo remain included at 0%; real CLI
-acceptance/terminal tests exist, but their subprocess execution is not aggregated.
+The ratchet uses ESLint's ordinary diagnostics, file-relative paths, rule/message IDs
+and trimmed source context, with duplicate multiplicity. It ignores numeric line shifts.
+It rejects a different warning even when another warning disappears. Resolved entries
+must be pruned; CI never refreshes or expands the snapshot. Changes to the tracked
+baseline require review. Identical diagnostic/context occurrences in the same file are
+indistinguishable; moving that exact text is not a new fingerprint. This is a documented
+limit, not a claim of semantic diff analysis. Formatting/context edits to legacy debt
+can require a reviewed snapshot change; do not suppress findings to avoid review.
 
-| Module        | Lines | Hotspots / responsibilities                                                                                                                                                     |              Line / branch coverage |
-| ------------- | ----: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------: |
-| lifecycle.ts  |   498 | journalFrom complexity 20; validateRecovery 13; applyJournal 14; inspection 26 / 107 function lines. Parsing/planning, ownership, publication, recovery and diagnostics coexist |                      92.08 / 84.39% |
-| setup.ts      |   246 | setup complexity 15 / 72 function lines; uninstall 14. Rendering, manifest validation, initialization rollback, symlink safety and uninstall journal                            |                      90.51 / 89.28% |
-| process.ts    |   219 | resolution 16; launch 15 / 132 function lines / 5 parameters; depth 5. PATH/npm shim policy, spawning, cancellation and settlement                                              |                      66.11 / 59.77% |
-| commands.ts   |   114 | dispatch complexity 37 / 92 function lines; depth 4. Parsing, handlers, status presentation and interactive lifecycle                                                           | 0 / 0% (subprocess measurement gap) |
-| core.ts       |   127 | execute complexity 23 / 108 function lines; depth 4. Registry composition, phases, failure precedence and finalization                                                          |                      87.50 / 70.00% |
-| events.ts     |    80 | No metric trigger. Generic payload assertions, observer/report isolation and default diagnostics                                                                                |    93.33 / 0% (one measured branch) |
-| middleware.ts |   114 | createPipeline 89 function lines, no complexity trigger. Registration state, phase rules, env protection and cleanup                                                            |                      97.61 / 91.66% |
-| wizard.ts     |   135 | setupWizard complexity 27 / 85 function lines. Terminal presentation, selection and lifecycle                                                                                   |                      70.83 / 72.54% |
+ESLint [bulk suppressions](https://eslint.org/docs/latest/use/suppressions) were rejected:
+their per-file/rule counts permit replacement debt. The small comparator has direct
+tests for replacements, duplicate findings, shifted lines and missing context. Diagnostics
+remain visible; there are no eslint-disable blocks or production exclusions.
 
-Other measured coverage: config 100/100%, discovery 90.90/90.90%, cli 0/0%, demo 0/0%.
-Mixed modules must not average away critical contracts. Known follow-up scenarios:
+## Coverage and behavioral evidence
 
-- Lifecycle: malformed journal/payload combinations, unexpected safe-path/status errors,
-  unreferenced staging and cleanup failures. Retain real interruption checkpoints;
-  numeric gaps alone do not mean those existing tests are absent.
-- Setup: rollback cleanup failure precedence, initialization/uninstall conflict paths,
-  symlink/read failures, unsupported architecture. Preserve renderer bytes and hashes.
-- Process: platform-specific npm shim/adjacent Node/router branches, kill failures,
-  already-settled cancellation and escalation. Existing Windows subprocess tests do
-  not all contribute to this in-process percentage. Measure per-platform before policy.
-- Core: mismatched registry IDs, resolution/finalize-only failures and combined
-  primary/secondary errors need explicit characterization before simplifying nesting.
-- Events: default reporter failure output and generic event/payload correlation.
-  Observer errors intentionally cannot authorize or reverse execution.
-- Middleware: ended/invalid registration and conflicts across lifecycle phases;
-  preserve finalizer continuation and LIFO cleanup. Unit tests already protect the
-  main lifecycle; expand mutation beyond config only after isolation is established.
-- CLI/wizard: quantify subprocess coverage separately without dropping real TTY tests.
-  No artificial private-helper tests solely to raise coverage.
+| Module / critical responsibility                    | Before line / branch | After line / branch | Remaining work                                                                                                      |
+| --------------------------------------------------- | -------------------: | ------------------: | ------------------------------------------------------------------------------------------------------------------- |
+| core: orchestration/failure precedence              |       87.50 / 70.00% |      92.18 / 80.00% | Passthrough in-process measurement, standalone finalize-hook failure and launch-stage failures                      |
+| process: resolution/settlement/cancellation         |       66.11 / 59.77% |      68.29 / 62.06% | Windows shim branches have separate real integration evidence; kill races use deterministic supplemental unit tests |
+| lifecycle: planning/publication/recovery/inspection |       92.08 / 84.39% |      92.08 / 84.39% | Journal shape combinations, staging and cleanup failure precedence; retain real interruption tests                  |
+| setup: ownership/rendering/removal                  |       90.51 / 89.28% |      90.75 / 89.77% | Rollback cleanup precedence, uncommon read/architecture failures                                                    |
+| events: observation isolation                       |           93.33 / 0% |          100 / 100% | Correlated generic assertions remain an explicit adapter constraint                                                 |
+| middleware: phases/env/cleanup                      |       97.61 / 91.66% |        100 / 95.83% | Unsupported runtime inputs and post-phase state characterization                                                    |
+| config: validation/discovery                        |           100 / 100% |          100 / 100% | Existing equivalent mutant remains visible                                                                          |
 
-## Mutation pilot and survivor review
+Config, events and middleware enforce **95% lines / 90% branches**, the achieved
+critical targets. Other files remain included with nonblocking targets; no difficult
+production source is excluded. CLI/commands remain 0% in this collector despite real
+black-box coverage. Demo is 71.42/50%; discovery 90.90/90.90%; wizard 70.83/72.54%.
 
-Pilot scope: all of src/config.ts, five real tests in tests/unit/config.test.ts.
-No mutator, branch or production-file exclusions within that scope. Other production
-modules are outside this initial pilot, not marked mutation-compliant. The sandbox
-contains only required source, tests and configuration; this avoids copying local
-runtime installations and keeps reproduction small.
+Vitest 5.0.5's `coverage.autoAttachSubprocess` was executed against the full suite.
+It writes NODE_V8_COVERAGE into worker environments, but isolated CLI fixture
+environments intentionally omit it. CLI/commands stayed 0%, with the same overall
+measurements as ordinary coverage. No environment-injection workaround was adopted;
+keep real subprocess/terminal evidence separate. An initial direct-Node experiment
+lacked npm_execpath and failed two npm fixture setups; rerunning through npm passed.
+That setup failure is not evidence of an instrumentation-induced native defect.
 
-Initial run: **93 mutants; 64 killed, 23 survived, 1 no coverage, 5 timeout, 0 errors**;
-34 seconds. Stryker score 74.19%; assertion-only kills 68.82%. Survivors exposed
-missing invalid identity/type/diagnostic and error-cause assertions. Three new
-behavior tests now cover immutable validated results, exact rejection diagnostics,
-contextual cause preservation and real non-ENOENT read failures. No production fix
-was needed. Final reviewed run: **93 mutants; 87 killed, 1 survived, 0 no coverage, 5 timeout,
-0 errors; 15 seconds**. Stryker score **98.92%**; assertion-only kills **93.55%**
-(87/93). The remaining mutant (ID 37, prefix guard removal) is equivalent for valid
-TOML values: later string/regex/enabled validation still rejects non-table, array
-and missing-ID values; TOML cannot represent a null/undefined entry. It remains
-reported, not excluded. Boolean and array IDs were added explicitly because regex
-coercion alone could accept them if the string-type guard were removed.
+Added behavioral guarantees include ordered primary/secondary failure identity,
+exact-once finalization/cleanup and terminal event timing, disabled unknown middleware,
+default registry, event payload correlation, late registration, reserved-name boundaries,
+kill(false), escalation errors, and signal-visible-before-close. Shared JSON fixtures
+reject malformed values. Thirteen manifest cases passed before changing parsing;
+historical compatibility and additional metadata remain protected.
 
-Five timeout mutants remove directory-walk progress, termination or parse return;
-they create loops and are **not semantic assertion successes**. Remaining survivors
-must be interpreted against valid TOML inputs and redundant guards, not automatically
-excluded. No equivalent-mutant ignore comments were added. The pilot target remains
-nonblocking; ownership/recovery/cancellation mutation is NOT TESTED in this scope.
+## Focused mutation evidence and gates
 
-A sandboxed Windows run generated reports but failed process-tree cleanup (taskkill
-access denied). Unsandboxed runs pass. Early runs copied local .tools contents and
-logged symlink warnings; limiting sandbox inputs resolved that avoidable work.
-Generated sandbox tests are excluded from ordinary Vitest discovery. CI uses real
-workers and must fail on unexplained runtime/tooling errors.
+Local Windows x64; no mutator exclusions or ignored mutants. Config uses five tests;
+Core/middleware/events use 26 focused tests with real Node execution where needed.
 
-## Dependency health and dead-code evaluation
+| Scope      | Total | Killed | Survived | No coverage | Timeout | Errors | Score / assertion-only |
+| ---------- | ----: | -----: | -------: | ----------: | ------: | -----: | ---------------------: |
+| config     |    93 |     87 |        1 |           0 |       5 |      0 |         98.92 / 93.55% |
+| core       |   103 |     74 |       20 |           9 |       0 |      0 |         71.84 / 71.84% |
+| middleware |    96 |     92 |        4 |           0 |       0 |      0 |         95.83 / 95.83% |
+| events     |    15 |     15 |        0 |           0 |       0 |      0 |             100 / 100% |
 
-Dependency-cruiser: **25 modules / 44 dependencies**, including external boundaries
-and type edges; 13 local src modules including declarations. **No cycles or selected
-boundary violations**. Core imports config, demo, events, middleware and process;
-lifecycle imports config, process and setup; wizard imports discovery, lifecycle and
-setup. Shared setup/process dependencies are coupling points, not cycles. Generic
-modules contain infrastructure today; no claim of pure domain layering is made.
-Two rules are enforced: no cycles; no CLI/commands/wizard imports in config/core/
-events/middleware. No provider adapters exist. More rules require responsibility work.
+Expanded initial pilot: **160 killed / 39 survived / 15 uncovered**, 52 seconds.
+After survivor-driven assertions: **181 killed / 24 survived / 9 uncovered**, 70 seconds.
+Config baseline rerun took 32 seconds. Timeouts are included in Stryker score but
+excluded from assertion kills; conservative assertion score divides kills by all mutants.
+Gates: config >=90% assertion kills, middleware >=85%, events >=95%. Core remains
+measured debt; no target was lowered to label Core compliant. Runner errors, missing
+scopes/reports, ignored mutants and compile/runtime error mutants fail the report gate.
 
-An npx-only dependency-cruiser evaluation could not resolve its TypeScript parser
-and cruised zero modules; that result was rejected, not reported as a clean graph.
-A local pinned install resolves TypeScript and supplies useful, small enforcement.
-Knip completed in seconds after provisioning (approximate, not a timed baseline); its default evaluation
-reported 4 file candidates, 8 exports and 2 unlisted dependency uses. Inspected:
+Survivor review:
 
-- mutation config, native.cjs and routing-worker.mjs are explicit config/runtime reads;
-- check-tty.mjs is retained B1 feasibility evidence, not disposable merely because
-  current CI uses the newer shared checker;
-- bin-links is deliberately resolved from npm's own installation to test real shims;
-- defaultRegistry, configText, cliCatalogue and routingPath are internally used;
-  unused _export_ does not make the declaration dead;
-- stop() in test support, lifecycle's setup re-export and frozen fixture uninstall
-  are candidates for later API/reference review, not deletions authorized here.
+- Config's redundant prefix guard remains equivalent for valid TOML. Five loop/progress
+  mutants time out and are not credited as behavioral assertions.
+- Core survivors concentrate on platform selection/case-folded env deletion, optional
+  observer handling, cancellation/stage labels and terminal-event guard. Several are
+  platform-equivalent, but native environment casing and diagnostics need stronger
+  assertions. Nine uncovered mutants concern passthrough and finalize-only paths.
+- Middleware survivors concern the runtime string-type guard (unsupported typed input),
+  platform key identity, phase reset and hook removal. Phase reset/hook removal are
+  genuine characterization gaps; not equivalent-mutant exclusions.
+- Events have no survivors or uncovered mutants in the focused scope.
 
-Knip is not retained as a dependency/gate: entrypoint configuration and false-positive
-maintenance outweigh present benefit. No detected file/export was deleted.
+Ownership/recovery and Windows resolution mutation remain **NOT TESTED**. Their mixed
+I/O responsibilities make a full reliable pilot expensive; existing real filesystem,
+interruption and native subprocess tests remain mandatory. Do not redesign modules
+just to improve mutation isolation. Stryker's local sandbox scans nested node_modules
+and emits symlink warnings for .tools copies; workers still execute and reports are
+validated. A sandbox worker-termination denial was resolved by an unsandboxed run.
 
-## Enforcement, cost and next work
+## Dependencies, security and coupling
 
-Local baseline check: 131 passed / 30 existing optional/platform skips, 36 seconds.
-After targeted tests: 134 passed / 30 skips, 42 seconds. Wizard: 14 unit tests and
-13 real-terminal scenarios pass. Coverage reruns the ordinary suite (~40 seconds);
-lint analysis ~7 seconds; dependency check ~1 second. Pilot runtime is measured
-separately above. Provisioning dominates cold runs; hosted job durations are recorded after inspection below. New PR coverage/report job is Ubuntu-only;
-existing three-platform regression, wizard and mandatory runtime matrix remain.
-The 15-second pilot runs on configuration/tooling-related PRs and weekly/manual;
-there is no repository-wide or unconditional per-PR mutation suite.
+No cycles. Presentation-import prohibition now also covers process/setup/lifecycle/
+discovery, extending an established boundary without claiming pure domain layering.
+Core still composes config/demo/events/middleware/process; lifecycle couples setup and
+process; wizard composes lifecycle/setup/discovery. Knip's prior evaluation found
+runtime URL reads, native fixtures, npm bin links and dynamic registries: no automatic
+deletions or new Knip gate are justified. All active B1 assets remain intact.
 
-Preserve strict/admin-enforced main protection and exact required runtime status
-name. Format, safe typed lint and two dependency rules now fail existing CI jobs.
-Coverage/mutation percentages remain review targets. No warning suppression ratchet,
-full mutation or Windows ARM64 evidence is implied. Remaining documentation debt:
-docs/testing.md mixes ordinary and B1 reproduction; reassess historical test/script
-organization after B2, retaining active prototypes and evidence.
+Audit remains **two moderate dev-only affected packages**: Stryker 10.1.1 ->
+typed-rest-client 2.3.1 -> qs 6.15.1. Current upstream Stryker core/runner are still
+10.1.1; core requires typed-rest-client ~2.3.0, which pins qs. Latest typed-rest-client
+3.1.2 uses ^6.16.0; qs latest is 6.17.1. That major update is outside the supported
+range. No forced override, disabled audit or unrelated upgrade was applied. Exposure
+is developer/CI mutation tooling, not Arch production; keep report services local.
+Current audit includes qs DoS advisories GHSA-q8mj-m7cp-5q26, GHSA-x5fp-wj9c-mxmx,
+GHSA-4mjr-xmp4-gh2g and GHSA-6pq8-jhm2-2vcw. Upstream remediation remains required.
 
-Refactoring order (separately authorized):
+## Complexity and next refactoring work
 
-1. Characterize Core failure precedence, middleware lifecycle and process cancellation;
-   expand focused mutation with controllable dependencies, preserving real I/O tests.
-2. Clarify lifecycle/setup ownership, journal parsing, planning and recovery decisions
-   with checkpoint tests before separating effects; highest correctness risk.
-3. Isolate process resolution/Windows npm policy from child settlement only after
-   native-runtime and console contracts pass; coordinate with B2 approval boundaries.
-4. Simplify command/wizard presentation and dispatch after CLI measurement improves.
-5. Tighten event correlation and test JSON boundaries, then promote warning rules by
-   category. Review unused exports and document navigation after contract review.
+Production cyclomatic hotspots remain unchanged: commands 37, Core 23, lifecycle
+inspection 26 / journal parser 20 / recovery validation 13 / application 14,
+process resolution 16 / launch 15, setup 15 / uninstall 14, wizard 27.
+Commands grows six nonblank lines for explicit presentation branches; no additional
+production nesting/complexity trigger. Added metric findings are the mutation-report
+validator (complexity 13, explicit fail-closed cases) and a test function length.
+Metrics are review triggers, not proof of human comprehensibility.
 
-No architectural module split, new layer, public API/manifest change, native process
-semantic change or B2 integration is part of this milestone.
+Next authorized-refactoring priorities:
 
-### CI setup correction
+1. Characterize Core standalone finalization, native spawn failures and environment
+   casing; preserve error precedence and exactly-once cleanup before simplifying flow.
+2. Ownership/journal validation, rollback and recovery cleanup failures; separate decisions
+   and effects only under Structural Refactoring approval.
+3. Windows npm resolution and process settlement/cancellation boundaries, retaining
+   real console/TTY tests and project/native runtime independence.
+4. CLI presentation and wizard control flow, preserving isolated environment evidence.
+5. Event correlation and remaining test JSON/npm module boundaries; promote clean
+   categories without casts, blanket exceptions or complexity-driven abstractions.
 
-The first new coverage job failed two existing mise tests with `spawn mise ENOENT`:
-setup-node alone did not satisfy suite prerequisites. It was corrected to use the
-same pinned mise action as ordinary regression CI. Assertions were not weakened
-or skipped. An automatic implicit-void wizard callback rewrite was also reverted;
-its original return behavior is preserved and the readability warning remains.
+## CI evidence and cost
 
-### Inspected hosted evidence
+Required runtime aggregate name and workflow remain unchanged; branch protection
+is not modified. Existing regression/wizard/portability matrices remain intact.
+Quality CI adds the ratchet and focused mutation gates; summaries require actual
+nonempty reports rather than treating step success as measurement success.
+Mutation runs on relevant source/test/tooling PRs and weekly/manual invocations.
 
-At code/tooling commit `0866d01eb430e1df342314287fa7d3486a711235`:
-
-| Area                                  | Result / duration                                             | Evidence                                                                                    |
-| ------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Regression matrix                     | PASS Ubuntu 33s, macOS 31s, Windows 129s                      | [Arch checks](https://github.com/Nickshajtan/hcc-harness/actions/runs/40932294506)          |
-| Wizard matrix                         | PASS all three platforms                                      | [Wizard checks](https://github.com/Nickshajtan/hcc-harness/actions/runs/40932294505)        |
-| Runtime matrix and required aggregate | PASS all three platforms; unchanged required name             | [Runtime portability](https://github.com/Nickshajtan/hcc-harness/actions/runs/40932294512)  |
-| Quality measurement                   | PASS, 42s total; lint 4s, graph 1s, coverage 10s, mutation 8s | [Quality measurements](https://github.com/Nickshajtan/hcc-harness/actions/runs/40932294438) |
-
-Downloaded JSON confirms Ubuntu 131 passed / 0 failed / 32 existing optional/platform
-skips; line coverage 72.96% (602/825), branch 64.51% (380/589), mutation 87 killed /
-1 survived / 5 timeouts / 0 uncovered or errors. Lint report: 0 errors / 192 diagnostic
-warnings, including 51 metric findings. quality-results.json records PASS for lint,
-coverage and mutation execution. Coverage differs from Windows as expected; do not
-merge percentages or claim all optional portability tests ran in the coverage job.
-The separate mandatory matrix executes its runtime contract without platform skips.
-
-The final production syntax comparison matched all 12 emitted modules to baseline
-after normalizing only single-statement control blocks and literal equality operand
-order; type annotations are erased. All production string/template values and frozen
-M1 bytes also match. These checks supplement, not replace, cross-platform contracts.
+New cross-platform run links, hosted measurements and job durations: **NOT TESTED**
+until recorded after inspection. Prior baseline evidence is available from
+[PR #9](https://github.com/Nickshajtan/hcc-harness/pull/9); it does not verify this change.
