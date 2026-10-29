@@ -139,9 +139,7 @@ export async function world(temporary = resolve('.test-state/fixtures')) {
   };
 }
 
-export function events(
-  result: Result,
-): {
+export function events(result: Result): {
   id: string;
   type: string;
   executionId: string;
