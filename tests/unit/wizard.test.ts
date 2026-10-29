@@ -9,7 +9,7 @@ import { setup } from '../../src/setup.js';
 
 vi.mock('../../src/discovery.js', async (original) => ({
   ...(await original<typeof import('../../src/discovery.js')>()),
-  discoverClis: vi.fn(async () => []),
+  discoverClis: vi.fn(() => Promise.resolve([])),
 }));
 let root: string;
 beforeEach(async () => {
@@ -22,9 +22,9 @@ afterEach(async () => {
 function interaction(answers: (string | null)[]) {
   const output: string[] = [];
   const ui: Interaction = {
-    async ask(message) {
+    ask(message) {
       output.push(message);
-      return answers.shift() ?? null;
+      return Promise.resolve(answers.shift() ?? null);
     },
     write(message) {
       output.push(message);

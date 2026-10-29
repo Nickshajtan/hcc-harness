@@ -124,7 +124,18 @@ it('skips disabled unknown middleware and supports an omitted observer', async (
     join(root, '.arch/harness.toml'),
     'schema=1\n[[middleware]]\nid="unknown"\nenabled=false\n',
   );
-  expect((await execute(launchOptions())).exitCode).toBe(7);
+  const diagnostics: unknown[] = [];
+  expect(
+    (
+      await execute({
+        ...launchOptions(),
+        reportObserverError(error) {
+          diagnostics.push(error);
+        },
+      })
+    ).exitCode,
+  ).toBe(7);
+  expect(diagnostics).toEqual([]);
 });
 
 it('uses the default registry and preserves native environment case semantics', async () => {
@@ -217,13 +228,15 @@ it('cleans partially registered middleware and rejects unknown/mismatched module
     }),
   ).rejects.toThrow('registration');
   expect(cleaned).toBe(true);
-  await expect(execute({ ...launchOptions(), registry: new Map() })).rejects.toThrow();
+  await expect(execute({ ...launchOptions(), registry: new Map() })).rejects.toMatchObject({
+    cause: new Error('Unknown middleware: broken'),
+  });
   await expect(
     execute({
       ...launchOptions(),
       registry: new Map([['broken', () => ({ id: 'different', register() {} })]]),
     }),
-  ).rejects.toThrow();
+  ).rejects.toMatchObject({ cause: new Error('Middleware registration id mismatch: broken') });
 });
 
 it('validates launch changes and conflicts without allowing late hook registration', async () => {
@@ -473,6 +486,7 @@ it.each(['resolution', 'preflight', 'prepareLaunch', 'finalize'])(
       throw new Error('Expected ordered finalization failures');
     }
     expect(finalization.errors).toEqual([finalizer, cleanup]);
+    expect(finalization.message).toBe('Finalization failed');
     if ('finalize' === failureStage) {
       expect(errors).toEqual([finalization]);
       expect(failure.cause).toBe(finalization);

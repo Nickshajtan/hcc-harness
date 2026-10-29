@@ -19,6 +19,8 @@ jobs:
       - run: npm run format:check
       - run: npm run typecheck
       - run: npm run lint
+      - run: npm run lint:baseline
+      - run: npm run test:quality
       - run: npm run check:dependencies
       - run: npm run build
       - run: npm run experiment
