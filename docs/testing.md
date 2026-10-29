@@ -192,3 +192,10 @@ EOF, confirmation and cancellation. Its [workflow guide](wizard-workflow.md)
 documents the 13 terminal scenarios, focused unit suite and per-platform transcripts.
 It runs separately from the general matrix; `npm run check` retains its existing
 test scope, while `npm run test:wizard` additionally runs the native PTY checks.
+# Permanent M2.2 runtime gate
+
+See [runtime portability CI](m2.2-runtime-portability-ci.md) for the required
+Ubuntu/macOS/Windows contract, actual runtime/manager provisioning, evidence,
+local prerequisites, and explicit feasibility limitations. The required workflow
+does not accept skipped shared contract tests.
+
