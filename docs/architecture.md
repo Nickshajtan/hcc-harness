@@ -45,7 +45,7 @@ is overwritten. Existing aliases/functions may take precedence over PATH.
 
 ## Lifecycle and contracts
 
-`execute()` in `core.ts` prepares the native environment, refuses recursion, then
+`core.ts` forwards the public API to `core/index.ts`. Its `execute()` prepares the native environment, refuses recursion, then
 discovers the nearest configuration. Without configuration it resolves and launches
 the native command directly, with no configured event lifecycle. Invalid configuration
 and recursion fail before a context exists.
@@ -53,14 +53,14 @@ and recursion fail before a context exists.
 For configured execution, the facade freezes the identity, original arguments, cwd,
 project root and signal into an execution context, then creates one `ExecutionSession`:
 
-- `execution-session.ts` owns the execution-local bus, pipeline, current stage and
+- `core/execution-session.ts` owns the execution-local bus, pipeline, current stage and
   native result. `run()` reads as start/observe, register, native lifecycle, finalize,
   terminal publication. Factories are selected after awaited started observers and
   instantiated in TOML order. Disabled entries never instantiate factories.
-- `execution-failures.ts` retains error objects in observation order and the first
+- `core/execution-failures.ts` retains error objects in observation order and the first
   failing stage. It produces the existing AggregateError message/cause; nonzero
   native exit statuses remain results rather than failures.
-- `execution-environment.ts` composes a fresh environment: middleware overrides
+- `core/execution-environment.ts` composes a fresh environment: middleware overrides
   replace case-insensitive native keys on Windows and exact keys on POSIX; the
   execution identity becomes ARCH_ACTIVE. It does not select a runtime or alter PATH.
 
@@ -142,9 +142,32 @@ a process-tree supervisor: grandchildren are owned by the launched tool.
 
 ### M2 project lifecycle
 
-`setup.ts` retains M1 initialization/removal and exposes shared validation/rendering
-primitives. `lifecycle.ts` provides read-only inspection, deterministic route plans,
-reconciliation and recovery; `discovery.ts` uses native PATH resolution without
+`setup.ts` retains M1 initialization and launcher rendering at its original location;
+moving the renderer would change its import-relative captured CLI/vendor paths.
+It forwards its historical validation/removal exports. `lifecycle.ts` is an export-only
+compatibility facade over `lifecycle/index.ts`, which coordinates public route operations.
+The internal responsibilities are:
+
+| Module under lifecycle/ | Responsibility                                                                             |
+| ----------------------- | ------------------------------------------------------------------------------------------ |
+| manifest.ts             | Recorded ownership parsing, hashes, route layout/completeness and identity                 |
+| ownership.ts            | Safe component checks, optional reads and recorded-hash verification                       |
+| routing-plan.ts         | Filesystem inspection, route classification and retained-hash planning; no publication     |
+| routing-journal.ts      | Journal header, manifest relationship and addition payload validation                      |
+| routing-files.ts        | Specific stage verification/creation, exclusive hard-link publication and optional removal |
+| recovery-validation.ts  | Read-only verification of allowed before/after states and staging evidence                 |
+| recovery.ts             | Explicit ordered recovery effects and unchanged checkpoint callbacks                       |
+| removal.ts              | Ownership-checked uninstall and its persisted removal checkpoint                           |
+| inspection.ts           | Read-only state classification, activation observations and middleware diagnostics         |
+
+Manifest/ownership/journal helpers never import lifecycle coordinators or setup.
+Coordinators compose those helpers; route planning calls the existing setup renderer.
+No new classes, filesystem repository, generic transaction mechanism or mutable global
+operation state is needed. Ownership checks do not themselves grant permission to delete:
+the caller must select the existing operation/recovery policy. In particular, absent
+files are accepted by uninstall verification only after its removal checkpoint exists.
+
+`discovery.ts` uses native PATH resolution without
 executing candidates. `commands.ts` parses the public CLI and `wizard.ts` adapts
 terminal selections to the same services. Core, events, middleware and native
 process execution contracts are unchanged. There is no new interaction dependency.
@@ -213,7 +236,7 @@ use a working current Arch for explicit deinit/init [rebind](usage.md).
 
 New local module factories are registered explicitly in the registry without
 changing routing or lifecycle code. For example, add a factory to `defaultRegistry`
-in `src/core.ts`, build, and enable its id in TOML:
+in `src/core/index.ts`, build, and enable its id in TOML:
 
 ```ts
 import type { ArchMiddleware } from './middleware.js';
