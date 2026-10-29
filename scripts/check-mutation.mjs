@@ -15,6 +15,15 @@ export const pilots = {
       'src/events.ts',
     ],
   },
+  lifecycle: {
+    report: 'reports/mutation-lifecycle/mutation.json',
+    files: [
+      'src/lifecycle/manifest.ts',
+      'src/lifecycle/ownership.ts',
+      'src/lifecycle/routing-journal.ts',
+      'src/lifecycle/recovery-validation.ts',
+    ],
+  },
 };
 
 export function mutationEvidence(report) {
@@ -74,6 +83,10 @@ export function enforceMutation(scopes, expectedFiles = []) {
     'src/core/execution-session.ts': 85,
     'src/core/execution-environment.ts': 85,
     'src/core/execution-failures.ts': 85,
+    'src/lifecycle/manifest.ts': 85,
+    'src/lifecycle/ownership.ts': 90,
+    'src/lifecycle/routing-journal.ts': 85,
+    'src/lifecycle/recovery-validation.ts': 90,
   };
   for (const scope of scopes) {
     const target = minimum[scope.file.replaceAll('\\', '/')];

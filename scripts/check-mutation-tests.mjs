@@ -42,3 +42,17 @@ test('Core and every extracted execution scope reject surviving-only reports', (
     assert.throws(() => enforceMutation(scopes), /below 85%/);
   }
 });
+
+test('lifecycle decision gates reject survivors and timeout-only reports', () => {
+  for (const file of [
+    'src/lifecycle/manifest.ts',
+    'src/lifecycle/ownership.ts',
+    'src/lifecycle/routing-journal.ts',
+    'src/lifecycle/recovery-validation.ts',
+  ]) {
+    for (const status of ['Survived', 'Timeout']) {
+      const scopes = mutationEvidence({ files: { [file]: { mutants: [{ status }] } } });
+      assert.throws(() => enforceMutation(scopes), /below (85|90)%/);
+    }
+  }
+});
