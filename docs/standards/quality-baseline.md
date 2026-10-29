@@ -1,4 +1,4 @@
-п»ї# Quality baseline and refactoring backlog
+РїВ»С—# Quality baseline and refactoring backlog
 
 This is the maintained starting point for Structural Refactoring, not authority to
 perform it or M2.2 B2. Baseline main: `769b528ea87ddc3992a872c4fefab8646a487682`
@@ -40,8 +40,8 @@ Initial strict probe (before remediation) found 150 Yoda and 170 brace findings.
 Mechanical literal reordering/braces and type-only import cleanup were applied;
 production semantic edits are limited to explicit `unknown` annotations for the
 CLI catch callback and AbortSignal.reason. No workflows or functions were split.
-Final ordinary lint: **0 errors, 140 visible legacy warnings**. Analysis mode adds
-51 metric findings: **191 warnings across 44 linted files**, with no hidden source
+Final ordinary lint: **0 errors, 141 visible legacy warnings**. Analysis mode adds
+51 metric findings: **192 warnings across 44 linted files**, with no hidden source
 or eslint-disable blocks. Configuration is authoritative for exact per-rule severity.
 
 | Diagnostic category                                          | Remaining findings |
@@ -155,7 +155,7 @@ events/middleware. No provider adapters exist. More rules require responsibility
 An npx-only dependency-cruiser evaluation could not resolve its TypeScript parser
 and cruised zero modules; that result was rejected, not reported as a clean graph.
 A local pinned install resolves TypeScript and supplies useful, small enforcement.
-Knip runtime was approximately seconds after provisioning; its default evaluation
+Knip completed in seconds after provisioning (approximate, not a timed baseline); its default evaluation
 reported 4 file candidates, 8 exports and 2 unlisted dependency uses. Inspected:
 
 - mutation config, native.cjs and routing-worker.mjs are explicit config/runtime reads;
@@ -176,8 +176,7 @@ Local baseline check: 131 passed / 30 existing optional/platform skips, 36 secon
 After targeted tests: 134 passed / 30 skips, 42 seconds. Wizard: 14 unit tests and
 13 real-terminal scenarios pass. Coverage reruns the ordinary suite (~40 seconds);
 lint analysis ~7 seconds; dependency check ~1 second. Pilot runtime is measured
-separately above. Provisioning dominates cold runs; hosted job durations must be
-inspected before claiming CI cost. New PR coverage/report job is Ubuntu-only;
+separately above. Provisioning dominates cold runs; hosted job durations are recorded after inspection below. New PR coverage/report job is Ubuntu-only;
 existing three-platform regression, wizard and mandatory runtime matrix remain.
 Mutation runs weekly/manual, not a repository-wide or per-PR mutation suite.
 
@@ -202,3 +201,11 @@ Refactoring order (separately authorized):
 
 No architectural module split, new layer, public API/manifest change, native process
 semantic change or B2 integration is part of this milestone.
+
+### CI setup correction
+
+The first new coverage job failed two existing mise tests with `spawn mise ENOENT`:
+setup-node alone did not satisfy suite prerequisites. It was corrected to use the
+same pinned mise action as ordinary regression CI. Assertions were not weakened
+or skipped. An automatic implicit-void wizard callback rewrite was also reverted;
+its original return behavior is preserved and the readability warning remains.
