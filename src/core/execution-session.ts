@@ -37,13 +37,13 @@ export class ExecutionSession {
       return this.result;
     } catch (error) {
       // Retain the original failure and stage before finally attempts every remaining phase.
-      // Rethrowing also preserves rejection if terminal publication itself fails.
+      // Keep rejection pending while finally collects secondary failures.
       this.failures.record(error, this.stage);
       throw error;
     } finally {
       await this.finalize();
       await this.publishTerminalEvent();
-      // After terminal publication, replace the rethrow with the established ordered aggregate.
+      // Replace the pending throw so callers receive primary and secondary failures together.
       // Publication failures retain their existing precedence and still dispose the bus.
       this.failures.throwIfAny();
     }

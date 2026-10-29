@@ -162,8 +162,18 @@ Starting main at 86eeb4c has inspected successful
 [regression](https://github.com/Nickshajtan/hcc-harness/actions/runs/40966026432),
 [wizard](https://github.com/Nickshajtan/hcc-harness/actions/runs/40966026579) and
 [runtime portability](https://github.com/Nickshajtan/hcc-harness/actions/runs/40966026457)
-workflow conclusions. Refactor CI evidence is recorded in the dedicated PR after
-inspection; current-head hosted validation is still NOT TESTED at this local checkpoint.
+workflow conclusions and individual jobs. At code/tooling commit
+`a65a38cd701a7da9bcdceb28e4c78538cb8737ee`, all refactor PR jobs were inspected PASS:
+[regression](https://github.com/Nickshajtan/hcc-harness/actions/runs/40971163613),
+[wizard](https://github.com/Nickshajtan/hcc-harness/actions/runs/40971163581),
+[runtime and required aggregate](https://github.com/Nickshajtan/hcc-harness/actions/runs/40971163598),
+[quality measurements](https://github.com/Nickshajtan/hcc-harness/actions/runs/40971163599).
+Downloaded quality JSON reports lint/dependency/coverage/mutation PASS, 116 legacy
+warnings, 49 metric findings and Ubuntu coverage 77.71% lines / 70.16% branches
+(253 passed / 32 existing platform skips). Ubuntu manifest mutation is 180 killed,
+10 survived, 3 uncovered (93.26%); ownership/recovery validation remain 100%, journal
+97.83%. Core counts match Windows; Middleware is 90 killed / 5 survived / 1 uncovered
+(93.75%). Platform reachability differences remain visible; no exclusions or errors.
 The required aggregate name and branch protection remain unchanged. Windows ARM64,
 every terminal emulator, power-loss durability, hostile filesystem races and full
 repository mutation remain NOT TESTED. B2 and process refactoring are outside scope.
