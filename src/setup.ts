@@ -20,7 +20,9 @@ export async function readOptional(file: string): Promise<Buffer | undefined> {
   try {
     return await readFile(file);
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    if ('ENOENT' === (error as NodeJS.ErrnoException).code) {
+      return undefined;
+    }
     throw error;
   }
 }
@@ -28,42 +30,49 @@ export function stateFrom(text: Buffer): State {
   const state = JSON.parse(text.toString()) as State;
   if (
     !state ||
-    typeof state !== 'object' ||
+    'object' !== typeof state ||
     Array.isArray(state) ||
     !state.files ||
-    typeof state.files !== 'object' ||
+    'object' !== typeof state.files ||
     Array.isArray(state.files) ||
-    typeof state.createdHarness !== 'boolean' ||
+    'boolean' !== typeof state.createdHarness ||
     Object.entries(state.files).some(
       ([file, hash]) =>
         !(file === routePath || /^\.arch\/bin\/(?!\.{1,2}$)[a-zA-Z0-9_.-]+$/.test(file)) ||
-        typeof hash !== 'string' ||
+        'string' !== typeof hash ||
         !/^[a-f0-9]{64}$/.test(hash),
     )
-  )
+  ) {
     throw new Error('Invalid bootstrap state');
+  }
   return state;
 }
 export async function checkFiles(root: string, files: Record<string, string>, recovering = false) {
   for (const [file, hash] of Object.entries(files)) {
     await assertSafePath(root, file);
     const contents = await readOptional(join(root, file));
-    if (contents === undefined && recovering) continue;
-    if (!contents || digest(contents) !== hash)
+    if (contents === undefined && recovering) {
+      continue;
+    }
+    if (!contents || digest(contents) !== hash) {
       throw new Error(`Managed file changed; refusing to overwrite/remove: ${file}`);
+    }
   }
 }
 
 export async function setup(root: string, commands: readonly string[]): Promise<void> {
   root = resolve(root);
-  for (const file of [statePath, uninstallPath, '.arch/routing.json', '.arch/harness.toml'])
+  for (const file of [statePath, uninstallPath, '.arch/routing.json', '.arch/harness.toml']) {
     await assertSafePath(root, file);
-  if ((await readOptional(join(root, '.arch/routing.json'))) !== undefined)
+  }
+  if ((await readOptional(join(root, '.arch/routing.json'))) !== undefined) {
     throw new Error(
       'Routing recovery pending; use configure with the recorded desired routes or deinit --yes',
     );
-  if ((await readOptional(join(root, uninstallPath))) !== undefined)
+  }
+  if ((await readOptional(join(root, uninstallPath))) !== undefined) {
     throw new Error('Uninstall in progress; run uninstall before initialization');
+  }
   validateCommands(commands);
   const contents = await renderFiles(commands);
   const files = Object.fromEntries([...contents].map(([file, text]) => [file, digest(text)]));
@@ -73,24 +82,28 @@ export async function setup(root: string, commands: readonly string[]): Promise<
     readOptional(harnessFile),
     readOptional(stateFile),
   ]);
-  if (existingHarness !== undefined) parseConfiguration(existingHarness.toString(), root);
+  if (existingHarness !== undefined) {
+    parseConfiguration(existingHarness.toString(), root);
+  }
   if (existingState) {
     const state = stateFrom(existingState);
     const names = (value: Record<string, string>) =>
       Object.keys(value)
-        .map((file) => (process.platform === 'win32' ? file.toLowerCase() : file))
+        .map((file) => ('win32' === process.platform ? file.toLowerCase() : file))
         .sort();
     // Existing launchers may capture an older checkout/runtime. Their recorded
     // ownership hashes, not today's renderer bytes or insertion order, are authoritative.
-    if (JSON.stringify(names(state.files)) !== JSON.stringify(names(files)))
+    if (JSON.stringify(names(state.files)) !== JSON.stringify(names(files))) {
       throw new Error('Arch setup differs; use configure <commands...> to change routed commands');
+    }
     await checkFiles(root, state.files);
     return;
   }
   for (const file of contents.keys()) {
     await assertSafePath(root, file);
-    if ((await readOptional(join(root, file))) !== undefined)
+    if ((await readOptional(join(root, file))) !== undefined) {
       throw new Error(`Refusing to overwrite ${file}`);
+    }
   }
   const created: string[] = [];
   try {
@@ -110,26 +123,35 @@ export async function setup(root: string, commands: readonly string[]): Promise<
       await mkdir(dirname(target), { recursive: true });
       await writeFile(target, text, { flag: 'wx' });
       created.push(target);
-      if (file.startsWith('.arch/bin/') && process.platform !== 'win32') await chmod(target, 0o755);
+      if (file.startsWith('.arch/bin/') && 'win32' !== process.platform) {
+        await chmod(target, 0o755);
+      }
     }
   } catch (error) {
-    for (const file of created.reverse()) await unlink(file);
+    for (const file of created.reverse()) {
+      await unlink(file);
+    }
     throw error;
   }
 }
 
 export async function uninstall(root: string): Promise<void> {
   root = resolve(root);
-  for (const file of [statePath, uninstallPath, '.arch/routing.json', '.arch/harness.toml'])
+  for (const file of [statePath, uninstallPath, '.arch/routing.json', '.arch/harness.toml']) {
     await assertSafePath(root, file);
-  if ((await readOptional(join(root, '.arch/routing.json'))) !== undefined)
+  }
+  if ((await readOptional(join(root, '.arch/routing.json'))) !== undefined) {
     throw new Error('Routing recovery pending; finish configure before uninstall');
+  }
   const stateFile = join(root, statePath),
     journalFile = join(root, uninstallPath);
   const [text, recovery] = await Promise.all([readOptional(stateFile), readOptional(journalFile)]);
-  if (text === undefined && recovery === undefined) return;
-  if (text !== undefined && recovery !== undefined)
+  if (text === undefined && recovery === undefined) {
+    return;
+  }
+  if (text !== undefined && recovery !== undefined) {
     throw new Error('Conflicting bootstrap and uninstall state; refusing to remove files');
+  }
   const state = stateFrom((recovery ?? text)!);
   await checkFiles(root, state.files, recovery !== undefined);
   if (recovery === undefined) {
@@ -144,15 +166,18 @@ export async function uninstall(root: string): Promise<void> {
     try {
       await unlink(file);
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT')
+      if ('ENOENT' !== (error as NodeJS.ErrnoException).code) {
         throw new Error(`Unable to ${operation}: ${file}`, { cause: error });
+      }
     }
   };
-  for (const file of Object.keys(state.files))
+  for (const file of Object.keys(state.files)) {
     await remove(join(root, file), 'remove managed file');
+  }
   const harnessFile = join(root, '.arch/harness.toml');
-  if (state.createdHarness && (await readOptional(harnessFile))?.toString() === configText)
+  if (state.createdHarness && (await readOptional(harnessFile))?.toString() === configText) {
     await remove(harnessFile, 'remove generated configuration');
+  }
   await remove(journalFile, 'remove uninstall state');
 }
 
@@ -163,10 +188,13 @@ export async function assertSafePath(root: string, file: string): Promise<void> 
   for (const component of file.split('/')) {
     target = join(target, component);
     try {
-      if ((await lstat(target)).isSymbolicLink())
+      if ((await lstat(target)).isSymbolicLink()) {
         throw new Error(`Refusing managed symlink: ${file}`);
+      }
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+      if ('ENOENT' === (error as NodeJS.ErrnoException).code) {
+        return;
+      }
       throw error;
     }
   }
@@ -174,7 +202,7 @@ export async function assertSafePath(root: string, file: string): Promise<void> 
 
 export function validateCommands(
   commands: readonly string[],
-  windows = process.platform === 'win32',
+  windows = 'win32' === process.platform,
 ): void {
   if (
     !commands.length ||
@@ -197,9 +225,10 @@ export async function renderFiles(
     ['.arch/bin/.arch-router', routerMarker],
   ]);
   for (const command of commands) {
-    if (process.platform === 'win32') {
-      if (!['x64', 'arm64'].includes(process.arch))
+    if ('win32' === process.platform) {
+      if (!['x64', 'arm64'].includes(process.arch)) {
         throw new Error('Windows bootstrap supports x64 and arm64');
+      }
       const shim = await readFile(new URL(`../vendor/shim-${process.arch}.exe`, import.meta.url));
       contents.set(`.arch/bin/${command}.exe`, shim);
       contents.set(

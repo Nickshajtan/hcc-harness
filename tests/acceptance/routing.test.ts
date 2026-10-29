@@ -81,9 +81,9 @@ it('accepts the complete A/B/C workflow through normal CLI names, including deni
   expect(await records(logA)).toHaveLength(2);
   expect(await records(logB)).toHaveLength(2);
   expect(await records(logC)).toHaveLength(2);
-  expect(events(concurrent[2]!)).toEqual([]);
+  expect(events(concurrent[2])).toEqual([]);
   const executionIds = concurrent
-    .filter((_, index) => index !== 2)
+    .filter((_, index) => 2 !== index)
     .map((result) => {
       const observed = events(result);
       expect(new Set(observed.map((e) => e.executionId)).size).toBe(1);
@@ -96,7 +96,7 @@ it('accepts the complete A/B/C workflow through normal CLI names, including deni
       return observed[0]!.executionId;
     });
   expect(new Set(executionIds).size).toBe(3);
-  expect(concurrent[3]!.stderr).toContain('[arch:demo] cleanup');
+  expect(concurrent[3].stderr).toContain('[arch:demo] cleanup');
 
   const sub = join(A, 'sub');
   await mkdir(sub);
@@ -107,7 +107,7 @@ it('accepts the complete A/B/C workflow through normal CLI names, including deni
   expect(again.stderr).toContain('[arch:demo] preflight');
   // Uninstall A without disturbing B; persistent mise wrappers fall back in A.
   const nativeBefore = await readFile(
-    join(fixture.native, process.platform === 'win32' ? 'claude.exe' : 'claude'),
+    join(fixture.native, 'win32' === process.platform ? 'claude.exe' : 'claude'),
   );
   expect(await run(process.execPath, [cli, 'uninstall'], A, env)).toMatchObject({ code: 0 });
   const removed = await fixture.invoke(A);
@@ -115,6 +115,6 @@ it('accepts the complete A/B/C workflow through normal CLI names, including deni
   expect(events(removed)).toEqual([]);
   expect(events(await fixture.invoke(B, 'codex'))).toHaveLength(2);
   expect(
-    await readFile(join(fixture.native, process.platform === 'win32' ? 'claude.exe' : 'claude')),
+    await readFile(join(fixture.native, 'win32' === process.platform ? 'claude.exe' : 'claude')),
   ).toEqual(nativeBefore);
 });

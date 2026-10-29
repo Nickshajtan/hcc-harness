@@ -49,9 +49,9 @@ it('records mise wrapper feasibility using plain CLI names versus mise exec', as
       const viaExec = await run(mise, ['exec', '--', 'claude', ...args], directory, env);
       expect(viaExec, viaExec.stderr).toMatchObject({ code: 0 });
       expect(JSON.parse(viaExec.stdout.trim())).toMatchObject({ args, cwd: directory });
-      if (name === 'A' || name === 'B' || name === 'returnA') {
+      if ('A' === name || 'B' === name || 'returnA' === name) {
         expect(direct, direct.stderr).toMatchObject({ code: 0 });
-        expect(direct.stderr).toContain('prototype-wrapper:' + (name === 'B' ? 'B' : 'A'));
+        expect(direct.stderr).toContain('prototype-wrapper:' + ('B' === name ? 'B' : 'A'));
         expect(JSON.parse(direct.stdout.trim())).toMatchObject({ args, cwd: directory });
       }
       evidence[name] = { plainCommand: direct, miseExec: viaExec };

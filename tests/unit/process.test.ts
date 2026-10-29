@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { EventEmitter, getEventListeners } from 'node:events';
-import type { ChildProcess } from 'node:child_process';
 import { launch } from '../../src/process.js';
 
 const { spawn } = vi.hoisted(() => ({ spawn: vi.fn() }));
@@ -17,7 +16,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   child = new Child();
   controller = new AbortController();
-  spawn.mockReset().mockImplementation(() => child as unknown as ChildProcess);
+  spawn.mockReset().mockImplementation(() => child);
 });
 afterEach(() => {
   vi.useRealTimers();

@@ -5,11 +5,11 @@ import { publicCommand, UsageError } from './commands.js';
 
 async function main(): Promise<void> {
   const [operation, command, ...rest] = process.argv.slice(2);
-  if (operation !== 'run') {
+  if ('run' !== operation) {
     await publicCommand(process.argv.slice(2));
     return;
   }
-  if (!command || rest[0] !== '--') {
+  if (!command || '--' !== rest[0]) {
     throw new Error('Usage: arch run <command> -- [args...]');
   }
   const controller = new AbortController();
@@ -18,7 +18,7 @@ async function main(): Promise<void> {
     'SIGINT',
     'SIGTERM',
     'SIGHUP',
-    ...(process.platform === 'win32' ? ['SIGBREAK' as const] : []),
+    ...('win32' === process.platform ? ['SIGBREAK' as const] : []),
   ] as const) {
     const handler = () => {
       controller.abort(signal);
@@ -34,7 +34,7 @@ async function main(): Promise<void> {
       cwd: process.cwd(),
       signal: controller.signal,
       observe(bus) {
-        if (process.env.ARCH_TRACE === '1') {
+        if ('1' === process.env.ARCH_TRACE) {
           for (const type of [
             'execution.started',
             'middleware.completed',
@@ -49,24 +49,34 @@ async function main(): Promise<void> {
       },
     });
   } catch (error) {
-    if (!controller.signal.aborted) throw error;
+    if (!controller.signal.aborted) {
+      throw error;
+    }
     process.exitCode = 128 + constants.signals[controller.signal.reason as NodeJS.Signals];
     return;
   } finally {
-    for (const [signal, handler] of handlers) process.off(signal, handler);
+    for (const [signal, handler] of handlers) {
+      process.off(signal, handler);
+    }
   }
   if (controller.signal.aborted) {
     const signal = controller.signal.reason as NodeJS.Signals;
     process.exitCode = 128 + constants.signals[signal];
   } else if (result.signal) {
-    if (process.platform !== 'win32') process.kill(process.pid, result.signal);
-    else process.exitCode = 128 + constants.signals[result.signal];
-  } else process.exitCode = result.exitCode;
+    if ('win32' !== process.platform) {
+      process.kill(process.pid, result.signal);
+    } else {
+      process.exitCode = 128 + constants.signals[result.signal];
+    }
+  } else {
+    process.exitCode = result.exitCode;
+  }
 }
 
-main().catch((error) => {
+main().catch((error: unknown) => {
   console.error('[arch]', error instanceof Error ? error.message : String(error));
-  if (error instanceof Error && error.cause instanceof Error)
+  if (error instanceof Error && error.cause instanceof Error) {
     console.error('[arch]', error.cause.message);
+  }
   process.exitCode = error instanceof UsageError ? 2 : 1;
 });

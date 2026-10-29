@@ -35,8 +35,9 @@ it('recovers after interruption following deletion of a managed file', async () 
 it('can retry a deletion failure with operation-specific diagnostics', async () => {
   let calls = 0;
   vi.mocked(unlink).mockImplementation(async (path) => {
-    if (++calls === 2)
+    if (2 === ++calls) {
       throw Object.assign(new Error('injected permission failure'), { code: 'EACCES' });
+    }
     await actual.unlink(path);
   });
   await expect(uninstall(root)).rejects.toThrow('remove managed file');
@@ -49,7 +50,9 @@ it('can retry a deletion failure with operation-specific diagnostics', async () 
 
 it('retries a final state removal failure after all managed files are gone', async () => {
   vi.mocked(unlink).mockImplementation(async (path) => {
-    if (path === journalFile()) throw new Error('state locked');
+    if (path === journalFile()) {
+      throw new Error('state locked');
+    }
     await actual.unlink(path);
   });
   await expect(uninstall(root)).rejects.toThrow('remove uninstall state');

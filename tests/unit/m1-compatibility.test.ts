@@ -31,7 +31,7 @@ it.each([true, false])(
     const state = JSON.parse(await readFile(join(root, '.arch/bootstrap.json'), 'utf8'));
     expect(Object.keys(state).sort()).toEqual(['createdHarness', 'files']);
     expect(state.createdHarness).toBe(created);
-    expect(Object.keys(state.files)).toHaveLength(process.platform === 'win32' ? 6 : 4);
+    expect(Object.keys(state.files)).toHaveLength('win32' === process.platform ? 6 : 4);
     for (const [file, hash] of Object.entries(state.files)) {
       expect(
         createHash('sha256')

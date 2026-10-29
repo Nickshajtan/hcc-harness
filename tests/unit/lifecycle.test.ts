@@ -30,7 +30,7 @@ vi.mock('node:fs/promises', async (original) => {
 const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises');
 let root: string;
 const route = (command: string) =>
-  `.arch/bin/${command}${process.platform === 'win32' ? '.exe' : ''}`;
+  `.arch/bin/${command}${'win32' === process.platform ? '.exe' : ''}`;
 const stateFile = () => join(root, '.arch/bootstrap.json');
 beforeEach(async () => {
   vi.mocked(link).mockImplementation(actual.link);
@@ -48,11 +48,20 @@ it.each(
     commands,
   })),
 )('rejects invalid route set $commands', ({ commands }) => {
-  expect(() => validateCommands(commands)).toThrow();
+  expect(() => {
+    validateCommands(commands);
+  }).toThrow();
 });
 it('uses Windows case identity without changing POSIX validation', () => {
-  if (process.platform === 'win32') expect(() => validateCommands(['tool', 'TOOL'])).toThrow();
-  else expect(() => validateCommands(['tool', 'TOOL'])).not.toThrow();
+  if ('win32' === process.platform) {
+    expect(() => {
+      validateCommands(['tool', 'TOOL']);
+    }).toThrow();
+  } else {
+    expect(() => {
+      validateCommands(['tool', 'TOOL']);
+    }).not.toThrow();
+  }
 });
 it('plans only additions/removals and preserves recorded bytes and middleware ownership', async () => {
   const state = stateFrom(await readFile(stateFile()));
@@ -90,8 +99,9 @@ it('refuses modified/missing owned files and empty-file collisions before journa
 });
 it('rejects a file that appears at exclusive publication without overwriting it', async () => {
   vi.mocked(link).mockImplementation(async (source, destination) => {
-    if (destination.toString() === join(root, route('newtool')))
+    if (destination.toString() === join(root, route('newtool'))) {
       await writeFile(destination, 'racing owner');
+    }
     await actual.link(source, destination);
   });
   await expect(reconcileRoutes(root, ['tool', 'newtool'])).rejects.toThrow();
@@ -142,8 +152,9 @@ it('initializes and deinitializes without calling hard-link publication', async 
 it('preserves recovery evidence and all old routes when capability fails after journal publication', async () => {
   const before = await readFile(stateFile());
   vi.mocked(link).mockImplementation(async (source, destination) => {
-    if (destination.toString() !== join(root, '.arch/routing.json'))
+    if (destination.toString() !== join(root, '.arch/routing.json')) {
       throw Object.assign(new Error('unsupported'), { code: 'ENOTSUP' });
+    }
     await actual.link(source, destination);
   });
   await expect(reconcileRoutes(root, ['newtool'])).rejects.toThrow('No fallback was attempted');
@@ -176,7 +187,9 @@ it.each(['journal', 'before-manifest', 'manifest', 'cleanup'])(
     await expect(
       reconcileRoutes(root, ['tool', 'newtool'], {
         checkpoint(point) {
-          if (point === phase) throw new Error('interrupted');
+          if (point === phase) {
+            throw new Error('interrupted');
+          }
         },
       }),
     ).rejects.toThrow('interrupted');
@@ -191,7 +204,9 @@ it('preserves a partial staging write and identifies it instead of deleting ambi
   await expect(
     reconcileRoutes(root, ['tool', 'newtool'], {
       checkpoint(point) {
-        if (point === 'journal') throw new Error('interrupted');
+        if ('journal' === point) {
+          throw new Error('interrupted');
+        }
       },
     }),
   ).rejects.toThrow();
@@ -215,7 +230,7 @@ it('rejects malformed/conflicting journals, paths, pairs and payload hashes', as
   const missing = { ...state, files: { ...state.files } };
   delete missing.files['.arch/bin/.arch-router'];
   expect(() => manifestRoutes(missing)).toThrow('Incomplete');
-  if (process.platform === 'win32') {
+  if ('win32' === process.platform) {
     const pair = { ...state, files: { ...state.files } };
     delete pair.files['.arch/bin/tool.shim'];
     expect(() => manifestRoutes(pair)).toThrow('pair');
@@ -259,7 +274,7 @@ it('never follows symlinked managed parents to another project', async () => {
   await writeFile(join(target, 'bootstrap.json'), 'user data');
   const project = join(root, 'symlink-project');
   await mkdir(project);
-  await symlink(target, join(project, '.arch'), process.platform === 'win32' ? 'junction' : 'dir');
+  await symlink(target, join(project, '.arch'), 'win32' === process.platform ? 'junction' : 'dir');
   await expect(setup(project, ['tool'])).rejects.toThrow('symlink');
   expect((await inspectInstallation(project)).state).toBe('invalid_state');
   await expect(deinitialize(project)).rejects.toThrow('symlink');

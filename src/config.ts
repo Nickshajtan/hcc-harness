@@ -9,22 +9,24 @@ export interface Configuration {
 
 export function parseConfiguration(text: string, projectRoot: string): Configuration {
   const value = parse(text);
-  if (value.schema !== 1 || Object.keys(value).some((k) => !['schema', 'middleware'].includes(k))) {
+  if (1 !== value.schema || Object.keys(value).some((k) => !['schema', 'middleware'].includes(k))) {
     throw new Error('Expected schema = 1 and only schema/middleware fields');
   }
   const entries = value.middleware ?? [];
-  if (!Array.isArray(entries)) throw new Error('middleware must be an array of tables');
+  if (!Array.isArray(entries)) {
+    throw new Error('middleware must be an array of tables');
+  }
   const seen = new Set<string>();
   const middleware = entries.map((entry) => {
     if (
       !entry ||
-      typeof entry !== 'object' ||
+      'object' !== typeof entry ||
       Array.isArray(entry) ||
       !('id' in entry) ||
-      typeof entry.id !== 'string' ||
+      'string' !== typeof entry.id ||
       !/^[a-z][a-z0-9-]*$/.test(entry.id) ||
       !('enabled' in entry) ||
-      typeof entry.enabled !== 'boolean' ||
+      'boolean' !== typeof entry.enabled ||
       Object.keys(entry).some((k) => !['id', 'enabled'].includes(k)) ||
       seen.has(entry.id)
     ) {
@@ -44,9 +46,13 @@ export async function discoverConfiguration(cwd: string): Promise<Configuration 
     try {
       text = await readFile(file, 'utf8');
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      if ('ENOENT' !== (error as NodeJS.ErrnoException).code) {
+        throw error;
+      }
       const parent = dirname(directory);
-      if (parent === directory) return undefined;
+      if (parent === directory) {
+        return undefined;
+      }
       directory = parent;
       continue;
     }

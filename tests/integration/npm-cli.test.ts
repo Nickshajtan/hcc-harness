@@ -28,8 +28,8 @@ beforeAll(async () => {
   await writeFile(join(fixture.C, 'sentinel.txt'), 'unchanged');
   const linked = await run(process.execPath, [npm, 'link'], repository, env);
   expect(linked.code, linked.stderr).toBe(0);
-  executable = join(prefix, process.platform === 'win32' ? 'arch.ps1' : 'bin/arch');
-  env.PATH = [process.platform === 'win32' ? prefix : join(prefix, 'bin'), env.PATH].join(
+  executable = join(prefix, 'win32' === process.platform ? 'arch.ps1' : 'bin/arch');
+  env.PATH = ['win32' === process.platform ? prefix : join(prefix, 'bin'), env.PATH].join(
     delimiter,
   );
 });
@@ -43,13 +43,16 @@ async function arch(
   overrides: NodeJS.ProcessEnv = {},
   stdin = '',
 ) {
-  if (process.platform !== 'win32')
+  if ('win32' !== process.platform) {
     return run(executable, args, cwd, { ...env, ...overrides }, stdin);
+  }
   // These fixtures use cmd-safe values; literal metacharacter forwarding remains
   // covered by the direct-Node execution tests. Pass cmd's raw command line so
   // Node's normal Windows argv quoting cannot escape cmd's outer quote pair.
   const values = [join(prefix, 'arch.cmd'), ...args];
-  for (const value of values) expect(value).not.toMatch(/["%&|<>^!\r\n]/);
+  for (const value of values) {
+    expect(value).not.toMatch(/["%&|<>^!\r\n]/);
+  }
   const command = `"${values.map((value) => `"${value}"`).join(' ')}"`;
   return new Promise<Result>((done, reject) => {
     const child = spawn(process.env.ComSpec!, ['/d', '/s', '/c', command], {
@@ -67,21 +70,25 @@ async function arch(
       stderr += data;
     });
     child.once('error', reject);
-    child.once('close', (code, signal) => done({ code, signal, stdout, stderr }));
+    child.once('close', (code, signal) => {
+      done({ code, signal, stdout, stderr });
+    });
     child.stdin.end(stdin);
   });
 }
 
 it('links the existing CLI, dispatches help, and leaves the target project untouched', async () => {
   expect(await readFile(executable, 'utf8')).toContain(
-    process.platform === 'win32' ? 'cli.js' : '#!/usr/bin/env node',
+    'win32' === process.platform ? 'cli.js' : '#!/usr/bin/env node',
   );
-  if (process.platform !== 'win32') expect(await realpath(executable)).toBe(await realpath(cli));
+  if ('win32' !== process.platform) {
+    expect(await realpath(executable)).toBe(await realpath(cli));
+  }
   const linked = await arch(['--help'], fixture.C);
   const direct = await run(process.execPath, [cli, '--help'], fixture.C, env);
   expect(linked.code, linked.stderr).toBe(0);
   expect(linked.stdout).toBe(direct.stdout);
-  if (process.platform === 'win32') {
+  if ('win32' === process.platform) {
     const powershell = await run(
       join(process.env.SystemRoot!, 'System32/WindowsPowerShell/v1.0/powershell.exe'),
       [
@@ -158,7 +165,7 @@ it('forwards native arguments, stdin and exit status identically and keeps proje
   ).toBe(0);
 });
 
-it.skipIf(process.platform === 'win32')(
+it.skipIf('win32' === process.platform)(
   'forwards signals through the npm-linked executable',
   async () => {
     for (const signal of ['SIGINT', 'SIGTERM'] as const) {
@@ -169,12 +176,14 @@ it.skipIf(process.platform === 'win32')(
       try {
         const deadline = Date.now() + 10000;
         while (!invocation.output().stdout.includes('"pid":')) {
-          if (Date.now() > deadline) throw new Error('Native startup timeout');
+          if (Date.now() > deadline) {
+            throw new Error('Native startup timeout');
+          }
           await new Promise((done) => setTimeout(done, 20));
         }
         invocation.child.kill(signal);
         const result = await invocation.result;
-        expect(result.code).toBe(signal === 'SIGINT' ? 130 : 143);
+        expect(result.code).toBe('SIGINT' === signal ? 130 : 143);
         expect(result.stderr).toContain('[arch:demo] cleanup');
       } finally {
         invocation.child.kill('SIGKILL');

@@ -26,12 +26,13 @@ const encode = (state: State) => JSON.stringify(state, null, 2) + '\n';
 const equal = (a: State, b: State) =>
   a.createdHarness === b.createdHarness &&
   JSON.stringify(Object.entries(a.files).sort()) === JSON.stringify(Object.entries(b.files).sort());
-const key = (name: string) => (process.platform === 'win32' ? name.toLowerCase() : name);
+const key = (name: string) => ('win32' === process.platform ? name.toLowerCase() : name);
 
 export function manifestRoutes(state: State): { commands: string[]; windows: boolean } {
   const paths = Object.keys(state.files);
-  if (!state.files[routePath] || !state.files[markerPath])
+  if (!state.files[routePath] || !state.files[markerPath]) {
     throw new Error('Incomplete routing manifest: missing mise integration or router marker');
+  }
   const launchers = paths.filter((path) => path !== routePath && path !== markerPath);
   const windows = launchers.some((path) => /\.(exe|shim)$/.test(path));
   const commands = launchers
@@ -39,13 +40,15 @@ export function manifestRoutes(state: State): { commands: string[]; windows: boo
     .map((path) => path.slice('.arch/bin/'.length).replace(windows ? /\.exe$/ : /$/, ''));
   validateCommands(commands, windows);
   // Validate case identity using the installation layout even on a foreign host.
-  if (windows && new Set(commands.map((c) => c.toLowerCase())).size !== commands.length)
+  if (windows && new Set(commands.map((c) => c.toLowerCase())).size !== commands.length) {
     throw new Error('Duplicate Windows routes');
+  }
   const expected = commands.flatMap((command) =>
     windows ? [`.arch/bin/${command}.exe`, `.arch/bin/${command}.shim`] : [`.arch/bin/${command}`],
   );
-  if (expected.length !== launchers.length || expected.some((path) => !state.files[path]))
+  if (expected.length !== launchers.length || expected.some((path) => !state.files[path])) {
     throw new Error('Incomplete routing manifest: invalid launcher set or missing exe/shim pair');
+  }
   return { commands, windows };
 }
 
@@ -70,39 +73,46 @@ function journalFrom(text: Buffer): RoutingJournal {
   const value = JSON.parse(text.toString()) as RoutingJournal;
   if (
     !value ||
-    value.schema !== 1 ||
-    typeof value.id !== 'string' ||
+    1 !== value.schema ||
+    'string' !== typeof value.id ||
     !/^[a-f0-9-]{36}$/.test(value.id) ||
     !value.additions ||
-    typeof value.additions !== 'object' ||
+    'object' !== typeof value.additions ||
     Array.isArray(value.additions)
-  )
+  ) {
     throw new Error('Invalid routing journal');
+  }
   const before = stateFrom(Buffer.from(JSON.stringify(value.before))),
     after = stateFrom(Buffer.from(JSON.stringify(value.after)));
   const oldRoutes = manifestRoutes(before),
     newRoutes = manifestRoutes(after);
-  if (oldRoutes.windows !== newRoutes.windows || before.createdHarness !== after.createdHarness)
+  if (oldRoutes.windows !== newRoutes.windows || before.createdHarness !== after.createdHarness) {
     throw new Error('Invalid routing journal ownership');
-  for (const path of [routePath, markerPath])
-    if (before.files[path] !== after.files[path])
+  }
+  for (const path of [routePath, markerPath]) {
+    if (before.files[path] !== after.files[path]) {
       throw new Error('Invalid routing journal integration');
+    }
+  }
   for (const [path, hash] of Object.entries(after.files)) {
     if (before.files[path]) {
-      if (hash !== before.files[path] || path in value.additions)
+      if (hash !== before.files[path] || path in value.additions) {
         throw new Error('Invalid routing journal retained file');
+      }
     } else {
       const payload = value.additions[path];
       if (
-        typeof payload !== 'string' ||
+        'string' !== typeof payload ||
         Buffer.from(payload, 'base64').toString('base64') !== payload ||
         digest(Buffer.from(payload, 'base64')) !== hash
-      )
+      ) {
         throw new Error('Invalid routing journal payload');
+      }
     }
   }
-  if (Object.keys(value.additions).some((path) => !after.files[path] || before.files[path]))
+  if (Object.keys(value.additions).some((path) => !after.files[path] || before.files[path])) {
     throw new Error('Invalid routing journal additions');
+  }
   return { ...value, before, after };
 }
 
@@ -115,24 +125,29 @@ function staging(journal: RoutingJournal, index: number | 'manifest') {
 }
 async function verifyStage(root: string, path: string, bytes: Buffer) {
   const existing = await readAt(root, path);
-  if (existing !== undefined && !existing.equals(bytes))
+  if (existing !== undefined && !existing.equals(bytes)) {
     throw new Error(
       `Routing staging file changed or incomplete: ${path}; preserve it and restore the journal-recorded bytes before retrying`,
     );
+  }
 }
 async function stage(root: string, path: string, bytes: Buffer, executable = false) {
   await verifyStage(root, path, bytes);
-  if ((await readAt(root, path)) === undefined)
+  if ((await readAt(root, path)) === undefined) {
     await writeFile(join(root, path), bytes, { flag: 'wx' });
-  if (executable && process.platform !== 'win32') await chmod(join(root, path), 0o755);
+  }
+  if (executable && 'win32' !== process.platform) {
+    await chmod(join(root, path), 0o755);
+  }
 }
 async function removeOptional(root: string, path: string) {
   await assertSafePath(root, path);
   try {
     await unlink(join(root, path));
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT')
+    if ('ENOENT' !== (error as NodeJS.ErrnoException).code) {
       throw new Error(`Unable to remove routing resource: ${path}`, { cause: error });
+    }
   }
 }
 
@@ -150,29 +165,37 @@ async function publishExclusive(root: string, stage: string, target: string) {
 }
 
 async function validateRecovery(root: string, journal: RoutingJournal) {
-  if ((await readAt(root, uninstallPath)) !== undefined)
+  if ((await readAt(root, uninstallPath)) !== undefined) {
     throw new Error('Conflicting routing and uninstall journals');
+  }
   const bootstrap = await readAt(root, statePath);
-  if (!bootstrap) throw new Error('Missing bootstrap during routing recovery');
+  if (!bootstrap) {
+    throw new Error('Missing bootstrap during routing recovery');
+  }
   const current = stateFrom(bootstrap);
-  if (!equal(current, journal.before) && !equal(current, journal.after))
+  if (!equal(current, journal.before) && !equal(current, journal.after)) {
     throw new Error('Bootstrap changed during routing recovery');
+  }
   for (const path of new Set([
     ...Object.keys(journal.before.files),
     ...Object.keys(journal.after.files),
   ])) {
     const bytes = await readAt(root, path);
     const retained = !!journal.before.files[path] && !!journal.after.files[path];
-    if (bytes === undefined && !retained) continue;
+    if (bytes === undefined && !retained) {
+      continue;
+    }
     if (
       bytes === undefined ||
       digest(bytes) !== (journal.after.files[path] ?? journal.before.files[path])
-    )
+    ) {
       throw new Error(`Managed file changed during routing recovery: ${path}`);
+    }
   }
   await verifyStage(root, journalStage, Buffer.from(JSON.stringify(journal, null, 2) + '\n'));
-  for (const [index, payload] of Object.values(journal.additions).entries())
+  for (const [index, payload] of Object.values(journal.additions).entries()) {
     await verifyStage(root, staging(journal, index), Buffer.from(payload, 'base64'));
+  }
   await verifyStage(root, staging(journal, 'manifest'), Buffer.from(encode(journal.after)));
 }
 
@@ -195,8 +218,9 @@ async function applyJournal(root: string, journal: RoutingJournal, options: Life
     (path) => !journal.after.files[path],
   )) {
     const bytes = await readAt(root, path);
-    if (bytes !== undefined && digest(bytes) !== journal.before.files[path])
+    if (bytes !== undefined && digest(bytes) !== journal.before.files[path]) {
       throw new Error(`Managed file changed: ${path}`);
+    }
     await removeOptional(root, path);
     await options.checkpoint?.(`removed:${path}`);
   }
@@ -225,16 +249,20 @@ export async function planRoutes(root: string, commands: readonly string[]): Pro
   if (
     (await readAt(root, uninstallPath)) !== undefined ||
     (await readAt(root, routingPath)) !== undefined
-  )
+  ) {
     throw new Error('Recovery pending; finish the recorded operation first');
+  }
   const text = await readAt(root, statePath);
-  if (!text) throw new Error('Arch is not initialized; use init <commands...>');
+  if (!text) {
+    throw new Error('Arch is not initialized; use init <commands...>');
+  }
   const before = stateFrom(text),
     layout = manifestRoutes(before);
-  if (layout.windows !== (process.platform === 'win32'))
+  if (layout.windows !== ('win32' === process.platform)) {
     throw new Error(
       'Foreign-platform installation; deinitialize on its original platform or inspect ownership before moving it',
     );
+  }
   await checkFiles(root, before.files);
   const canonical = commands.map(
     (command) => layout.commands.find((old) => key(old) === key(command)) ?? command,
@@ -245,8 +273,9 @@ export async function planRoutes(root: string, commands: readonly string[]): Pro
   for (const [path, bytes] of generated) {
     after.files[path] = before.files[path] ?? digest(bytes);
     if (!before.files[path]) {
-      if ((await readAt(root, path)) !== undefined)
+      if ((await readAt(root, path)) !== undefined) {
         throw new Error(`Refusing to overwrite ${path}`);
+      }
       additions[path] = Buffer.from(bytes).toString('base64');
     }
   }
@@ -269,15 +298,18 @@ export async function reconcileRoutes(
   if (existing !== undefined) {
     const journal = journalFrom(existing),
       desired = manifestRoutes(journal.after).commands;
-    if (JSON.stringify(desired.map(key).sort()) !== JSON.stringify(commands.map(key).sort()))
+    if (JSON.stringify(desired.map(key).sort()) !== JSON.stringify(commands.map(key).sort())) {
       throw new Error(
         `Routing recovery pending; run configure ${desired.join(' ')} or deinit --yes`,
       );
+    }
     await applyJournal(root, journal, options);
     return;
   }
   const plan = await planRoutes(root, commands);
-  if (equal(plan.before, plan.after)) return;
+  if (equal(plan.before, plan.after)) {
+    return;
+  }
   const journal: RoutingJournal = {
     schema: 1,
     id: randomUUID(),
@@ -286,16 +318,19 @@ export async function reconcileRoutes(
     additions: plan.additions,
   };
   const bytes = Buffer.from(JSON.stringify(journal, null, 2) + '\n');
-  if ((await readAt(root, journalStage)) !== undefined)
+  if ((await readAt(root, journalStage)) !== undefined) {
     throw new Error(
       `Unreferenced staging file: ${journalStage}; inspect and move it before retrying`,
     );
+  }
   await stage(root, journalStage, bytes);
   const latest = await readAt(root, statePath);
-  if (!latest || !equal(stateFrom(latest), plan.before))
+  if (!latest || !equal(stateFrom(latest), plan.before)) {
     throw new Error('Bootstrap changed before routing update');
-  if ((await readAt(root, uninstallPath)) !== undefined)
+  }
+  if ((await readAt(root, uninstallPath)) !== undefined) {
     throw new Error('Uninstall started before routing update');
+  }
   await publishExclusive(root, journalStage, routingPath);
   await applyJournal(root, journal, options);
 }
@@ -303,7 +338,9 @@ export async function reconcileRoutes(
 export async function deinitialize(root: string): Promise<void> {
   root = resolve(root);
   const text = await readAt(root, routingPath);
-  if (text) await applyJournal(root, journalFrom(text), {});
+  if (text) {
+    await applyJournal(root, journalFrom(text), {});
+  }
   await uninstall(root);
 }
 export async function addRoutes(root: string, commands: readonly string[]) {
@@ -319,13 +356,16 @@ export async function removeRoutes(root: string, commands: readonly string[]) {
   const desired = (await configuredRoutes(root)).filter(
     (old) => !commands.some((command) => key(command) === key(old)),
   );
-  if (!desired.length) throw new Error('Cannot remove the final route; use deinit --yes');
+  if (!desired.length) {
+    throw new Error('Cannot remove the final route; use deinit --yes');
+  }
   await reconcileRoutes(root, desired);
 }
 export async function configuredRoutes(root: string): Promise<string[]> {
   const status = await inspectInstallation(root);
-  if (status.state !== 'initialized')
+  if ('initialized' !== status.state) {
     throw new Error(`Cannot list/update routes: ${status.state}. ${status.warnings.join(' ')}`);
+  }
   return status.routes;
 }
 
@@ -351,7 +391,7 @@ export async function inspectInstallation(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<InstallationStatus> {
   root = resolve(root);
-  const pathKey = Object.keys(env).find((name) => name.toUpperCase() === 'PATH') ?? 'PATH';
+  const pathKey = Object.keys(env).find((name) => 'PATH' === name.toUpperCase()) ?? 'PATH';
   const status: InstallationStatus = {
     schema: 1,
     projectRoot: root,
@@ -374,13 +414,15 @@ export async function inspectInstallation(
     await resolveExecutable('mise', root, await nativeEnvironment(env, root));
     status.activation.miseAvailable = true;
   } catch (error) {
-    if (error instanceof Error && error.message.startsWith('Native executable not found:'))
+    if (error instanceof Error && error.message.startsWith('Native executable not found:')) {
       status.activation.miseAvailable = false;
+    }
   }
-  if (status.activation.miseAvailable !== true)
+  if (true !== status.activation.miseAvailable) {
     status.warnings.push(
       'mise was not detected; install and activate mise, then refresh the shell and trust the project when prompted.',
     );
+  }
   status.warnings.push(
     'Shell activation is not verified; PATH presence alone does not prove routing. Use mise exec -- <command> for explicit activation.',
   );
@@ -392,8 +434,9 @@ export async function inspectInstallation(
     if (
       (bootstrap !== undefined && removal !== undefined) ||
       (removal !== undefined && routing !== undefined)
-    )
+    ) {
       throw new Error('Conflicting bootstrap/operation journals');
+    }
     if (routing !== undefined) {
       const journal = journalFrom(routing);
       status.pendingOperation = 'routing';
@@ -423,13 +466,15 @@ export async function inspectInstallation(
       }
       status.integrity = 'valid';
     }
-    if (!routing && (await readAt(root, journalStage)) !== undefined)
+    if (!routing && (await readAt(root, journalStage)) !== undefined) {
       status.warnings.push(
         'Unreferenced .arch/routing.stage; inspect and move it before another routing update.',
       );
+    }
     const harness = await readAt(root, '.arch/harness.toml');
-    if (status.state === 'initialized' && harness === undefined)
+    if ('initialized' === status.state && harness === undefined) {
       status.warnings.push('Middleware configuration is absent; execution uses native fallback.');
+    }
     if (harness !== undefined) {
       try {
         parseConfiguration(harness.toString(), root);

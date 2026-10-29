@@ -24,63 +24,84 @@ export async function publicCommand(args: readonly string[]): Promise<void> {
   const [operation, ...rest] = args,
     root = process.cwd();
   const interactive = !!process.stdin.isTTY && !!process.stdout.isTTY;
-  if (operation === '--help' && !rest.length) {
+  if ('--help' === operation && !rest.length) {
     console.log(help);
     return;
   }
-  if (operation === 'init' || operation === 'configure') {
-    if (rest.some((arg) => arg.startsWith('-'))) usage('Unknown option');
+  if ('init' === operation || 'configure' === operation) {
+    if (rest.some((arg) => arg.startsWith('-'))) {
+      usage('Unknown option');
+    }
     if (rest.length) {
-      if (operation === 'init') await setup(root, rest);
-      else await reconcileRoutes(root, rest);
+      if ('init' === operation) {
+        await setup(root, rest);
+      } else {
+        await reconcileRoutes(root, rest);
+      }
       console.log(installedMessage(root));
       return;
     }
-    if (!interactive) usage(`Use ${operation} <commands...> outside an interactive terminal`);
+    if (!interactive) {
+      usage(`Use ${operation} <commands...> outside an interactive terminal`);
+    }
     const ui = terminalInteraction();
     try {
-      await setupWizard(root, ui, operation === 'configure');
+      await setupWizard(root, ui, 'configure' === operation);
     } finally {
       ui.close();
     }
     return;
   }
-  if (operation === 'status') {
-    if (rest.length && (rest.length !== 1 || rest[0] !== '--json'))
+  if ('status' === operation) {
+    if (rest.length && (1 !== rest.length || '--json' !== rest[0])) {
       usage('Expected status [--json]');
+    }
     const status = await inspectInstallation(root);
     console.log(
-      rest[0] === '--json'
+      '--json' === rest[0]
         ? JSON.stringify(status, null, 2)
-        : `Project: ${status.projectRoot}\nInstallation: ${status.state}\nConfigured routes: ${status.routes.join(', ') || '(none)'}\nIntegrity: ${status.integrity}\nPending recovery: ${status.recoveryPending}\nActivation: shell unknown; mise ${status.activation.miseAvailable === true ? 'detected' : status.activation.miseAvailable === false ? 'not detected' : 'unknown'}; project bin ${status.activation.projectBinOnPath ? 'on PATH' : 'not on PATH'}\n${status.warnings.join('\n')}`,
+        : `Project: ${status.projectRoot}\nInstallation: ${status.state}\nConfigured routes: ${status.routes.join(', ') || '(none)'}\nIntegrity: ${status.integrity}\nPending recovery: ${status.recoveryPending}\nActivation: shell unknown; mise ${true === status.activation.miseAvailable ? 'detected' : false === status.activation.miseAvailable ? 'not detected' : 'unknown'}; project bin ${status.activation.projectBinOnPath ? 'on PATH' : 'not on PATH'}\n${status.warnings.join('\n')}`,
     );
-    if (status.state === 'invalid_state') process.exitCode = 1;
+    if ('invalid_state' === status.state) {
+      process.exitCode = 1;
+    }
     return;
   }
-  if (operation === 'route') {
+  if ('route' === operation) {
     const [action, ...commands] = rest;
-    if (action === 'list' && !commands.length) {
+    if ('list' === action && !commands.length) {
       console.log((await configuredRoutes(root)).join('\n'));
       return;
     }
-    if (!commands.length || commands.some((command) => command.startsWith('-')))
+    if (!commands.length || commands.some((command) => command.startsWith('-'))) {
       usage('Expected route list | route add/remove <commands...>');
-    if (action === 'add') await addRoutes(root, commands);
-    else if (action === 'remove') await removeRoutes(root, commands);
-    else usage('Unknown route operation');
+    }
+    if ('add' === action) {
+      await addRoutes(root, commands);
+    } else if ('remove' === action) {
+      await removeRoutes(root, commands);
+    } else {
+      usage('Unknown route operation');
+    }
     console.log('Configured routing updated. Shell activation has not been verified.');
     return;
   }
-  if (operation === 'deinit' || operation === 'uninstall') {
-    if (rest.length && (rest.length !== 1 || rest[0] !== '--yes'))
+  if ('deinit' === operation || 'uninstall' === operation) {
+    if (rest.length && (1 !== rest.length || '--yes' !== rest[0])) {
       usage('Expected deinit/uninstall [--yes]');
-    if (operation === 'uninstall')
+    }
+    if ('uninstall' === operation) {
       console.error('[arch] uninstall is deprecated; use deinit --yes for unattended removal.');
-    if (operation === 'deinit' && !rest.length) {
-      if (!interactive) usage('Removal requires deinit --yes outside an interactive terminal');
+    }
+    if ('deinit' === operation && !rest.length) {
+      if (!interactive) {
+        usage('Removal requires deinit --yes outside an interactive terminal');
+      }
       const ui = terminalInteraction();
       try {
-        if (!(await confirmRemoval(root, ui))) return;
+        if (!(await confirmRemoval(root, ui))) {
+          return;
+        }
       } finally {
         ui.close();
       }

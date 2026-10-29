@@ -17,7 +17,7 @@ it('discovers native candidates without executing them and filters marked router
   await mkdir(native);
   await mkdir(router);
   await writeFile(join(router, '.arch-router'), routerMarker);
-  const extension = process.platform === 'win32' ? '.exe' : '';
+  const extension = 'win32' === process.platform ? '.exe' : '';
   // Invalid executable content would fail if discovery tried to execute it.
   for (const directory of [native, router]) {
     const file = join(directory, 'custom' + extension);

@@ -32,7 +32,7 @@ try {
   // Plain JS objects are case-sensitive; Windows environment keys are not.
   // Avoid a second inherited Path overriding this fixture's isolated PATH.
   const env = Object.fromEntries(
-    Object.entries(process.env).filter(([key]) => key.toUpperCase() !== 'PATH'),
+    Object.entries(process.env).filter(([key]) => 'PATH' !== key.toUpperCase()),
   );
   Object.assign(env, { PATH: [native, runtime].join(';'), ARCH_NODE: process.execPath });
   term = pty.spawn(join(app, 'arch-bootstrap.exe'), ['run', 'terminal', '--'], {
@@ -77,7 +77,9 @@ try {
   );
   console.log('PASS B1 real Node 20 terminal handles, keyboard input and exit 9');
 } finally {
-  if (term && !ended) term.kill();
+  if (term && !ended) {
+    term.kill();
+  }
   await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 }
 // All child exits and cleanup are awaited. Like check-wizard.mjs, explicitly end

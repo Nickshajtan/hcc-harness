@@ -33,13 +33,16 @@ export function createPipeline(context: ExecutionContext, bus: EventBus) {
   let registering = true;
   return {
     register(middleware: ArchMiddleware) {
-      if (!registering) throw new Error('Registration has ended');
+      if (!registering) {
+        throw new Error('Registration has ended');
+      }
       middleware.register(
         Object.freeze({
           context,
           on(name: Phase, handler: () => void | Promise<void>) {
-            if (!registering || !['preflight', 'prepareLaunch', 'finalize'].includes(name))
+            if (!registering || !['preflight', 'prepareLaunch', 'finalize'].includes(name)) {
               throw new Error('Invalid hook registration');
+            }
             hooks.hook(name, async () => {
               try {
                 await handler();
@@ -50,23 +53,29 @@ export function createPipeline(context: ExecutionContext, bus: EventBus) {
                   }),
                 );
               } catch (error) {
-                if (name !== 'finalize') throw error;
+                if ('finalize' !== name) {
+                  throw error;
+                }
                 finalErrors.push(error);
               }
             });
           },
           setEnv(name: string, value: string) {
-            if (phase !== 'prepareLaunch') throw new Error('Launch changes require prepareLaunch');
+            if ('prepareLaunch' !== phase) {
+              throw new Error('Launch changes require prepareLaunch');
+            }
             if (
               !/^[A-Za-z_][A-Za-z0-9_]*$/.test(name) ||
-              typeof value !== 'string' ||
+              'string' !== typeof value ||
               value.includes('\0') ||
               /^(PATH|PATHEXT|ARCH_ACTIVE|NODE_OPTIONS)$/i.test(name)
-            )
+            ) {
               throw new Error('Invalid or reserved environment variable');
-            const key = process.platform === 'win32' ? name.toUpperCase() : name;
-            if (envKeys.has(key) && env[key] !== value)
+            }
+            const key = 'win32' === process.platform ? name.toUpperCase() : name;
+            if (envKeys.has(key) && env[key] !== value) {
               throw new Error(`Conflicting launch changes for ${name}`);
+            }
             envKeys.add(key);
             env[key] = value;
           },
@@ -97,7 +106,9 @@ export function createPipeline(context: ExecutionContext, bus: EventBus) {
         }
       }
       hooks.removeAllHooks();
-      if (finalErrors.length) throw new AggregateError(finalErrors, 'Finalization failed');
+      if (finalErrors.length) {
+        throw new AggregateError(finalErrors, 'Finalization failed');
+      }
     },
   };
 }

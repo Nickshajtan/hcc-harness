@@ -4,7 +4,7 @@ import { resolve, join, delimiter } from 'node:path';
 import { nativeEnvironment, resolveExecutable, routerMarker } from '../../src/process.js';
 
 let root: string;
-const command = process.platform === 'win32' ? 'tool.exe' : 'tool';
+const command = 'win32' === process.platform ? 'tool.exe' : 'tool';
 beforeEach(async () => {
   await mkdir('.test-state', { recursive: true });
   root = await mkdtemp(resolve('.test-state/resolution-'));
@@ -57,7 +57,7 @@ it('does not exclude an unrelated directory with a different marker', async () =
   await writeFile(join(directory, '.arch-router'), 'unrelated');
   await expect(resolveExecutable('tool', root, { PATH: directory })).resolves.toBe(file);
 });
-it.skipIf(process.platform === 'win32')(
+it.skipIf('win32' === process.platform)(
   'skips a symlink to a marked wrapper by real executable identity',
   async () => {
     const own = join(root, 'own'),

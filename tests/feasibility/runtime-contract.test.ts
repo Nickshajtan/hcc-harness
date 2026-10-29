@@ -17,8 +17,8 @@ import { records, run, start, world } from '../support.js';
 
 // Normal regression runs don't provision a second engine. The mandatory CI job
 // sets this flag and fails setup (rather than skipping) if prerequisites are absent.
-describe.skipIf(process.env.ARCH_RUNTIME_CONTRACT !== '1')('M2.2 shared runtime contract', () => {
-  const windows = process.platform === 'win32';
+describe.skipIf('1' !== process.env.ARCH_RUNTIME_CONTRACT)('M2.2 shared runtime contract', () => {
+  const windows = 'win32' === process.platform;
   const executable = windows ? 'node.exe' : 'node';
   let f: Awaited<ReturnType<typeof world>>;
   let archNode: string, projectNode: string, replacement: string, app: string, entry: string;
@@ -46,7 +46,9 @@ describe.skipIf(process.env.ARCH_RUNTIME_CONTRACT !== '1')('M2.2 shared runtime 
       windows ? process.env.ARCH_B1_BOOTSTRAP! : resolve('scripts/b1/arch-bootstrap.sh'),
       target,
     );
-    if (!windows) await chmod(target, 0o755);
+    if (!windows) {
+      await chmod(target, 0o755);
+    }
     return target;
   }
   beforeAll(async () => {
@@ -55,8 +57,9 @@ describe.skipIf(process.env.ARCH_RUNTIME_CONTRACT !== '1')('M2.2 shared runtime 
       process.env.ARCH_B1_NODE22,
       'Real independently provisioned Node 22 is mandatory',
     ).toBeTruthy();
-    if (windows)
+    if (windows) {
       expect(process.env.ARCH_B1_BOOTSTRAP, 'Compiled Windows bootstrap is mandatory').toBeTruthy();
+    }
     f = await world(await realpath(tmpdir()));
     const paths = [];
     for (const [name, source] of [
@@ -68,7 +71,9 @@ describe.skipIf(process.env.ARCH_RUNTIME_CONTRACT !== '1')('M2.2 shared runtime 
       await mkdir(dir);
       const target = join(dir, executable);
       await copyFile(source!, target);
-      if (!windows) await chmod(target, 0o755);
+      if (!windows) {
+        await chmod(target, 0o755);
+      }
       paths.push(target);
     }
     [archNode, projectNode, replacement] = paths as [string, string, string];
@@ -93,12 +98,12 @@ describe.skipIf(process.env.ARCH_RUNTIME_CONTRACT !== '1')('M2.2 shared runtime 
     await cmdShim(script, join(f.native, 'runtime'));
     expect(await run(entry, ['init', 'runtime'], f.A, env())).toMatchObject({ code: 0 });
     // Feasibility fixture only: production launcher/manifest formats stay unchanged.
-    if (windows)
+    if (windows) {
       await writeFile(
         join(f.A, '.arch/bin/runtime.shim'),
         `path = ${entry}\nargs = run runtime --\n`,
       );
-    else {
+    } else {
       await writeFile(
         join(f.A, '.arch/bin/runtime'),
         `#!/bin/sh\nexec '${entry.replaceAll("'", "'\\''")}' run runtime -- "$@"\n`,
@@ -166,7 +171,9 @@ describe.skipIf(process.env.ARCH_RUNTIME_CONTRACT !== '1')('M2.2 shared runtime 
   it('honors the standard npm shim adjacent Node independently of Arch runtime', async () => {
     const adjacent = join(f.native, executable);
     await copyFile(projectNode, adjacent);
-    if (!windows) await chmod(adjacent, 0o755);
+    if (!windows) {
+      await chmod(adjacent, 0o755);
+    }
     try {
       const result = await run(route(), [], f.A, env(replacement));
       expect(result, result.stderr).toMatchObject({ code: 23 });
@@ -195,7 +202,9 @@ describe.skipIf(process.env.ARCH_RUNTIME_CONTRACT !== '1')('M2.2 shared runtime 
     await mkdir(historicalDir);
     const historicalNode = join(historicalDir, executable);
     await copyFile(archNode, historicalNode);
-    if (!windows) await chmod(historicalNode, 0o755);
+    if (!windows) {
+      await chmod(historicalNode, 0o755);
+    }
     // Real init captures the historical executable + checkout in valid unchanged owned files.
     const init = await run(
       historicalNode,
@@ -213,8 +222,9 @@ describe.skipIf(process.env.ARCH_RUNTIME_CONTRACT !== '1')('M2.2 shared runtime 
     const status = await run(entry, ['status', '--json'], f.B, environment);
     expect(status, status.stderr).toMatchObject({ code: 0 });
     expect(await readFile(config, 'utf8')).toBe(edited);
-    for (let attempt = 0; attempt < 2; attempt++)
+    for (let attempt = 0; 2 > attempt; attempt++) {
       expect(await run(entry, ['deinit', '--yes'], f.B, environment)).toMatchObject({ code: 0 });
+    }
     expect(await readFile(config, 'utf8')).toBe(edited);
     expect(await run(entry, ['init', 'runtime'], f.B, environment)).toMatchObject({ code: 0 });
     expect(await readFile(config, 'utf8')).toBe(edited);
@@ -256,8 +266,9 @@ describe.skipIf(process.env.ARCH_RUNTIME_CONTRACT !== '1')('M2.2 shared runtime 
         try {
           const deadline = Date.now() + 10_000;
           while (!invocation.output().stderr.includes('native ready')) {
-            if (Date.now() > deadline)
+            if (Date.now() > deadline) {
               throw new Error('Native child did not become ready: ' + invocation.output().stderr);
+            }
             await new Promise((done) => setTimeout(done, 20));
           }
           invocation.child.kill(signal);
@@ -288,7 +299,7 @@ describe.skipIf(process.env.ARCH_RUNTIME_CONTRACT !== '1')('M2.2 shared runtime 
       if (!windows) {
         root = join(f.root, 'mise-' + version);
         await mkdir(join(root, 'bin'), { recursive: true });
-        await copyFile(node!, join(root, 'bin/node'));
+        await copyFile(node, join(root, 'bin/node'));
         await chmod(join(root, 'bin/node'), 0o755);
       }
       const linked = await run(mise!, ['link', `node@${version}`, root], f.C, env());

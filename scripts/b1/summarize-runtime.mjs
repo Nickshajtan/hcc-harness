@@ -3,7 +3,7 @@ import { appendFileSync, existsSync, readFileSync, writeFileSync, mkdirSync } fr
 const read = (file) => (existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : undefined);
 const reports = [
   ['Shared runtime contract', '.test-state/m22-runtime-contract.json'],
-  ...(process.platform === 'win32'
+  ...('win32' === process.platform
     ? [['Windows bootstrap executable', '.test-state/m22-b1-executable.json']]
     : []),
 ];
@@ -12,9 +12,9 @@ const areas = reports.map(([area, file]) => {
   const status = !report
     ? 'NOT TESTED'
     : report.success &&
-        report.numPassedTests > 0 &&
-        report.numFailedTests === 0 &&
-        report.numPendingTests === 0
+        0 < report.numPassedTests &&
+        0 === report.numFailedTests &&
+        0 === report.numPendingTests
       ? 'PASS'
       : 'FAIL';
   return {
@@ -55,5 +55,9 @@ const summary =
     .join('\n') +
   '\n\nShared contract includes real offline mise link/exec switching; PATH-switch simulation is a separate assertion. nvm/fnm, Windows ARM64 and B2 stable installation: **NOT TESTED**. Bootstrap entries are opt-in feasibility fixtures; production launchers remain unchanged.\n';
 console.log(summary);
-if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
-if (areas.some((row) => row.status !== 'PASS')) process.exitCode = 1;
+if (process.env.GITHUB_STEP_SUMMARY) {
+  appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
+}
+if (areas.some((row) => 'PASS' !== row.status)) {
+  process.exitCode = 1;
+}

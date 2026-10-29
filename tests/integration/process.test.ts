@@ -21,7 +21,7 @@ it('bootstrap is idempotent, preserves existing user files, and supports arbitra
   await mkdir(join(fixture.B, '.arch'));
   const customHarness = 'schema=1\nmiddleware=[]\n';
   await writeFile(join(fixture.B, '.arch/harness.toml'), customHarness);
-  const extension = process.platform === 'win32' ? '.exe' : '';
+  const extension = 'win32' === process.platform ? '.exe' : '';
   await copyFile(
     join(fixture.native, 'codex' + extension),
     join(fixture.native, 'arbitrary' + extension),
@@ -79,7 +79,7 @@ it('resumes interrupted uninstall through the CLI and restores native command ro
   expect(await run(process.execPath, [cli, 'uninstall'], project, env)).toMatchObject({ code: 0 });
 });
 
-it.skipIf(process.platform === 'win32')(
+it.skipIf('win32' === process.platform)(
   'kills a real child that acknowledges and ignores graceful termination',
   async () => {
     const invocation = start(process.execPath, [cli, 'run', 'claude', '--'], fixture.A, {
@@ -195,7 +195,7 @@ it('prevents external wrappers from re-entering Arch in passthrough and configur
       `if (Number(process.env.FAKE_DEPTH || 0) >= 2) process.exit(77);\n` +
       `const result = require('node:child_process').spawnSync(process.execPath, [${JSON.stringify(cli)}, 'run', 'reenter', '--'], {stdio:'inherit', env:{...process.env, FAKE_DEPTH:String(Number(process.env.FAKE_DEPTH || 0)+1)}});\nprocess.exit(result.status ?? 1);\n`,
   );
-  if (process.platform === 'win32') {
+  if ('win32' === process.platform) {
     await writeFile(
       join(fixture.native, 'reenter.cmd'),
       '@echo off\r\nnode "%~dp0\\reenter.cjs" %*\r\n',
@@ -214,7 +214,7 @@ it('prevents external wrappers from re-entering Arch in passthrough and configur
 it('does not reject unrelated native directories merely named shims', async () => {
   const directory = join(fixture.root, 'third-party/shims');
   await mkdir(directory, { recursive: true });
-  const name = process.platform === 'win32' ? 'claude.exe' : 'claude';
+  const name = 'win32' === process.platform ? 'claude.exe' : 'claude';
   await copyFile(join(fixture.native, name), join(directory, name));
   const result = await run(process.execPath, [cli, 'run', 'claude', '--'], fixture.A, {
     ...fixture.env,
@@ -237,7 +237,7 @@ it('mise activates the project-local launchers and leaves unconfigured projects 
     PATH: [
       fixture.native,
       dirname(process.execPath),
-      ...(mise !== 'mise' ? [dirname(mise)] : []),
+      ...('mise' !== mise ? [dirname(mise)] : []),
       process.env.PATH || '',
     ].join(delimiter),
   };
@@ -249,7 +249,7 @@ it('mise activates the project-local launchers and leaves unconfigured projects 
   expect(events(inactive)).toEqual([]);
 });
 
-it.skipIf(process.platform !== 'win32')(
+it.skipIf('win32' !== process.platform)(
   'resolves npm .cmd shims without cmd.exe and rejects arbitrary batch scripts',
   async () => {
     const script = join(fixture.native, 'npm-tool.cjs');
@@ -281,7 +281,7 @@ it.skipIf(process.platform !== 'win32')(
   },
 );
 
-it.skipIf(process.platform === 'win32')(
+it.skipIf('win32' === process.platform)(
   'forwards SIGINT and SIGTERM and runs cleanup (POSIX process signals)',
   async () => {
     for (const signal of ['SIGINT', 'SIGTERM'] as const) {
@@ -293,7 +293,7 @@ it.skipIf(process.platform === 'win32')(
         await waitFor(() => invocation.output().stdout.includes('"pid":'));
         invocation.child.kill(signal);
         const result = await invocation.result;
-        expect(result.code).toBe(signal === 'SIGINT' ? 130 : 143);
+        expect(result.code).toBe('SIGINT' === signal ? 130 : 143);
         expect(result.stderr).toContain('[arch:demo] cleanup');
       } finally {
         invocation.child.kill('SIGKILL');
@@ -302,7 +302,7 @@ it.skipIf(process.platform === 'win32')(
   },
 );
 
-it.skipIf(process.platform !== 'win32')(
+it.skipIf('win32' !== process.platform)(
   'handles real Windows Ctrl+C and Ctrl+Break with cleanup and no surviving native child',
   async () => {
     for (const [type, code] of [
@@ -328,13 +328,17 @@ it.skipIf(process.platform !== 'win32')(
 async function waitFor(check: () => boolean) {
   const deadline = Date.now() + 10_000;
   while (!check()) {
-    if (Date.now() > deadline) throw new Error('Timed out waiting for native startup');
+    if (Date.now() > deadline) {
+      throw new Error('Timed out waiting for native startup');
+    }
     await new Promise((done) => setTimeout(done, 20));
   }
 }
 
 async function waitForOutput(invocation: ReturnType<typeof start>, text: string) {
-  if (invocation.output().stderr.includes(text)) return;
+  if (invocation.output().stderr.includes(text)) {
+    return;
+  }
   await new Promise<void>((done, reject) => {
     const timer = setTimeout(() => {
       cleanup();

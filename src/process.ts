@@ -10,7 +10,9 @@ async function isRouter(directory: string): Promise<boolean> {
   try {
     return (await readFile(join(directory, '.arch-router'), 'utf8')) === routerMarker;
   } catch (error) {
-    if (['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) return false;
+    if (['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) {
+      return false;
+    }
     throw error;
   }
 }
@@ -20,10 +22,12 @@ export async function nativeEnvironment(
   cwd: string,
 ): Promise<NodeJS.ProcessEnv> {
   const result = { ...env };
-  const key = Object.keys(result).find((k) => k.toUpperCase() === 'PATH') ?? 'PATH';
+  const key = Object.keys(result).find((k) => 'PATH' === k.toUpperCase()) ?? 'PATH';
   const paths: string[] = [];
   for (const entry of (result[key] ?? '').split(delimiter).filter(Boolean)) {
-    if (!(await isRouter(resolve(cwd, entry)))) paths.push(entry);
+    if (!(await isRouter(resolve(cwd, entry)))) {
+      paths.push(entry);
+    }
   }
   result[key] = paths.join(delimiter);
   return result;
@@ -39,13 +43,14 @@ export async function resolveExecutable(
   cwd: string,
   env: NodeJS.ProcessEnv,
 ): Promise<string> {
-  if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(command))
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(command)) {
     throw new Error('Expected an executable name without paths');
-  const pathKey = Object.keys(env).find((k) => k.toUpperCase() === 'PATH');
+  }
+  const pathKey = Object.keys(env).find((k) => 'PATH' === k.toUpperCase());
   const dirs = (env[pathKey ?? 'PATH'] ?? '').split(delimiter).filter(Boolean);
-  const pathExtKey = Object.keys(env).find((k) => k.toUpperCase() === 'PATHEXT') ?? 'PATHEXT';
+  const pathExtKey = Object.keys(env).find((k) => 'PATHEXT' === k.toUpperCase()) ?? 'PATHEXT';
   const extensions =
-    process.platform === 'win32'
+    'win32' === process.platform
       ? extname(command)
         ? ['']
         : (env[pathExtKey] ?? '.COM;.EXE;.BAT;.CMD')
@@ -57,14 +62,21 @@ export async function resolveExecutable(
     for (const extension of extensions) {
       const candidate = resolve(cwd, dir, command + extension);
       try {
-        await access(candidate, process.platform === 'win32' ? constants.F_OK : constants.X_OK);
-        if (!(await stat(candidate)).isFile()) continue;
+        await access(candidate, 'win32' === process.platform ? constants.F_OK : constants.X_OK);
+        if (!(await stat(candidate)).isFile()) {
+          continue;
+        }
         const native = await realpath(candidate);
-        if (await isRouter(dirname(native))) continue;
+        if (await isRouter(dirname(native))) {
+          continue;
+        }
         return native;
       } catch (error) {
-        if (!['ENOENT', 'EACCES', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? ''))
+        if (
+          !['ENOENT', 'EACCES', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')
+        ) {
           throw error;
+        }
       }
     }
   }
@@ -81,13 +93,17 @@ export async function launch(
   signal.throwIfAborted();
   let target = executable;
   let nativeArgs = [...args];
-  if (process.platform === 'win32' && /\.(cmd|bat)$/i.test(extname(executable))) {
-    if (extname(executable).toLowerCase() !== '.cmd')
+  if ('win32' === process.platform && /\.(cmd|bat)$/i.test(extname(executable))) {
+    if ('.cmd' !== extname(executable).toLowerCase()) {
       throw new Error('Arbitrary batch scripts require a shell and are unsupported');
+    }
     const destination = await realpath(resolve(dirname(executable), await readCmdShim(executable)));
-    if (await isRouter(dirname(destination))) throw new Error('Recursive npm shim target refused');
-    if (/\.(exe|com)$/i.test(destination)) target = destination;
-    else {
+    if (await isRouter(dirname(destination))) {
+      throw new Error('Recursive npm shim target refused');
+    }
+    if (/\.(exe|com)$/i.test(destination)) {
+      target = destination;
+    } else {
       const handle = await open(destination, 'r');
       const buffer = Buffer.alloc(256);
       try {
@@ -96,8 +112,9 @@ export async function launch(
         await handle.close();
       }
       const shebang = buffer.toString('utf8').split(/\r?\n/)[0] ?? '';
-      if (!/^#!\s*(?:\/usr\/bin\/env\s+)?(?:\S*[/\\])?node(?:\.exe)?\s*$/.test(shebang))
+      if (!/^#!\s*(?:\/usr\/bin\/env\s+)?(?:\S*[/\\])?node(?:\.exe)?\s*$/.test(shebang)) {
         throw new Error('npm shim target must be a Node script or native executable');
+      }
       // npm's standard Node shim prefers its adjacent node.exe; simple Node
       // shims use PATH. Neither may inherit Arch's independently chosen Node.
       const shimText = await readFile(executable, 'utf8');
@@ -109,13 +126,16 @@ export async function launch(
           await access(adjacent, constants.F_OK);
           adjacentExists = true;
         } catch (error) {
-          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+          if ('ENOENT' !== (error as NodeJS.ErrnoException).code) {
+            throw error;
+          }
         }
       }
       if (adjacentExists) {
         target = await realpath(adjacent);
-        if (!(await stat(target)).isFile() || (await isRouter(dirname(target))))
+        if (!(await stat(target)).isFile() || (await isRouter(dirname(target)))) {
           throw new Error('Recursive or invalid adjacent npm Node runtime refused');
+        }
       } else {
         try {
           target = await resolveExecutable('node.exe', cwd, env);
@@ -142,33 +162,43 @@ export async function launch(
       child.off('close', closed);
     };
     const failed = (error: Error) => {
-      if (settled) return;
+      if (settled) {
+        return;
+      }
       settled = true;
       dispose();
       reject(error);
     };
     const closed = (code: number | null, nativeSignal: NodeJS.Signals | null) => {
-      if (settled) return;
+      if (settled) {
+        return;
+      }
       settled = true;
       dispose();
       resolveResult(Object.freeze({ exitCode: code ?? 1, signal: nativeSignal }));
     };
     const abort = () => {
-      if (cancelled || settled || child.exitCode !== null || child.signalCode !== null) return;
+      if (cancelled || settled || null !== child.exitCode || null !== child.signalCode) {
+        return;
+      }
       cancelled = true;
-      const reason = signal.reason;
+      const reason: unknown = signal.reason;
       const forwarded = ['SIGINT', 'SIGTERM', 'SIGHUP'].includes(reason as string)
         ? (reason as NodeJS.Signals)
         : 'SIGTERM';
       try {
-        child.kill(process.platform === 'win32' ? 'SIGTERM' : forwarded);
+        child.kill('win32' === process.platform ? 'SIGTERM' : forwarded);
       } catch (error) {
         failed(error as Error);
         return;
       }
-      if (settled) return;
+      if (settled) {
+        return;
+      }
       timer = setTimeout(() => {
-        if (settled || child.exitCode !== null || child.signalCode !== null) return;
+        if (settled || null !== child.exitCode || null !== child.signalCode) {
+          return;
+        }
         try {
           child.kill('SIGKILL');
         } catch (error) {
@@ -180,8 +210,10 @@ export async function launch(
     child.once('error', failed);
     child.once('close', closed);
     signal.addEventListener('abort', abort, { once: true });
-    if (child.exitCode !== null || child.signalCode !== null)
+    if (null !== child.exitCode || null !== child.signalCode) {
       closed(child.exitCode, child.signalCode);
-    else if (signal.aborted) abort();
+    } else if (signal.aborted) {
+      abort();
+    }
   });
 }

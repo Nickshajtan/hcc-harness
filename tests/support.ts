@@ -25,7 +25,9 @@ export function start(command: string, args: string[], cwd: string, env: NodeJS.
   });
   const result = new Promise<Result>((done, reject) => {
     child.once('error', reject);
-    child.once('close', (code, signal) => done({ code, signal, stdout, stderr }));
+    child.once('close', (code, signal) => {
+      done({ code, signal, stdout, stderr });
+    });
   });
   return { child, result, output: () => ({ stdout, stderr }) };
 }
@@ -57,7 +59,7 @@ export async function world(temporary = resolve('.test-state/fixtures')) {
   const native = paths.native!;
   // Extensionless Node fixtures must not inherit the repository's ESM package scope.
   await writeFile(join(root, 'package.json'), '{"type":"commonjs"}\n');
-  if (process.platform === 'win32') {
+  if ('win32' === process.platform) {
     const csc = join(
       process.env.SystemRoot || 'C:/Windows',
       'Microsoft.NET/Framework64/v4.0.30319/csc.exe',
@@ -68,8 +70,9 @@ export async function world(temporary = resolve('.test-state/fixtures')) {
       root,
       process.env,
     );
-    if (built.code !== 0)
+    if (0 !== built.code) {
       throw new Error(`Fake executable compile failed: ${built.stdout} ${built.stderr}`);
+    }
     await copyFile(join(native, 'claude.exe'), join(native, 'codex.exe'));
     const driver = await run(
       csc,
@@ -81,8 +84,9 @@ export async function world(temporary = resolve('.test-state/fixtures')) {
       root,
       process.env,
     );
-    if (driver.code !== 0)
+    if (0 !== driver.code) {
       throw new Error(`Console driver compile failed: ${driver.stdout} ${driver.stderr}`);
+    }
   } else {
     for (const name of ['claude', 'codex']) {
       await copyFile(resolve('tests/fixtures/native.cjs'), join(native, name));
@@ -90,8 +94,20 @@ export async function world(temporary = resolve('.test-state/fixtures')) {
     }
   }
   const env: NodeJS.ProcessEnv = {};
-  for (const key of ['SystemRoot', 'WINDIR', 'ComSpec', 'PATHEXT', 'TEMP', 'TMP', 'TMPDIR', 'LANG'])
-    if (process.env[key]) env[key] = process.env[key];
+  for (const key of [
+    'SystemRoot',
+    'WINDIR',
+    'ComSpec',
+    'PATHEXT',
+    'TEMP',
+    'TMP',
+    'TMPDIR',
+    'LANG',
+  ]) {
+    if (process.env[key]) {
+      env[key] = process.env[key];
+    }
+  }
   Object.assign(env, {
     HOME: paths.home,
     USERPROFILE: paths.home,
@@ -112,7 +128,7 @@ export async function world(temporary = resolve('.test-state/fixtures')) {
       join(paths.B!, '.arch/bin'),
       native,
       dirname(process.execPath),
-      ...(mise !== 'mise' ? [dirname(mise)] : []),
+      ...('mise' !== mise ? [dirname(mise)] : []),
       process.env.PATH || '',
     ].join(delimiter),
     ARCH_TRACE: '1',
@@ -162,7 +178,9 @@ export async function records(
       .filter(Boolean)
       .map((line) => JSON.parse(line));
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    if ('ENOENT' === (error as NodeJS.ErrnoException).code) {
+      return [];
+    }
     throw error;
   }
 }

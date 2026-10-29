@@ -83,10 +83,11 @@ it('uses configuration order, immutable identity, fresh middleware, lifecycle ev
         'middleware.completed',
         'execution.completed',
         'execution.failed',
-      ] as const)
+      ] as const) {
         value.subscribe(type, (e) => {
           received.push(e);
         });
+      }
     },
   });
   expect(result.exitCode).toBe(7);
@@ -121,15 +122,21 @@ it('denial prevents launch and observer failures cannot reverse it; all finalize
         id,
         register(api) {
           api.on('preflight', () => {
-            if (id === 'deny') throw new Error('denied');
+            if ('deny' === id) {
+              throw new Error('denied');
+            }
           });
           api.on('finalize', () => {
             calls.push(id);
-            if (id === 'deny') throw new Error('finalizer failed');
+            if ('deny' === id) {
+              throw new Error('finalizer failed');
+            }
           });
           api.cleanup(() => {
             calls.push(id + ':cleanup');
-            if (id === 'other') throw new Error('cleanup failed');
+            if ('other' === id) {
+              throw new Error('cleanup failed');
+            }
           });
         },
       }),
@@ -194,12 +201,22 @@ it('validates launch changes and conflicts without allowing late hook registrati
   pipeline.register({
     id: 'one',
     register(api) {
-      expect(() => api.setEnv('FOO', 'bar')).toThrow();
+      expect(() => {
+        api.setEnv('FOO', 'bar');
+      }).toThrow();
       api.on('prepareLaunch', () => {
-        expect(() => api.setEnv('PATH', 'override')).toThrow();
-        expect(() => api.setEnv('BAD=KEY', 'value')).toThrow();
-        expect(() => api.setEnv('VALUE', '\0')).toThrow();
-        expect(() => api.on('preflight', () => {})).toThrow();
+        expect(() => {
+          api.setEnv('PATH', 'override');
+        }).toThrow();
+        expect(() => {
+          api.setEnv('BAD=KEY', 'value');
+        }).toThrow();
+        expect(() => {
+          api.setEnv('VALUE', '\0');
+        }).toThrow();
+        expect(() => {
+          api.on('preflight', () => {});
+        }).toThrow();
         api.setEnv('FOO', 'one');
       });
     },

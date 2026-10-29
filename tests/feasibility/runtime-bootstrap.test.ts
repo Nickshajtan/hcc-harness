@@ -17,7 +17,7 @@ import { world, run, records } from '../support.js';
 const bootstrap = process.env.ARCH_B1_BOOTSTRAP;
 const node20 = process.env.ARCH_B1_NODE20;
 const node22 = process.env.ARCH_B1_NODE22;
-const enabled = process.platform === 'win32' && !!bootstrap && !!node20 && !!node22;
+const enabled = 'win32' === process.platform && !!bootstrap && !!node20 && !!node22;
 describe.skipIf(!enabled)(
   'B1 Windows executable feasibility (explicit bootstrap + real Node 20/22 required)',
   () => {
@@ -111,7 +111,7 @@ describe.skipIf(!enabled)(
           entry,
           ['init', 'claude'],
           f.B,
-          environment(version === '20' ? path20 : path22),
+          environment('20' === version ? path20 : path22),
         );
         expect(result.code).toBe(1);
         expect(result.stderr).toContain('requires >=24.15.0 <25');

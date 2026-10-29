@@ -17,8 +17,8 @@ import * as pty from 'node-pty';
 import { createRequire } from 'node:module';
 
 assert.ok(['win32', 'darwin', 'linux'].includes(process.platform), 'Unsupported contract platform');
-const windows = process.platform === 'win32';
-if (process.platform === 'darwin') {
+const windows = 'win32' === process.platform;
+if ('darwin' === process.platform) {
   // npm's packaged node-pty helper can lose its executable bit. Match the
   // existing wizard fixture preparation; never suppress a spawn failure.
   const require = createRequire(import.meta.url);
@@ -34,19 +34,25 @@ if (process.platform === 'darwin') {
     try {
       await access(helper);
     } catch (error) {
-      if (error.code === 'ENOENT') continue;
+      if ('ENOENT' === error.code) {
+        continue;
+      }
       throw error;
     }
     try {
       await access(helper, constants.X_OK);
     } catch (error) {
-      if (error.code !== 'EACCES') throw error;
+      if ('EACCES' !== error.code) {
+        throw error;
+      }
       await chmod(helper, 0o755);
     }
   }
 }
 assert.ok(process.env.ARCH_B1_NODE22, 'Real Node 22 is mandatory');
-if (windows) assert.ok(process.env.ARCH_B1_BOOTSTRAP, 'Compiled bootstrap is mandatory');
+if (windows) {
+  assert.ok(process.env.ARCH_B1_BOOTSTRAP, 'Compiled bootstrap is mandatory');
+}
 const root = await mkdtemp(join(await realpath(tmpdir()), 'arch-runtime-terminal-'));
 let term,
   ended = false,
@@ -75,14 +81,14 @@ try {
     script,
     '#!/usr/bin/env node\nconsole.log(JSON.stringify({stdin:process.stdin.isTTY,stdout:process.stdout.isTTY,stderr:process.stderr.isTTY,node:process.version}));process.stdin.once("data",data=>{console.log("received:"+data.toString().trim());process.exit(9);});\n',
   );
-  if (windows)
+  if (windows) {
     await writeFile(join(native, 'terminal.cmd'), '@echo off\r\nnode "%~dp0\\terminal.cjs" %*\r\n');
-  else {
+  } else {
     await copyFile(script, join(native, 'terminal'));
     await chmod(join(native, 'terminal'), 0o755);
   }
   const env = Object.fromEntries(
-    Object.entries(process.env).filter(([key]) => key.toUpperCase() !== 'PATH'),
+    Object.entries(process.env).filter(([key]) => 'PATH' !== key.toUpperCase()),
   );
   Object.assign(env, {
     PATH: [native, runtime, '/usr/bin', '/bin'].join(delimiter),
@@ -130,7 +136,9 @@ try {
   evidence = { status: 'FAIL', platform: process.platform, error: String(error) };
   throw error;
 } finally {
-  if (term && !ended) term.kill();
+  if (term && !ended) {
+    term.kill();
+  }
   await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   await mkdir('.test-state', { recursive: true });
   await writeFile('.test-state/m22-runtime-tty.json', JSON.stringify(evidence, null, 2));

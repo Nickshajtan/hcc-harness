@@ -5,11 +5,13 @@ import { join, delimiter, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { world, run, cli } from '../support.js';
 
-const windows = process.platform === 'win32';
+const windows = 'win32' === process.platform;
 let fixture: Awaited<ReturnType<typeof world>>;
 let pathNode: string, adjacentNode: string;
 beforeAll(async () => {
-  if (!windows) return;
+  if (!windows) {
+    return;
+  }
   fixture = await world(await realpath(tmpdir()));
   const pathDir = join(fixture.root, 'project Node');
   await mkdir(pathDir);

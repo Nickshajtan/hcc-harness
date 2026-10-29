@@ -29,7 +29,7 @@ const sandbox = await realpath(await mkdtemp(join(temporary, 'arch-wizard-ci-'))
 const project = join(sandbox, 'project'),
   native = join(sandbox, 'native');
 const prefix = join(sandbox, 'npm-prefix');
-const linkedCli = join(prefix, process.platform === 'win32' ? 'arch.cmd' : 'bin/arch');
+const linkedCli = join(prefix, 'win32' === process.platform ? 'arch.cmd' : 'bin/arch');
 const npmEnv = {
   ...process.env,
   npm_config_prefix: prefix,
@@ -47,7 +47,9 @@ const results = [],
 const ptyPreparation = [];
 const env = {};
 for (const name of ['SystemRoot', 'WINDIR', 'ComSpec', 'TEMP', 'TMP', 'TMPDIR', 'LANG']) {
-  if (process.env[name]) env[name] = process.env[name];
+  if (process.env[name]) {
+    env[name] = process.env[name];
+  }
 }
 Object.assign(env, {
   HOME: join(sandbox, 'home'),
@@ -71,7 +73,9 @@ function terminal(label, args, command = process.execPath) {
   const changed = new Set();
   const text = () => stripVTControlCharacters(raw).replaceAll('\r', '');
   const signal = () => {
-    for (const notify of changed) notify();
+    for (const notify of changed) {
+      notify();
+    }
   };
   const data = child.onData((value) => {
     raw += value;
@@ -100,20 +104,24 @@ function terminal(label, args, command = process.execPath) {
         function finish(error) {
           clearTimeout(timer);
           changed.delete(check);
-          if (error) reject(error);
-          else accept();
+          if (error) {
+            reject(error);
+          } else {
+            accept();
+          }
         }
         function check() {
           const at = text().indexOf(needle, cursor);
-          if (at >= 0) {
+          if (0 <= at) {
             cursor = at + needle.length;
             finish();
-          } else if (exit)
+          } else if (exit) {
             finish(
               new Error(
                 `${label} exited before ${JSON.stringify(needle)}: ${JSON.stringify(exit)}`,
               ),
             );
+          }
         }
         changed.add(check);
         check();
@@ -163,7 +171,7 @@ function terminal(label, args, command = process.execPath) {
   return session;
 }
 const wizard = (label, operation) =>
-  process.platform === 'win32'
+  'win32' === process.platform
     ? terminal(label, `/d /s /c ""${linkedCli}" ${operation}"`, process.env.ComSpec)
     : terminal(label, [operation], linkedCli);
 async function snapshot(root = project) {
@@ -203,7 +211,9 @@ async function check(name, action) {
 async function state(expected, routes) {
   const status = await inspectInstallation(project, env);
   assert.equal(status.state, expected);
-  if (routes) assert.deepEqual(status.routes, routes);
+  if (routes) {
+    assert.deepEqual(status.routes, routes);
+  }
 }
 
 let failure;
@@ -213,7 +223,7 @@ try {
     'Run through npm run test:wizard or npm run test:wizard:terminal',
   );
   await promisify(execFile)(process.execPath, [process.env.npm_execpath, 'link'], { env: npmEnv });
-  if (process.platform === 'darwin') {
+  if ('darwin' === process.platform) {
     const packageRoot = dirname(createRequire(import.meta.url).resolve('node-pty/package.json'));
     // node-pty 1.1's packaged Darwin helper can lack its executable bit. Repair
     // only known files within this pinned development dependency, not PATH tools.
@@ -226,24 +236,30 @@ try {
       try {
         await access(helper, constants.F_OK);
       } catch (error) {
-        if (error.code === 'ENOENT') continue;
+        if ('ENOENT' === error.code) {
+          continue;
+        }
         throw error;
       }
       let restored = false;
       try {
         await access(helper, constants.X_OK);
       } catch (error) {
-        if (error.code !== 'EACCES') throw error;
+        if ('EACCES' !== error.code) {
+          throw error;
+        }
         await chmod(helper, 0o755);
         restored = true;
       }
       ptyPreparation.push({ helper: `node-pty/${relative}`, executableBitRestored: restored });
-      if (restored) console.log(`Restored execute permission: node-pty/${relative}`);
+      if (restored) {
+        console.log(`Restored execute permission: node-pty/${relative}`);
+      }
     }
   }
   await Promise.all([project, native, env.HOME].map((path) => mkdir(path)));
   for (const command of ['claude', 'codex']) {
-    const path = join(native, command + (process.platform === 'win32' ? '.exe' : ''));
+    const path = join(native, command + ('win32' === process.platform ? '.exe' : ''));
     // Presence-only fixtures: these are intentionally not executable programs.
     await writeFile(path, 'discovery fixture; must never execute\n');
     await chmod(path, 0o755);
@@ -266,8 +282,11 @@ try {
       const before = await snapshot(),
         session = wizard(label, 'init');
       await session.expect('Routed commands:');
-      if (code === 130 || label === 'selection-eof') session.child.write(input);
-      else session.answer(input);
+      if (130 === code || 'selection-eof' === label) {
+        session.child.write(input);
+      } else {
+        session.answer(input);
+      }
       await session.finish(code);
       assert.deepEqual(await snapshot(), before);
     });
@@ -404,8 +423,9 @@ try {
     text
       .replaceAll(JSON.stringify(sandbox).slice(1, -1), '<sandbox>')
       .replaceAll(sandbox, '<sandbox>');
-  for (const session of sessions)
+  for (const session of sessions) {
     await writeFile(join(evidence, `${session.label}.txt`), normalize(session.text()));
+  }
   await writeFile(
     join(evidence, 'results.json'),
     JSON.stringify(

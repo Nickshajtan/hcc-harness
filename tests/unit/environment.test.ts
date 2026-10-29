@@ -17,12 +17,16 @@ async function prepare(handler: (api: MiddlewareAPI) => void) {
   pipeline.register({
     id: 'test',
     register(api) {
-      expect(() => api.setEnv('EARLY', 'value')).toThrow('prepareLaunch');
+      expect(() => {
+        api.setEnv('EARLY', 'value');
+      }).toThrow('prepareLaunch');
       api.on('prepareLaunch', () => {
         handler(api);
       });
       api.on('finalize', () => {
-        expect(() => api.setEnv('LATE', 'value')).toThrow('prepareLaunch');
+        expect(() => {
+          api.setEnv('LATE', 'value');
+        }).toThrow('prepareLaunch');
       });
     },
   });
@@ -57,7 +61,7 @@ it('uses platform-correct identity for differently cased equal values', async ()
     api.setEnv('name', 'one');
   });
   expect(result).toEqual(
-    process.platform === 'win32' ? { NAME: 'one' } : { NAME: 'one', name: 'one' },
+    'win32' === process.platform ? { NAME: 'one' } : { NAME: 'one', name: 'one' },
   );
 });
 it('uses platform-correct identity for differently cased conflicting values', async () => {
@@ -65,14 +69,22 @@ it('uses platform-correct identity for differently cased conflicting values', as
     api.setEnv('NAME', 'one');
     api.setEnv('name', 'two');
   });
-  if (process.platform === 'win32') await expect(result).rejects.toThrow('Conflicting');
-  else expect(await result).toEqual({ NAME: 'one', name: 'two' });
+  if ('win32' === process.platform) {
+    await expect(result).rejects.toThrow('Conflicting');
+  } else {
+    expect(await result).toEqual({ NAME: 'one', name: 'two' });
+  }
 });
 it('preserves invalid/reserved variable restrictions', async () => {
   await prepare((api) => {
-    for (const name of ['PATH', 'Path', 'PATHEXT', 'arch_active', 'NODE_OPTIONS', '', 'BAD=KEY'])
-      expect(() => api.setEnv(name, 'value')).toThrow('Invalid');
-    expect(() => api.setEnv('VALID', '\0')).toThrow('Invalid');
+    for (const name of ['PATH', 'Path', 'PATHEXT', 'arch_active', 'NODE_OPTIONS', '', 'BAD=KEY']) {
+      expect(() => {
+        api.setEnv(name, 'value');
+      }).toThrow('Invalid');
+    }
+    expect(() => {
+      api.setEnv('VALID', '\0');
+    }).toThrow('Invalid');
   });
 });
 it('keeps concurrent environment contributions isolated', async () => {

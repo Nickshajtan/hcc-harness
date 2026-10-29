@@ -9,7 +9,7 @@ import { world, run, cli, records } from '../support.js';
 let fixture: Awaited<ReturnType<typeof world>>;
 beforeAll(async () => {
   fixture = await world(join(tmpdir(), 'arch-m2-fixtures'));
-  const extension = process.platform === 'win32' ? '.exe' : '';
+  const extension = 'win32' === process.platform ? '.exe' : '';
   await copyFile(
     join(fixture.native, 'claude' + extension),
     join(fixture.native, 'gemini' + extension),
@@ -27,12 +27,12 @@ async function project() {
 }
 
 const executable = (name: string) =>
-  `.arch/bin/${name}${process.platform === 'win32' ? '.exe' : ''}`;
+  `.arch/bin/${name}${'win32' === process.platform ? '.exe' : ''}`;
 const checkpoints = [
   'journal',
   `staged:${executable('gemini')}`,
   `published:${executable('gemini')}`,
-  ...(process.platform === 'win32' ? ['published:.arch/bin/gemini.shim'] : []),
+  ...('win32' === process.platform ? ['published:.arch/bin/gemini.shim'] : []),
   `removed:${executable('codex')}`,
   'before-manifest',
   'manifest',
@@ -44,7 +44,7 @@ it.each(checkpoints)(
   async (checkpoint) => {
     const root = await project();
     const nativeBefore = await readFile(
-      join(fixture.native, 'claude' + (process.platform === 'win32' ? '.exe' : '')),
+      join(fixture.native, 'claude' + ('win32' === process.platform ? '.exe' : '')),
     );
     const child = spawn(
       process.execPath,
@@ -61,7 +61,11 @@ it.each(checkpoints)(
     child.stderr!.on('data', (data) => {
       stderr += data;
     });
-    const closed = new Promise<void>((done) => child.once('close', () => done()));
+    const closed = new Promise<void>((done) =>
+      child.once('close', () => {
+        done();
+      }),
+    );
     try {
       await new Promise<void>((done, reject) => {
         const timeout = setTimeout(() => {
@@ -123,14 +127,14 @@ it.each(checkpoints)(
       expect(await records(record)).toHaveLength(1);
       expect(
         await readFile(
-          join(fixture.native, 'claude' + (process.platform === 'win32' ? '.exe' : '')),
+          join(fixture.native, 'claude' + ('win32' === process.platform ? '.exe' : '')),
         ),
       ).toEqual(nativeBefore);
       expect(
         (await readdir(join(root, '.arch'))).filter((name) => name.includes('routing')),
       ).toEqual([]);
     } finally {
-      if (child.exitCode === null && child.signalCode === null) {
+      if (null === child.exitCode && null === child.signalCode) {
         child.kill('SIGKILL');
         await closed;
       }
@@ -178,10 +182,16 @@ it('deinit resumes a pending routing journal and preserves edited configuration'
     ],
     { cwd: root, env: fixture.env, stdio: ['ignore', 'ignore', 'pipe', 'ipc'] },
   );
-  const closed = new Promise<void>((done) => child.once('close', () => done()));
+  const closed = new Promise<void>((done) =>
+    child.once('close', () => {
+      done();
+    }),
+  );
   try {
     await new Promise<void>((done, reject) => {
-      const timeout = setTimeout(() => reject(new Error('Worker checkpoint timeout')), 15000);
+      const timeout = setTimeout(() => {
+        reject(new Error('Worker checkpoint timeout'));
+      }, 15000);
       child.once('message', () => {
         clearTimeout(timeout);
         done();
@@ -204,7 +214,7 @@ it('deinit resumes a pending routing journal and preserves edited configuration'
     ).toBe('uninitialized');
     expect(await readFile(join(root, '.arch/harness.toml'), 'utf8')).toContain('# keep this');
   } finally {
-    if (child.exitCode === null && child.signalCode === null) {
+    if (null === child.exitCode && null === child.signalCode) {
       child.kill('SIGKILL');
       await closed;
     }

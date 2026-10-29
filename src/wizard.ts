@@ -29,7 +29,9 @@ export function terminalInteraction() {
     write: (message: string) => {
       console.log(message);
     },
-    close: () => terminal.close(),
+    close: () => {
+      terminal.close();
+    },
   };
 }
 export async function confirmRemoval(root: string, ui: Interaction): Promise<boolean> {
@@ -38,7 +40,7 @@ export async function confirmRemoval(root: string, ui: Interaction): Promise<boo
     `Arch Deinitialization\nProject: ${resolve(root)}\nManaged resources:\n${[...status.managedPaths, ...(status.recoveryPending ? ['.arch/* operation journal (owned)'] : []), '.arch/bootstrap.json'].map((path) => `  ${path}`).join('\n')}\nPreserved: modified/pre-existing .arch/harness.toml, unrelated files, native installations.\nAn unchanged generated harness configuration may be removed.`,
   );
   const answer = await ui.ask('Remove Arch routing from this project? [y/N] ');
-  return answer !== null && /^(y|yes)$/i.test(answer.trim());
+  return null !== answer && /^(y|yes)$/i.test(answer.trim());
 }
 export function installedMessage(root: string) {
   return `Arch installed for this project: ${resolve(root)}\nManaged paths: .arch/bin/*, .arch/bootstrap.json, .config/mise/conf.d/arch.toml\nShell activation has not been verified. Activate mise, refresh the shell prompt, and trust the project when prompted.\nFor explicit activation: mise exec -- <command>`;
@@ -55,48 +57,59 @@ export async function setupWizard(
   const status = await inspectInstallation(root);
   ui.write(`Arch ${configure ? 'Configuration' : 'Setup'}\nProject: ${root}`);
   if (configure) {
-    if (status.pendingOperation === 'routing' && status.state === 'recovery_pending') {
+    if ('routing' === status.pendingOperation && 'recovery_pending' === status.state) {
       ui.write(`Interrupted routing update. Desired routes: ${status.desiredRoutes!.join(', ')}`);
       const answer = await ui.ask('Resume this update? [y/N] ');
-      if (answer === null || !/^(y|yes)$/i.test(answer.trim())) return false;
+      if (null === answer || !/^(y|yes)$/i.test(answer.trim())) {
+        return false;
+      }
       await reconcileRoutes(root, status.desiredRoutes!);
       ui.write(installedMessage(root));
       return true;
     }
-    if (status.state !== 'initialized')
+    if ('initialized' !== status.state) {
       throw new Error(`Cannot configure: ${status.state}. ${status.warnings.join(' ')}`);
+    }
     ui.write(
       `Current configured routes: ${status.routes.join(', ')}\n1. Update routed commands\n2. Inspect installation\n3. Deinitialize Arch\n4. Cancel`,
     );
     const action = await ui.ask('Action [1-4]: ');
-    if (action === '2') {
+    if ('2' === action) {
       ui.write(JSON.stringify(status, null, 2));
       return false;
     }
-    if (action === '3') {
-      if (!(await confirmRemoval(root, ui))) return false;
+    if ('3' === action) {
+      if (!(await confirmRemoval(root, ui))) {
+        return false;
+      }
       await deinitialize(root);
       ui.write(removedMessage);
       return true;
     }
-    if (action !== '1') return false;
-  } else if (!['initialized', 'uninitialized'].includes(status.state))
+    if ('1' !== action) {
+      return false;
+    }
+  } else if (!['initialized', 'uninitialized'].includes(status.state)) {
     throw new Error(`Cannot initialize: ${status.state}. ${status.warnings.join(' ')}`);
+  }
   const candidates = await discoverClis(root);
-  const current = status.state === 'initialized' ? await configuredRoutes(root) : [];
+  const current = 'initialized' === status.state ? await configuredRoutes(root) : [];
   const defaults = defaultSelection(candidates, current);
   ui.write('Detected CLI suggestions (presence only; tools are never executed):');
-  for (const candidate of candidates)
+  for (const candidate of candidates) {
     ui.write(
       `  ${candidate.label}: ${candidate.command} (${candidate.available ? 'installed' : 'not found'})`,
     );
+  }
   ui.write(
     `Enter executable names separated by spaces; custom names are supported.\nDefault: ${defaults.join(', ') || '(none)'}\nEnter cancel to stop.`,
   );
   let selected: string[];
   for (;;) {
     const answer = await ui.ask('Routed commands: ');
-    if (answer === null || answer.trim().toLowerCase() === 'cancel') return false;
+    if (null === answer || 'cancel' === answer.trim().toLowerCase()) {
+      return false;
+    }
     selected = answer.trim() ? answer.trim().split(/\s+/) : defaults;
     try {
       validateCommands(selected);
@@ -109,9 +122,14 @@ export async function setupWizard(
     `Desired routes: ${selected.join(', ')}\nProject-scoped installation; native fallback enabled; middleware configuration preserved.\nEach operation is also available as init <commands...>, configure <commands...>, or deinit --yes.`,
   );
   const answer = await ui.ask('Proceed? [Y/n] ');
-  if (answer === null || !/^(y|yes)?$/i.test(answer.trim())) return false;
-  if (current.length) await reconcileRoutes(root, selected);
-  else await setup(root, selected);
+  if (null === answer || !/^(y|yes)?$/i.test(answer.trim())) {
+    return false;
+  }
+  if (current.length) {
+    await reconcileRoutes(root, selected);
+  } else {
+    await setup(root, selected);
+  }
   ui.write(installedMessage(root));
   return true;
 }

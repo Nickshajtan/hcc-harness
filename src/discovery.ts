@@ -28,8 +28,9 @@ export async function discoverClis(
           executablePath: await resolveExecutable(candidate.command, root, native),
         };
       } catch (error) {
-        if (error instanceof Error && error.message.startsWith('Native executable not found:'))
+        if (error instanceof Error && error.message.startsWith('Native executable not found:')) {
           return { ...candidate, available: false };
+        }
         throw error;
       }
     }),
