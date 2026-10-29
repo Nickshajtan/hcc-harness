@@ -178,7 +178,23 @@ B2, Windows ARM64, every terminal emulator and full-repository mutation remain N
 Starting main inspected PASS: [regression](https://github.com/Nickshajtan/hcc-harness/actions/runs/40956631811),
 [wizard](https://github.com/Nickshajtan/hcc-harness/actions/runs/40956631709),
 [runtime and required aggregate](https://github.com/Nickshajtan/hcc-harness/actions/runs/40956631899).
-Final refactor CI: NOT TESTED until the dedicated PR workflows complete and are inspected.
+At validated code/tooling commit `ae13be0ee955247ab4f07cf02e2cddd8afc06792`,
+all PR matrices were inspected PASS: [regression](https://github.com/Nickshajtan/hcc-harness/actions/runs/40960531146),
+[wizard](https://github.com/Nickshajtan/hcc-harness/actions/runs/40960531220),
+[runtime and required aggregate](https://github.com/Nickshajtan/hcc-harness/actions/runs/40960531294),
+[quality measurements](https://github.com/Nickshajtan/hcc-harness/actions/runs/40960531363).
+Downloaded quality JSON confirms lint/dependency/coverage/mutation PASS, 116 legacy
+warnings and 51 metric findings. Hosted Ubuntu coverage is 75.79% lines / 67.45%
+branches, 178 passed / 32 existing skips. The four Core mutation counts match the
+Windows table; middleware is 90 killed / 5 survived / 1 uncovered (93.75%) due to
+platform reachability, with zero errors. Quality job: 90 seconds.
+
+A separate push run at the identical commit failed Windows temporary historical-Node
+rename with EBUSY before relocation/recovery assertions. The PR run passed the same
+scenario. The lock owner is unproven; this is retained as a Windows fixture stability
+risk, not called a Core defect or hidden as a passing attempt. See [push evidence](https://github.com/Nickshajtan/hcc-harness/actions/runs/40960429126).
+The single manual failed-job rerun passed unchanged, including the required aggregate.
+No retry loop, increased timeout, skipped test or weakened assertion was added.
 Required runtime workflow/aggregate and branch protection are unchanged. Mutation
 selection includes the new policy tests and all production source. Reports remain
 fail-closed with PASS / FAIL / NOT TESTED and visible skips/timeouts.
