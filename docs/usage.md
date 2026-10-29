@@ -10,17 +10,17 @@ Management commands operate on the current directory as the project root; they d
 not walk upward and mutate a parent installation. Runtime middleware discovery does
 walk ancestors. Always change to the intended project root before managing routes.
 
-| Command | Behavior |
-| --- | --- |
-| `arch init [commands...]` | Explicit names initialize without prompts; bare init requires a terminal wizard |
-| `arch configure [commands...]` | Explicit names replace the desired set; bare configure opens the terminal menu |
-| `arch route list` | Read-only configured names, one per line |
-| `arch route add/remove <commands...>` | Add/remove while retaining other routes; idempotent |
-| `arch status [--json]` | Read-only installation, recovery and activation observations |
-| `arch deinit [--yes]` | Confirmation defaults to No; outside a terminal requires `--yes` |
-| `arch uninstall [--yes]` | Deprecated prompt-free compatibility alias, including recovery |
-| `arch run <command> -- [args...]` | Explicit harness dispatch to the native command |
-| `arch --help` | Command help |
+| Command                               | Behavior                                                                        |
+| ------------------------------------- | ------------------------------------------------------------------------------- |
+| `arch init [commands...]`             | Explicit names initialize without prompts; bare init requires a terminal wizard |
+| `arch configure [commands...]`        | Explicit names replace the desired set; bare configure opens the terminal menu  |
+| `arch route list`                     | Read-only configured names, one per line                                        |
+| `arch route add/remove <commands...>` | Add/remove while retaining other routes; idempotent                             |
+| `arch status [--json]`                | Read-only installation, recovery and activation observations                    |
+| `arch deinit [--yes]`                 | Confirmation defaults to No; outside a terminal requires `--yes`                |
+| `arch uninstall [--yes]`              | Deprecated prompt-free compatibility alias, including recovery                  |
+| `arch run <command> -- [args...]`     | Explicit harness dispatch to the native command                                 |
+| `arch --help`                         | Command help                                                                    |
 
 Names start with a letter and contain letters, digits, `_` or `-`. `arch`, `node`
 and `mise` are reserved. Windows identity is case-insensitive. Custom/missing tools
@@ -34,8 +34,7 @@ not middleware settings. Every operation has a deterministic equivalent: explici
 init/configure names, route add/remove, status and deinit --yes.
 
 Success or deliberate cancellation exits 0; operational/state errors exit 1;
-invalid usage or missing noninteractive decisions exit 2; interactive SIGINT exits
-130. Native dispatch preserves native exit/signal behavior.
+invalid usage or missing noninteractive decisions exit 2; interactive SIGINT exits 130. Native dispatch preserves native exit/signal behavior.
 
 ## Installation versus activation
 
@@ -82,7 +81,7 @@ checks. Restore known matching bytes or inspect the reported paths before retryi
   already-removed managed files; remaining files must still match. It is removed
   last; initialization refuses pending recovery. Repeated deinit is safe.
 - `.arch/routing.json`: retain the journal/staging files. Inspect `arch status
-  --json`, then retry `arch configure <recorded-desired-commands...>` after resolving
+--json`, then retry `arch configure <recorded-desired-commands...>` after resolving
   capability/permission problems. A different desired set is refused until recovery
   finishes. Deinit first completes the recorded route update, then removes it.
 - Partial private staging: preserve mismatched bytes; the journal records expected

@@ -1,0 +1,82 @@
+name: Quality measurements
+
+on:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '21 5 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  measurements:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@v4
+        with:
+          version: '2026.10.11'
+          install: true
+      - run: npm ci
+      - id: lint
+        run: npm run lint:report
+      - run: npm run report:dependencies
+      - id: coverage
+        run: npm run test:coverage
+      - name: Select relevant mutation pilot
+        id: pilot
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          changed="$(git diff --name-only "$BASE_SHA" HEAD -- src/config.ts tests/unit/config.test.ts package.json package-lock.json stryker.config.json vitest.mutation.config.ts .github/workflows/quality.yml)"
+          if [ -n "$changed" ]; then
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+          fi
+      # The measured pilot is small enough for relevant PRs and weekly/manual runs.
+      # Numeric scores are not gates; runner/assertion failures remain fatal.
+      - name: Focused configuration mutation pilot
+        id: mutation
+        if: github.event_name != 'pull_request' || steps.pilot.outputs.run == 'true'
+        run: npm run test:mutation
+      - name: Publish measurement evidence
+        if: always()
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync, existsSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
+          const read = path => existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : undefined;
+          const coverage = read('coverage/coverage-summary.json');
+          const mutation = read('reports/mutation/mutation.json');
+          const result = outcome => outcome === 'success' ? 'PASS' : outcome === 'failure' ? 'FAIL' : 'NOT TESTED';
+          const results = { lint: result('${{ steps.lint.outcome }}'), coverage: result('${{ steps.coverage.outcome }}'), mutation: result('${{ steps.mutation.outcome }}') };
+          mkdirSync('reports', { recursive: true });
+          writeFileSync('reports/quality-results.json', JSON.stringify(results, null, 2) + '\n');
+          const lines = ['## Quality measurements', '', '| Area | Evidence |', '| --- | --- |'];
+          lines.push(...Object.entries(results).map(([area, status]) => `| ${area} execution | ${status} |`));
+          lines.push(`| Coverage | ${coverage ? `Measured: lines ${coverage.total.lines.pct}%; branches ${coverage.total.branches.pct}%` : 'NOT TESTED: no report'} |`);
+          if (mutation) {
+            const counts = {};
+            for (const file of Object.values(mutation.files)) {
+              for (const mutant of file.mutants) counts[mutant.status] = (counts[mutant.status] ?? 0) + 1;
+            }
+            lines.push(`| Mutation pilot | Measured: ${JSON.stringify(counts)}; timeouts are not semantic assertions |`);
+          } else {
+            lines.push('| Mutation pilot | NOT TESTED: no relevant changes, or report missing |');
+          }
+          lines.push('', `Job result: ${{ job.status }}. Numeric targets are not enforced; inspect failing steps.`, '', 'JSON, HTML and lint diagnostics are attached. Subprocess-only execution is not credited to in-process V8 coverage.');
+          appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n') + '\n');
+          NODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quality-measurements
+          path: |
+            coverage/
+            reports/
+          retention-days: 14

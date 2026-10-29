@@ -13,6 +13,10 @@ npm run test:acceptance             # builds, then black-box routing scenario
 npm run test:wizard                 # builds, focused unit tests + real terminals
 ```
 
+Quality controls: `npm run format:check`, `npm run lint:report`,
+`npm run check:dependencies`, `npm run test:coverage`, `npm run test:mutation`.
+See the [quality baseline](standards/quality-baseline.md) for measured limits and debt.
+
 Individual scripts: `typecheck`, `lint`, `build`, `experiment`, `test:unit`,
 `test:integration`, `test:acceptance`, `test:wizard:terminal`. Build before individual
 integration/terminal tests. Dependencies/tools need network for provisioning; tests
@@ -57,10 +61,10 @@ filesystem fallback or silent publication skip is accepted.
 
 ## Workflows and evidence
 
-| Workflow | Contract and artifacts |
-| --- | --- |
-| [Arch checks](../.github/workflows/ci.yml) | Ubuntu/macOS/Windows typecheck, lint, build, experiment, unit/integration/acceptance; `routing-evidence-<os>` |
-| [Wizard checks](../.github/workflows/wizard.yml) | Focused unit suite and 13 serial real CLI terminal scenarios; `wizard-evidence-<os>` JSON/transcripts |
+| Workflow                                                            | Contract and artifacts                                                                                                            |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| [Arch checks](../.github/workflows/ci.yml)                          | Ubuntu/macOS/Windows typecheck, lint, build, experiment, unit/integration/acceptance; `routing-evidence-<os>`                     |
+| [Wizard checks](../.github/workflows/wizard.yml)                    | Focused unit suite and 13 serial real CLI terminal scenarios; `wizard-evidence-<os>` JSON/transcripts                             |
 | [Runtime portability](../.github/workflows/runtime-feasibility.yml) | Same nine real-subprocess contracts on all three platforms, plus terminal checks and Windows native bootstrap; `m22-runtime-<os>` |
 
 The permanent portability workflow has no path filters and runs on push, PR,
@@ -74,13 +78,13 @@ skips are not portability evidence. Keep all three workflows and required names.
 
 Important inspected baseline evidence (feasibility, not production portability):
 
-| Area | Result | CI evidence |
-| --- | --- | --- |
-| Shared runtime + native isolation/recovery/signals/terminal | PASS | [Three-platform B1 matrix](https://github.com/Nickshajtan/hcc-harness/actions/runs/40868176348): 9/9 per platform, zero skips; Windows additional 21/21 |
-| M1/M2/M2.1 regressions | PASS | [Full matrix](https://github.com/Nickshajtan/hcc-harness/actions/runs/40868176254) |
-| Wizard | PASS | [Three-platform wizard](https://github.com/Nickshajtan/hcc-harness/actions/runs/40801339819): 14 focused unit tests and 13 terminal scenarios per runner |
-| Supplemental Windows Node 20 TTY/native bootstrap | PASS | [Original B1 executable evidence](https://github.com/Nickshajtan/hcc-harness/actions/runs/40801963390) |
-| Real nvm/fnm, Windows ARM64, AI CLI TUIs, refreshed parent shell, B2 stable install | NOT TESTED | Separate integration/review gates |
+| Area                                                                                | Result     | CI evidence                                                                                                                                              |
+| ----------------------------------------------------------------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Shared runtime + native isolation/recovery/signals/terminal                         | PASS       | [Three-platform B1 matrix](https://github.com/Nickshajtan/hcc-harness/actions/runs/40868176348): 9/9 per platform, zero skips; Windows additional 21/21  |
+| M1/M2/M2.1 regressions                                                              | PASS       | [Full matrix](https://github.com/Nickshajtan/hcc-harness/actions/runs/40868176254)                                                                       |
+| Wizard                                                                              | PASS       | [Three-platform wizard](https://github.com/Nickshajtan/hcc-harness/actions/runs/40801339819): 14 focused unit tests and 13 terminal scenarios per runner |
+| Supplemental Windows Node 20 TTY/native bootstrap                                   | PASS       | [Original B1 executable evidence](https://github.com/Nickshajtan/hcc-harness/actions/runs/40801963390)                                                   |
+| Real nvm/fnm, Windows ARM64, AI CLI TUIs, refreshed parent shell, B2 stable install | NOT TESTED | Separate integration/review gates                                                                                                                        |
 
 These are retained run links, not claims that every subsequent commit passed.
 For current changes inspect that PR's actual jobs/artifacts. Local JSON lives under

@@ -4,17 +4,16 @@ Policy levels and exceptions are defined in the [entrypoint](README.md).
 
 ## Formatting policy
 
-Prettier is the designated future formatter for TypeScript, JavaScript, JSON,
-Markdown and supported configuration formats, including YAML. Configuration in
-other formats MUST use a documented compatible formatter or remain manually
-reviewed; do not pretend Prettier supports every format.
-
-The adoption PR SHOULD pin Prettier and commit one shared configuration: proposed
-defaults are two spaces, single quotes in JS/TS, semicolons, trailing commas where
-supported, 100-column print width, LF and Markdown prose wrapping preserved.
-Formatter output, rather than hand-maintained alignment, will define layout.
-Check mode MUST be machine-verifiable once adopted. No formatter is installed or
-enforced today. Do not reformat existing code as part of unrelated changes.
+Prettier is the formatter for TypeScript, JavaScript, JSON, Markdown and YAML.
+Run `npm run format` to write changes and `npm run format:check` to verify them.
+Pinned version and scripts are in package.json; `.prettierrc.json` defines two
+spaces, single quotes in JS/TS, semicolons, trailing commas, 100 columns, LF and
+preserved Markdown prose wrapping. Unsupported formats (C/C++, PowerShell, shell,
+TOML) remain manually reviewed. Do not reformat unrelated code in feature PRs.
+`.prettierignore` documents generated, vendored and frozen-file exclusions.
+CI enforces check mode on all three supported operating systems. `.gitattributes`
+keeps formatter-covered checkout files LF even under Windows core.autocrlf; the
+frozen M1 source preserves its exact historical CRLF blob.
 Frozen legacy generators, generated launcher bytes, vendored code and golden
 fixtures MUST NOT change accidentally during formatting; explicit ignores need
 provenance and a byte-compatibility rationale, not convenience.
@@ -30,11 +29,11 @@ if ('run' === operation) {
 ```
 
 This is a project convention, not significant additional type safety in modern
-TypeScript. Proposed ESLint enforcement is `yoda: ['error', 'always',
+TypeScript. ESLint enforcement is `yoda: ['error', 'always',
 { exceptRange: true }]`: allow readable ordered range checks such as
 `minimum <= value && value <= maximum`. Comparisons without a literal have no
 artificial operand-order requirement. Fixture compatibility can justify a narrow
-exception. Measure the existing baseline before enabling enforcement.
+exception. The baseline mechanical pass adopted this convention without changing comparison semantics.
 
 Code SHOULD use guard clauses, early returns, descriptive intermediate variables,
 named operations, explicit errors and small cohesive functions. Use braces around

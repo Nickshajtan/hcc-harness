@@ -1,4 +1,14 @@
 * text=auto
 *.sh text eol=lf
-*.cjs text eol=lf
 *.exe binary
+# Keep formatter-covered files deterministic on Windows checkouts as well as POSIX.
+*.ts text eol=lf
+*.js text eol=lf
+*.mjs text eol=lf
+*.cjs text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+# Frozen source is already stored with CRLF: preserve the exact historical blob.
+tests/fixtures/m1-setup.ts -text !eol

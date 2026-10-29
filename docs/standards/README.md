@@ -6,17 +6,18 @@ reconstruct the application. Correctness, passing tests and lint are necessary,
 but do not establish maintainability on their own.
 
 These standards govern new code and reviewed changes. They are not a claim that
-existing code already conforms. This milestone changes policy only: no production
-refactoring, dependencies, formatter configuration or new CI gates.
+existing code already conforms. Current enforcement and remaining debt are recorded in the
+[quality baseline](quality-baseline.md) and [gate policy](quality-gates.md).
 
 ## Read by task
 
-| Document | Read when |
-| --- | --- |
-| [Code style](code-style.md) | Writing or reviewing code, names, control flow or formatting |
-| [Architecture](architecture.md) | Changing responsibilities, dependencies, state or public contracts; inspecting debt |
-| [Testing](testing.md) | Planning validation, changing behavior or structurally refactoring |
-| [Quality gates](quality-gates.md) | Selecting checks, proposing tooling or reporting enforcement |
+| Document                                 | Read when                                                                           |
+| ---------------------------------------- | ----------------------------------------------------------------------------------- |
+| [Measured baseline](quality-baseline.md) | Reviewing current debt, measurement limits and refactoring priorities               |
+| [Code style](code-style.md)              | Writing or reviewing code, names, control flow or formatting                        |
+| [Architecture](architecture.md)          | Changing responsibilities, dependencies, state or public contracts; inspecting debt |
+| [Testing](testing.md)                    | Planning validation, changing behavior or structurally refactoring                  |
+| [Quality gates](quality-gates.md)        | Selecting checks, proposing tooling or reporting enforcement                        |
 
 Code changes normally require all four. Documentation-only work requires the
 relevant policy and link/consistency checks; it does not require inventing tests.
@@ -73,5 +74,5 @@ Explain consequential decisions that are not self-evident from the code.
 4. Refactor one cohesive boundary at a time, preserving observable contracts;
    use evidence to decide dependency tooling and broader mutation gates.
 
-Quality enforcement and structural refactoring are separate future tasks. This
+Quality enforcement and structural refactoring remain separate tasks. This
 standard does not authorize M2.2 B2 or extend Arch into provider/runtime management.

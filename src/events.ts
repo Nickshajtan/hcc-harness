@@ -8,26 +8,44 @@ export interface EventPayloads {
   'execution.failed': { readonly stage: string };
 }
 export type EventType = keyof EventPayloads;
-export type ArchEvent<T extends EventType = EventType> = T extends EventType ? Readonly<{
-  id: string; type: T; executionId: string; timestamp: string; schemaVersion: 1;
-  payload: EventPayloads[T];
-}> : never;
+export type ArchEvent<T extends EventType = EventType> = T extends EventType
+  ? Readonly<{
+      id: string;
+      type: T;
+      executionId: string;
+      timestamp: string;
+      schemaVersion: 1;
+      payload: EventPayloads[T];
+    }>
+  : never;
 type EventMap = { [T in EventType]: ArchEvent<T> };
 
 export class EventBus {
   private readonly emitter = new Emittery<EventMap>();
-  constructor(private readonly reportError: (error: unknown) => void | Promise<void> = () => {
-    console.error('[arch] observer failed');
-  }) {}
+  constructor(
+    private readonly reportError: (error: unknown) => void | Promise<void> = () => {
+      console.error('[arch] observer failed');
+    },
+  ) {}
 
   async reportObserverError(error: unknown): Promise<void> {
-    try { await this.reportError(error); } catch { /* diagnostics cannot change execution */ }
+    try {
+      await this.reportError(error);
+    } catch {
+      /* diagnostics cannot change execution */
+    }
   }
 
-  subscribe<T extends EventType>(type: T, handler: (event: ArchEvent<T>) => void | Promise<void>): () => void {
+  subscribe<T extends EventType>(
+    type: T,
+    handler: (event: ArchEvent<T>) => void | Promise<void>,
+  ): () => void {
     return this.emitter.on(type, async ({ data }) => {
-      try { await handler(data as ArchEvent<T>); }
-      catch (error) { await this.reportObserverError(error); }
+      try {
+        await handler(data as ArchEvent<T>);
+      } catch (error) {
+        await this.reportObserverError(error);
+      }
     });
   }
 
@@ -38,10 +56,25 @@ export class EventBus {
     await this.emitter.emit(event.type, event as never);
   }
 
-  dispose(): void { this.emitter.clearListeners(); }
-  get listenerCount(): number { return this.emitter.listenerCount(); }
+  dispose(): void {
+    this.emitter.clearListeners();
+  }
+  get listenerCount(): number {
+    return this.emitter.listenerCount();
+  }
 }
 
-export function event<T extends EventType>(type: T, executionId: string, payload: EventPayloads[T]): ArchEvent<T> {
-  return { id: randomUUID(), type, executionId, timestamp: new Date().toISOString(), schemaVersion: 1, payload } as ArchEvent<T>;
+export function event<T extends EventType>(
+  type: T,
+  executionId: string,
+  payload: EventPayloads[T],
+): ArchEvent<T> {
+  return {
+    id: randomUUID(),
+    type,
+    executionId,
+    timestamp: new Date().toISOString(),
+    schemaVersion: 1,
+    payload,
+  } as ArchEvent<T>;
 }

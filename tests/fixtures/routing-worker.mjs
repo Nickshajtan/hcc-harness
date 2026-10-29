@@ -6,7 +6,7 @@ await reconcileRoutes(root, JSON.parse(commands), {
   async checkpoint(phase) {
     if (phase === stop) {
       process.send({ checkpoint: phase });
-      await new Promise(resolve => process.once('message', resolve));
+      await new Promise((resolve) => process.once('message', resolve));
     }
-  }
+  },
 });

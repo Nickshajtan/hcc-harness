@@ -6,13 +6,13 @@ appropriate layers and platforms, fixtures and required evidence.
 
 ## Layers
 
-| Layer | Responsibilities |
-| --- | --- |
-| Unit | Domain validation, routing plans, state transitions, runtime policies, error precedence and middleware lifecycle |
-| Functional/integration | Real filesystems and subprocesses; args/env/cwd/stdio; signals/cancellation; routing/recovery; cross-platform behavior |
-| Contract | Public execute(), middleware API, event schemas/semantics, CLI commands/exit codes, status JSON, manifest compatibility, ownership/recovery guarantees |
-| Property-based | Selective generated route names, state invariants, idempotency, manifest inputs, paths and recovery combinations |
-| Mutation | Critical domain decisions, lifecycle/recovery, ownership, cancellation/errors, runtime resolution and middleware semantics |
+| Layer                  | Responsibilities                                                                                                                                       |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Unit                   | Domain validation, routing plans, state transitions, runtime policies, error precedence and middleware lifecycle                                       |
+| Functional/integration | Real filesystems and subprocesses; args/env/cwd/stdio; signals/cancellation; routing/recovery; cross-platform behavior                                 |
+| Contract               | Public execute(), middleware API, event schemas/semantics, CLI commands/exit codes, status JSON, manifest compatibility, ownership/recovery guarantees |
+| Property-based         | Selective generated route names, state invariants, idempotency, manifest inputs, paths and recovery combinations                                       |
+| Mutation               | Critical domain decisions, lifecycle/recovery, ownership, cancellation/errors, runtime resolution and middleware semantics                             |
 
 Contract is a purpose, not necessarily a new directory: existing unit/integration/
 acceptance suites already test contracts. Do not reorganize tests cosmetically.
@@ -42,13 +42,14 @@ environment isolation, cwd, inherited streams/TTY, exit status and cancellation.
 
 ## Initial targets, not enforced thresholds
 
-No coverage or mutation baseline has been measured. These are adoption targets:
+Coverage and a focused mutation pilot are measured in the [baseline](quality-baseline.md).
+These remain adoption targets, not numeric CI thresholds:
 
-| Metric | Critical modules | Other production |
-| --- | ---: | ---: |
-| Line coverage | >=95% | >=85% |
-| Branch coverage | >=90% | >=80% |
-| Mutation score | >=85% | >=70% |
+| Metric          | Critical modules | Other production |
+| --------------- | ---------------: | ---------------: |
+| Line coverage   |            >=95% |            >=85% |
+| Branch coverage |            >=90% |            >=80% |
+| Mutation score  |            >=85% |            >=70% |
 
 Critical areas are ownership, recovery/publication, cancellation, runtime resolution,
 Core error precedence and middleware lifecycle. Map these responsibilities to files
@@ -62,9 +63,10 @@ uncovered branches, equivalent mutants and platform gaps separately.
 
 ## Mutation adoption
 
-StrykerJS is the preferred candidate, not installed or enabled. First pilot a small
-critical domain boundary, checking TypeScript/Vitest compatibility, test selection,
-determinism, runtime and meaningful surviving mutants. Record tool/version,
+StrykerJS is installed with the Vitest runner. `npm run test:mutation` pilots
+configuration validation and fail-closed discovery; `stryker.config.json` fixes the
+source/test scope and minimal sandbox inputs. Run the pilot before extending scope,
+checking compatibility, determinism, runtime and meaningful surviving mutants. Record tool/version,
 source scope, platform, duration, killed/survived/no-coverage/timeouts and exclusions.
 Do not count a timeout as evidence of the intended behavioral assertion.
 
@@ -78,3 +80,19 @@ full mutation belongs on scheduled runs or release gates if cost is acceptable.
 Measure execution minutes and flakiness before choosing frequency, caching or
 concurrency. Do not activate repository-wide mutation on every PR without evidence.
 Report only executed results and keep ordinary regression checks independent.
+
+## Measurement commands
+
+`npm run test:coverage` builds and runs the ordinary suite with V8 coverage of
+all executable `src/**/*.ts` (only declaration files excluded). Reports in
+`coverage/` include text, JSON, JSON summary, HTML and LCOV. Built CLI subprocess
+execution is not included in Vitest worker coverage; zero here is a measurement
+gap, not evidence that CLI acceptance tests do not exist. Do not exclude those
+files to improve the average. Cross-platform results are not interchangeable.
+
+`npm run test:mutation` writes JSON/HTML under `reports/mutation/`. The pilot has
+no score gate (`break: 0`); tooling failures and failing initial tests remain fatal.
+Report Stryker's timeout-inclusive score alongside assertion-only kills and the
+full status counts. Relevant PRs (configuration, its tests, dependencies or pilot tooling) and
+weekly/manual CI run the pilot; unrelated PRs collect coverage/lint reports. Full-repository mutation is
+not enabled. Generated Stryker sandboxes are excluded from ordinary test discovery.

@@ -16,8 +16,10 @@ jobs:
           version: '2026.10.11'
           install: true
       - run: npm ci
+      - run: npm run format:check
       - run: npm run typecheck
       - run: npm run lint
+      - run: npm run check:dependencies
       - run: npm run build
       - run: npm run experiment
       - run: npm run test:unit -- --reporter=default --reporter=json --outputFile=.test-state/m2-unit.json

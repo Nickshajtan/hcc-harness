@@ -196,11 +196,20 @@ in `src/core.ts`, build, and enable its id in TOML:
 ```ts
 import type { ArchMiddleware } from './middleware.js';
 export function example(): ArchMiddleware {
-  return { id: 'example', register(api) {
-    api.on('preflight', () => { api.context.signal.throwIfAborted(); });
-    api.on('prepareLaunch', () => { api.setEnv('MY_TOOL_MODE', 'local'); });
-    api.cleanup(() => { /* release execution-local resources */ });
-  } };
+  return {
+    id: 'example',
+    register(api) {
+      api.on('preflight', () => {
+        api.context.signal.throwIfAborted();
+      });
+      api.on('prepareLaunch', () => {
+        api.setEnv('MY_TOOL_MODE', 'local');
+      });
+      api.cleanup(() => {
+        /* release execution-local resources */
+      });
+    },
+  };
 }
 ```
 
