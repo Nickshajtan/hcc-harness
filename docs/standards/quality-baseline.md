@@ -1,4 +1,4 @@
-Р С—Р’В»РЎвЂ”# Quality baseline and refactoring backlog
+Р В РЎвЂ”Р вЂ™Р’В»Р РЋРІР‚вЂќ# Quality baseline and refactoring backlog
 
 This is the maintained starting point for Structural Refactoring, not authority to
 perform it or M2.2 B2. Baseline main: `769b528ea87ddc3992a872c4fefab8646a487682`
@@ -65,7 +65,7 @@ policy remains deferred while intentional truthiness conventions are examined.
 
 ## Complexity, cohesion and coverage
 
-ESLint uses its default modified complexity calculation; line counts below are
+ESLint uses its default classic complexity calculation; line counts below are
 physical module lines, not a defect ranking. Function length counts nonblank,
 noncomment lines; braces increase that metric without changing behavior.
 Coverage includes every executable production file, excludes only declarations,
@@ -210,3 +210,27 @@ setup-node alone did not satisfy suite prerequisites. It was corrected to use th
 same pinned mise action as ordinary regression CI. Assertions were not weakened
 or skipped. An automatic implicit-void wizard callback rewrite was also reverted;
 its original return behavior is preserved and the readability warning remains.
+
+### Inspected hosted evidence
+
+At code/tooling commit `0866d01eb430e1df342314287fa7d3486a711235`:
+
+| Area                                  | Result / duration                                             | Evidence                                                                                    |
+| ------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Regression matrix                     | PASS Ubuntu 33s, macOS 31s, Windows 129s                      | [Arch checks](https://github.com/Nickshajtan/hcc-harness/actions/runs/40932294506)          |
+| Wizard matrix                         | PASS all three platforms                                      | [Wizard checks](https://github.com/Nickshajtan/hcc-harness/actions/runs/40932294505)        |
+| Runtime matrix and required aggregate | PASS all three platforms; unchanged required name             | [Runtime portability](https://github.com/Nickshajtan/hcc-harness/actions/runs/40932294512)  |
+| Quality measurement                   | PASS, 42s total; lint 4s, graph 1s, coverage 10s, mutation 8s | [Quality measurements](https://github.com/Nickshajtan/hcc-harness/actions/runs/40932294438) |
+
+Downloaded JSON confirms Ubuntu 131 passed / 0 failed / 32 existing optional/platform
+skips; line coverage 72.96% (602/825), branch 64.51% (380/589), mutation 87 killed /
+1 survived / 5 timeouts / 0 uncovered or errors. Lint report: 0 errors / 192 diagnostic
+warnings, including 51 metric findings. quality-results.json records PASS for lint,
+coverage and mutation execution. Coverage differs from Windows as expected; do not
+merge percentages or claim all optional portability tests ran in the coverage job.
+The separate mandatory matrix executes its runtime contract without platform skips.
+
+The final production syntax comparison matched all 12 emitted modules to baseline
+after normalizing only single-statement control blocks and literal equality operand
+order; type annotations are erased. All production string/template values and frozen
+M1 bytes also match. These checks supplement, not replace, cross-platform contracts.
