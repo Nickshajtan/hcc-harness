@@ -30,3 +30,15 @@ test('a measured passing scope passes and a survivor reduces its score', () => {
   assert.equal(mutationEvidence(report(['Survived']))[0].assertionScore, 0);
   assert.throws(() => enforceMutation(scopes, ['src/events.ts']), /Missing mutation scope/);
 });
+
+test('Core and every extracted execution scope reject surviving-only reports', () => {
+  for (const file of [
+    'src/core.ts',
+    'src/execution-session.ts',
+    'src/execution-failures.ts',
+    'src/execution-environment.ts',
+  ]) {
+    const scopes = mutationEvidence({ files: { [file]: { mutants: [{ status: 'Survived' }] } } });
+    assert.throws(() => enforceMutation(scopes), /below 85%/);
+  }
+});

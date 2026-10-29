@@ -6,7 +6,14 @@ export const pilots = {
   config: { report: 'reports/mutation/mutation.json', files: ['src/config.ts'] },
   core: {
     report: 'reports/mutation-core/mutation.json',
-    files: ['src/core.ts', 'src/middleware.ts', 'src/events.ts'],
+    files: [
+      'src/core.ts',
+      'src/execution-session.ts',
+      'src/execution-failures.ts',
+      'src/execution-environment.ts',
+      'src/middleware.ts',
+      'src/events.ts',
+    ],
   },
 };
 
@@ -58,8 +65,16 @@ export function enforceMutation(scopes, expectedFiles = []) {
       throw new Error(`Missing mutation scope: ${file}`);
     }
   }
-  // Reviewed scopes have reached these targets. Core remains a measured gap.
-  const minimum = { 'src/config.ts': 90, 'src/events.ts': 95, 'src/middleware.ts': 85 };
+  // Reviewed scopes have reached these assertion-only targets; timeout kills earn no credit.
+  const minimum = {
+    'src/config.ts': 90,
+    'src/events.ts': 95,
+    'src/middleware.ts': 85,
+    'src/core.ts': 85,
+    'src/execution-session.ts': 85,
+    'src/execution-environment.ts': 85,
+    'src/execution-failures.ts': 85,
+  };
   for (const scope of scopes) {
     const target = minimum[scope.file.replaceAll('\\', '/')];
     if (undefined !== target && scope.assertionScore < target) {
