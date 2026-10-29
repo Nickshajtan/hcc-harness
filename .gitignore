@@ -3,3 +3,5 @@ dist/
 .tools/
 .test-state/
 coverage/
+reports/
+.stryker-tmp/
