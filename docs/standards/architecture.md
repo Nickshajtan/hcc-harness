@@ -29,6 +29,24 @@ Abstract Factory without a demonstrated requirement and simpler alternative anal
 
 ## Cohesion and effects
 
+**Testability by Design is a MUST.** Critical behavior must be testable without
+unrelated application initialization or external dependencies. Use explicit
+dependencies: constructor injection for cohesive stateful components, parameters
+for simple functions, and narrow interfaces at meaningful boundaries. Control
+clocks and randomness when they affect decisions. Prefer deterministic inputs and
+observable results over hidden global/singleton state, import-time effects or
+hardcoded external services. No dependency-injection container is required.
+Real filesystem and subprocess contract tests remain mandatory; injection is not
+an instruction to replace critical I/O evidence with mocks.
+
+New subsystem boundaries MUST name their responsibility and contract. New
+production code MUST make behavior understandable without AI reconstruction:
+descriptive domain names, explicit side effects, readable control flow and cleanup,
+guard clauses where useful, and explicit non-obvious invariants. Dense one-line
+branches and deeply nested ternaries do not meet this standard. Existing debt is
+recorded in the [measured baseline](quality-baseline.md), not silently grandfathered
+into new code.
+
 Each module SHOULD have one identifiable conceptual responsibility, so a maintainer
 can locate relevant behavior without reconstructing the application. Prefer small
 cohesive modules over files mixing unrelated work. One function does not require
@@ -65,6 +83,13 @@ Use a reviewed allowlist for necessary composition edges; do not move every file
 into a new tree merely to make a dependency checker pass.
 
 ## State and protected behavior
+
+Critical error handling MUST make the primary failure, secondary failures, cleanup
+order and recovery implications understandable. Do not silently swallow errors.
+Observer-error isolation and intentionally nonfatal diagnostics are exceptions only
+where their contracts explicitly require containment. Refactoring must preserve
+existing failure precedence and cleanup behavior; readability is not authority to
+change which error wins.
 
 Stateful systems SHOULD expose valid states and transitions through discriminated
 unions, state objects, transition tables or State pattern where helpful. Do not add

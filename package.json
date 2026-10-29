@@ -3,8 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "bin": { "arch": "dist/cli.js" },
-  "engines": { "node": ">=24.15.0 <25" },
+  "bin": {
+    "arch": "dist/cli.js"
+  },
+  "engines": {
+    "node": ">=24.15.0 <25"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
@@ -17,7 +21,9 @@
     "test:wizard:terminal": "node scripts/check-wizard.mjs",
     "check": "npm run typecheck && npm run lint && npm run build && npm test",
     "bootstrap": "npm ci && npm run build",
-    "experiment": "vitest run tests/feasibility"
+    "experiment": "vitest run tests/feasibility",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "emittery": "2.1.0",
@@ -26,9 +32,14 @@
     "smol-toml": "1.9.1"
   },
   "devDependencies": {
+    "@stryker-mutator/core": "10.1.1",
+    "@stryker-mutator/vitest-runner": "10.1.1",
     "@types/node": "24.19.2",
+    "@vitest/coverage-v8": "5.0.5",
     "eslint": "10.12.0",
+    "eslint-config-prettier": "10.1.8",
     "node-pty": "1.1.0",
+    "prettier": "3.9.10",
     "typescript": "6.0.3",
     "typescript-eslint": "8.71.2",
     "vitest": "5.0.5"
