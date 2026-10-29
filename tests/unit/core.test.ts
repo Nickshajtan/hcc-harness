@@ -1,8 +1,8 @@
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
-import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm, copyFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, basename, dirname } from 'node:path';
-import { execute } from '../../src/core.js';
+import { execute, type ExecuteOptions } from '../../src/core.js';
 import {
   createPipeline,
   type Registry,
@@ -39,7 +39,9 @@ it('preserves launch cancellation as primary ahead of reverse-order cleanup fail
           id: 'local',
           register(api) {
             expect(api.context.signal).toBe(controller.signal);
-            api.on('prepareLaunch', () => controller.abort(primary));
+            api.on('prepareLaunch', () => {
+              controller.abort(primary);
+            });
             api.on('finalize', () => {
               calls.push('finalize');
             });
@@ -78,28 +80,32 @@ it('preserves launch cancellation as primary ahead of reverse-order cleanup fail
   expect(stages).toEqual(['launch']);
 });
 
-it('disposes listeners when terminal infrastructure publication fails', async () => {
-  await configure([]);
-  const primary = new Error('terminal infrastructure failed');
-  const publish = EventBus.prototype.publish;
-  vi.spyOn(EventBus.prototype, 'publish').mockImplementation(function (this: EventBus, value) {
-    if ('execution.completed' === value.type) {
-      return Promise.reject(primary);
-    }
-    return publish.call(this, value);
-  });
-  let captured: EventBus | undefined;
-  await expect(
-    execute({
-      ...launchOptions(),
-      observe(bus) {
-        captured = bus;
-        bus.subscribe('execution.completed', () => undefined);
-      },
-    }),
-  ).rejects.toBe(primary);
-  expect(captured?.listenerCount).toBe(0);
-});
+it.each(['execution.completed', 'execution.failed'] as const)(
+  'disposes listeners when %s infrastructure publication fails',
+  async (terminal) => {
+    await configure([]);
+    const primary = new Error('terminal infrastructure failed');
+    let captured: EventBus | undefined;
+    await expect(
+      execute({
+        ...launchOptions(),
+        ...('execution.failed' === terminal ? { command: 'missing-native-arch-test' } : {}),
+        observe(bus) {
+          captured = bus;
+          const publish = bus.publish.bind(bus);
+          vi.spyOn(bus, 'publish').mockImplementation((value) => {
+            if (terminal === value.type) {
+              return Promise.reject(primary);
+            }
+            return publish(value);
+          });
+          bus.subscribe('execution.completed', () => undefined);
+        },
+      }),
+    ).rejects.toBe(primary);
+    expect(captured?.listenerCount).toBe(0);
+  },
+);
 
 it('composes native casing and empty overrides without mutating incoming environment', async () => {
   await configure(['local']);
@@ -672,3 +678,99 @@ it.each(['resolution', 'preflight', 'prepareLaunch', 'finalize'])(
     }
   },
 );
+
+it('reports a real spawn failure after resolution and still finalizes and cleans', async () => {
+  await configure(['local']);
+  const name = 'win32' === process.platform ? 'temporary-native.exe' : 'temporary-native';
+  const target = join(root, name);
+  await copyFile(process.execPath, target);
+  const calls: string[] = [];
+  const failure: unknown = await execute({
+    ...launchOptions(),
+    command: name,
+    env: { ...launchOptions().env, PATH: root },
+    registry: new Map([
+      [
+        'local',
+        () => ({
+          id: 'local',
+          register(api) {
+            api.on('preflight', async () => {
+              await rm(target);
+            });
+            api.on('finalize', () => {
+              calls.push('finalize');
+            });
+            api.cleanup(() => {
+              calls.push('cleanup');
+            });
+          },
+        }),
+      ],
+    ]),
+  }).catch((error: unknown) => error);
+  expect(failure).toBeInstanceOf(AggregateError);
+  if (!(failure instanceof AggregateError)) {
+    throw new Error('Expected spawn failure');
+  }
+  expect(failure.message).toBe('Arch execution failed during launch');
+  expect(failure.cause).toMatchObject({ code: 'ENOENT' });
+  expect(failure.errors).toEqual([failure.cause]);
+  expect(calls).toEqual(['finalize', 'cleanup']);
+});
+
+it('rejects invalid configuration before observer initialization', async () => {
+  await writeFile(join(root, '.arch/harness.toml'), 'schema=2');
+  const observe = vi.fn();
+  await expect(execute({ ...launchOptions(), observe })).rejects.toThrow(
+    'Invalid Arch configuration:',
+  );
+  expect(observe).not.toHaveBeenCalled();
+});
+
+it('uses ambient native environment when no explicit environment is supplied', async () => {
+  await configure([]);
+  vi.stubEnv('ARCH_ACTIVE', '');
+  try {
+    expect(
+      await execute({
+        command: basename(process.execPath),
+        args: ['-e', 'process.exit(7)'],
+        cwd: root,
+      }),
+    ).toEqual({ exitCode: 7, signal: null });
+  } finally {
+    vi.unstubAllEnvs();
+  }
+});
+
+it('selects middleware registry after awaited started observers have completed', async () => {
+  await configure(['local']);
+  const calls: string[] = [];
+  const options: ExecuteOptions = {
+    ...launchOptions(),
+    registry: new Map(),
+    observe(bus) {
+      bus.subscribe('execution.started', async () => {
+        await Promise.resolve();
+        options.registry = new Map([
+          [
+            'local',
+            () => ({
+              id: 'local',
+              register(api) {
+                calls.push('register');
+                api.on('preflight', () => {
+                  calls.push('preflight');
+                });
+              },
+            }),
+          ],
+        ]);
+        calls.push('observed');
+      });
+    },
+  };
+  expect((await execute(options)).exitCode).toBe(7);
+  expect(calls).toEqual(['observed', 'register', 'preflight']);
+});
