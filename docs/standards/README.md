@@ -11,12 +11,12 @@ refactoring, dependencies, formatter configuration or new CI gates.
 
 ## Read by task
 
-| Document | Read when |
-| --- | --- |
-| [Code style](code-style.md) | Writing or reviewing code, names, control flow or formatting |
-| [Architecture](architecture.md) | Changing responsibilities, dependencies, state or public contracts; inspecting debt |
-| [Testing](testing.md) | Planning validation, changing behavior or structurally refactoring |
-| [Quality gates](quality-gates.md) | Selecting checks, proposing tooling or reporting enforcement |
+| Document                          | Read when                                                                           |
+| --------------------------------- | ----------------------------------------------------------------------------------- |
+| [Code style](code-style.md)       | Writing or reviewing code, names, control flow or formatting                        |
+| [Architecture](architecture.md)   | Changing responsibilities, dependencies, state or public contracts; inspecting debt |
+| [Testing](testing.md)             | Planning validation, changing behavior or structurally refactoring                  |
+| [Quality gates](quality-gates.md) | Selecting checks, proposing tooling or reporting enforcement                        |
 
 Code changes normally require all four. Documentation-only work requires the
 relevant policy and link/consistency checks; it does not require inventing tests.

@@ -7,23 +7,40 @@ import { inspectInstallation } from '../../src/lifecycle.js';
 import { discoverClis } from '../../src/discovery.js';
 import { setup } from '../../src/setup.js';
 
-vi.mock('../../src/discovery.js', async original => ({
-  ...await original<typeof import('../../src/discovery.js')>(), discoverClis: vi.fn(async () => [])
+vi.mock('../../src/discovery.js', async (original) => ({
+  ...(await original<typeof import('../../src/discovery.js')>()),
+  discoverClis: vi.fn(async () => []),
 }));
 let root: string;
-beforeEach(async () => { root = await mkdtemp(join(tmpdir(), 'arch-wizard-')); vi.mocked(discoverClis).mockResolvedValue([]); });
-afterEach(async () => { await rm(root, { recursive: true, force: true }); });
+beforeEach(async () => {
+  root = await mkdtemp(join(tmpdir(), 'arch-wizard-'));
+  vi.mocked(discoverClis).mockResolvedValue([]);
+});
+afterEach(async () => {
+  await rm(root, { recursive: true, force: true });
+});
 function interaction(answers: (string | null)[]) {
   const output: string[] = [];
-  const ui: Interaction = { async ask(message) { output.push(message); return answers.shift() ?? null; }, write(message) { output.push(message); } };
+  const ui: Interaction = {
+    async ask(message) {
+      output.push(message);
+      return answers.shift() ?? null;
+    },
+    write(message) {
+      output.push(message);
+    },
+  };
   return { ui, output };
 }
-it.each([['cancel'], [null], ['custom', 'n'], ['custom', null]])('cancels before mutation with %j', async (...answers) => {
-  const { ui } = interaction(answers);
-  expect(await setupWizard(root, ui)).toBe(false);
-  expect((await inspectInstallation(root, { PATH: '' })).state).toBe('uninitialized');
-  await expect(readFile(join(root, '.arch/harness.toml'))).rejects.toThrow();
-});
+it.each([['cancel'], [null], ['custom', 'n'], ['custom', null]])(
+  'cancels before mutation with %j',
+  async (...answers) => {
+    const { ui } = interaction(answers);
+    expect(await setupWizard(root, ui)).toBe(false);
+    expect((await inspectInstallation(root, { PATH: '' })).state).toBe('uninitialized');
+    await expect(readFile(join(root, '.arch/harness.toml'))).rejects.toThrow();
+  },
+);
 it('supports custom names with no detected tools and validates duplicates/reserved names before mutation', async () => {
   const { ui, output } = interaction(['node', 'mytool mytool', 'mytool', 'yes']);
   expect(await setupWizard(root, ui)).toBe(true);
@@ -33,8 +50,10 @@ it('supports custom names with no detected tools and validates duplicates/reserv
   expect(output.join('\n')).toContain('Shell activation has not been verified');
 });
 it('accepts installed defaults after a summary and explicit continuation', async () => {
-  vi.mocked(discoverClis).mockResolvedValue([{ command: 'claude', label: 'Claude Code', available: true },
-    { command: 'gemini', label: 'Gemini', available: true }]);
+  vi.mocked(discoverClis).mockResolvedValue([
+    { command: 'claude', label: 'Claude Code', available: true },
+    { command: 'gemini', label: 'Gemini', available: true },
+  ]);
   const { ui, output } = interaction(['', '']);
   expect(await setupWizard(root, ui)).toBe(true);
   expect((await inspectInstallation(root)).routes).toEqual(['claude']);
@@ -42,7 +61,8 @@ it('accepts installed defaults after a summary and explicit continuation', async
 });
 it('configuration changes only routes, inspection/cancellation do not mutate', async () => {
   await setup(root, ['tool']);
-  const harness = join(root, '.arch/harness.toml'); await writeFile(harness, 'user config');
+  const harness = join(root, '.arch/harness.toml');
+  await writeFile(harness, 'user config');
   const original = await readFile(join(root, '.arch/bootstrap.json'));
   expect(await setupWizard(root, interaction(['2']).ui, true)).toBe(false);
   expect(await setupWizard(root, interaction(['4']).ui, true)).toBe(false);
@@ -51,7 +71,7 @@ it('configuration changes only routes, inspection/cancellation do not mutate', a
   expect((await inspectInstallation(root)).routes).toEqual(['tool', 'custom']);
   expect(await readFile(harness, 'utf8')).toBe('user config');
 });
-it.each(['', 'no', null])('defaults deinitialization to No (%s)', async answer => {
+it.each(['', 'no', null])('defaults deinitialization to No (%s)', async (answer) => {
   await setup(root, ['tool']);
   const original = await readFile(join(root, '.arch/bootstrap.json'));
   const { ui, output } = interaction([answer]);
@@ -66,7 +86,10 @@ it('can deinitialize from the configuration menu after confirmation', async () =
 });
 it('accepts a pre-existing harness without claiming ownership', async () => {
   await mkdir(join(root, '.arch'));
-  const harness = join(root, '.arch/harness.toml'); await writeFile(harness, 'schema=1\nmiddleware=[]\n');
+  const harness = join(root, '.arch/harness.toml');
+  await writeFile(harness, 'schema=1\nmiddleware=[]\n');
   expect(await setupWizard(root, interaction(['custom', 'yes']).ui)).toBe(true);
-  expect(JSON.parse(await readFile(join(root, '.arch/bootstrap.json'), 'utf8')).createdHarness).toBe(false);
+  expect(
+    JSON.parse(await readFile(join(root, '.arch/bootstrap.json'), 'utf8')).createdHarness,
+  ).toBe(false);
 });

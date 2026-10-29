@@ -6,13 +6,13 @@ appropriate layers and platforms, fixtures and required evidence.
 
 ## Layers
 
-| Layer | Responsibilities |
-| --- | --- |
-| Unit | Domain validation, routing plans, state transitions, runtime policies, error precedence and middleware lifecycle |
-| Functional/integration | Real filesystems and subprocesses; args/env/cwd/stdio; signals/cancellation; routing/recovery; cross-platform behavior |
-| Contract | Public execute(), middleware API, event schemas/semantics, CLI commands/exit codes, status JSON, manifest compatibility, ownership/recovery guarantees |
-| Property-based | Selective generated route names, state invariants, idempotency, manifest inputs, paths and recovery combinations |
-| Mutation | Critical domain decisions, lifecycle/recovery, ownership, cancellation/errors, runtime resolution and middleware semantics |
+| Layer                  | Responsibilities                                                                                                                                       |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Unit                   | Domain validation, routing plans, state transitions, runtime policies, error precedence and middleware lifecycle                                       |
+| Functional/integration | Real filesystems and subprocesses; args/env/cwd/stdio; signals/cancellation; routing/recovery; cross-platform behavior                                 |
+| Contract               | Public execute(), middleware API, event schemas/semantics, CLI commands/exit codes, status JSON, manifest compatibility, ownership/recovery guarantees |
+| Property-based         | Selective generated route names, state invariants, idempotency, manifest inputs, paths and recovery combinations                                       |
+| Mutation               | Critical domain decisions, lifecycle/recovery, ownership, cancellation/errors, runtime resolution and middleware semantics                             |
 
 Contract is a purpose, not necessarily a new directory: existing unit/integration/
 acceptance suites already test contracts. Do not reorganize tests cosmetically.
@@ -44,11 +44,11 @@ environment isolation, cwd, inherited streams/TTY, exit status and cancellation.
 
 No coverage or mutation baseline has been measured. These are adoption targets:
 
-| Metric | Critical modules | Other production |
-| --- | ---: | ---: |
-| Line coverage | >=95% | >=85% |
-| Branch coverage | >=90% | >=80% |
-| Mutation score | >=85% | >=70% |
+| Metric          | Critical modules | Other production |
+| --------------- | ---------------: | ---------------: |
+| Line coverage   |            >=95% |            >=85% |
+| Branch coverage |            >=90% |            >=80% |
+| Mutation score  |            >=85% |            >=70% |
 
 Critical areas are ownership, recovery/publication, cancellation, runtime resolution,
 Core error precedence and middleware lifecycle. Map these responsibilities to files

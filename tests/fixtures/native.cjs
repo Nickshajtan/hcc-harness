@@ -1,7 +1,15 @@
 #!/usr/bin/env node
 const fs = require('node:fs');
-if (process.env.FAKE_IGNORE_TERM === '1') process.on('SIGTERM', () => { console.error('ignored SIGTERM'); });
-const record = { args: process.argv.slice(2), cwd: process.cwd(), demo: process.env.ARCH_DEMO || '', pid: process.pid };
+if (process.env.FAKE_IGNORE_TERM === '1')
+  process.on('SIGTERM', () => {
+    console.error('ignored SIGTERM');
+  });
+const record = {
+  args: process.argv.slice(2),
+  cwd: process.cwd(),
+  demo: process.env.ARCH_DEMO || '',
+  pid: process.pid,
+};
 if (process.env.FAKE_LOG) fs.appendFileSync(process.env.FAKE_LOG, JSON.stringify(record) + '\n');
 console.log(JSON.stringify(record));
 console.error('native stderr');

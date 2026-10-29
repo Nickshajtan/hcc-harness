@@ -6,16 +6,16 @@ deterministic context-delivery guarantee. Context injection is outside this mile
 
 ## Current enforcement versus proposals
 
-| Control | Available automation today | Current CI enforcement | Future proposal |
-| --- | --- | --- | --- |
-| Type safety | `npm run typecheck`; strict, noUncheckedIndexedAccess, exactOptionalPropertyTypes | Existing three-platform checks | Preserve; assess typed lint separately |
-| Lint | `npm run lint`; recommended typescript-eslint and unused-variable rule | Existing three-platform checks | Expand measured scope and typed analysis |
-| Build/regression | build, experiment, unit, integration, acceptance scripts | Existing Ubuntu/macOS/Windows matrix | Preserve contracts and platform evidence |
-| Wizard | `npm run test:wizard` and terminal script | Path-filtered three-platform workflow or explicit dispatch | Preserve coverage and accurate trigger claims |
-| Runtime portability | Shared real subprocess contract, Windows executable/console tests, real TTY | Three-platform matrix plus required aggregate | Preserve exactly `M2.2 runtime portability required` |
-| Formatting | No designated formatter installed/configured | None | Prettier configuration and check |
-| Coverage/mutation | No configured baseline/reporting | None | Coverage measurement, focused StrykerJS pilot |
-| Dependencies/dead code | Manual import/reference inspection | None | Evaluate dependency-cruiser / Knip |
+| Control                | Available automation today                                                        | Current CI enforcement                                     | Future proposal                                      |
+| ---------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------- |
+| Type safety            | `npm run typecheck`; strict, noUncheckedIndexedAccess, exactOptionalPropertyTypes | Existing three-platform checks                             | Preserve; assess typed lint separately               |
+| Lint                   | `npm run lint`; recommended typescript-eslint and unused-variable rule            | Existing three-platform checks                             | Expand measured scope and typed analysis             |
+| Build/regression       | build, experiment, unit, integration, acceptance scripts                          | Existing Ubuntu/macOS/Windows matrix                       | Preserve contracts and platform evidence             |
+| Wizard                 | `npm run test:wizard` and terminal script                                         | Path-filtered three-platform workflow or explicit dispatch | Preserve coverage and accurate trigger claims        |
+| Runtime portability    | Shared real subprocess contract, Windows executable/console tests, real TTY       | Three-platform matrix plus required aggregate              | Preserve exactly `M2.2 runtime portability required` |
+| Formatting             | No designated formatter installed/configured                                      | None                                                       | Prettier configuration and check                     |
+| Coverage/mutation      | No configured baseline/reporting                                                  | None                                                       | Coverage measurement, focused StrykerJS pilot        |
+| Dependencies/dead code | Manual import/reference inspection                                                | None                                                       | Evaluate dependency-cruiser / Knip                   |
 
 The runtime aggregate is the recorded required main status check, with strict
 up-to-date checks and admin enforcement. Other existing jobs run in workflows;
@@ -36,12 +36,12 @@ Evaluate Yoda equality ([convention and exceptions](code-style.md)), curly brace
 strict equality, no nested ternaries and complexity/depth/parameter rules. Existing
 recommended lint is not evidence that these policies are all checked today.
 
-| Review trigger | Initial suggested target |
-| --- | --- |
+| Review trigger        | Initial suggested target                               |
+| --------------------- | ------------------------------------------------------ |
 | Cyclomatic complexity | <=10–12; select an exact tool threshold after baseline |
-| Nesting depth | <=3 |
-| Parameters | <=4 |
-| Function length | Review around 40–60 lines, not a universal hard limit |
+| Nesting depth         | <=3                                                    |
+| Parameters            | <=4                                                    |
+| Function length       | Review around 40–60 lines, not a universal hard limit  |
 
 These trigger design review, not automatic proof of a defect. A cohesive ordered
 recovery operation may justify an exception; explain its invariants and tests.

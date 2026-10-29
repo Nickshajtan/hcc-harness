@@ -14,14 +14,14 @@ Prefer composition over inheritance; avoid speculative inheritance hierarchies.
 
 Patterns MAY solve demonstrated problems:
 
-| Pattern | Justification |
-| --- | --- |
-| Strategy | Genuinely different behavioral implementations behind one contract |
-| Facade | A stable, convenient subsystem boundary |
-| State | Meaningful state-dependent behavior and transitions |
-| Factory | Nontrivial construction or dependency selection |
-| Adapter | External CLI, platform or tool integration |
-| Observer/Event Bus | Existing execution event infrastructure |
+| Pattern            | Justification                                                      |
+| ------------------ | ------------------------------------------------------------------ |
+| Strategy           | Genuinely different behavioral implementations behind one contract |
+| Facade             | A stable, convenient subsystem boundary                            |
+| State              | Meaningful state-dependent behavior and transitions                |
+| Factory            | Nontrivial construction or dependency selection                    |
+| Adapter            | External CLI, platform or tool integration                         |
+| Observer/Event Bus | Existing execution event infrastructure                            |
 
 A small conditional is preferable when variation is trivial. Do not introduce a
 DI container, service locator, Command Bus, Repository pattern or elaborate
@@ -113,16 +113,16 @@ for the source of these requirements; no automatic discovery, downloads or migra
 Inspected at main `0d229c1b5434b91acbd14b19145d62d03a154162`. These are candidate
 modernization boundaries, not instructions to split every large file or proven bugs.
 
-| Area | Observed concern | Candidate improvement and contract risk |
-| --- | --- | --- |
-| `src/lifecycle.ts` | Manifest/journal parsing, file staging/publication, route planning, recovery, mutation wrappers and status inspection coexist; `applyJournal` encodes ordered checkpoints | Separate validated journal/plan decisions, ownership inspection and effectful reconciliation only where boundaries clarify flow; retain checkpoint order, no-clobber and recovery acceptance |
-| `src/setup.ts` | Manifest validation, command validation, platform launcher rendering, initialization rollback, uninstall and symlink safety share a module; `checkFiles` uses a recovery boolean | Consider renderer and ownership-validation boundaries plus named recovery policy; preserve frozen M1 bytes/hashes, missing-file rules, uninstall journal and edited config |
-| `src/process.ts` | PATH filtering/resolution, Windows npm target/shebang/adjacent Node policy and child cancellation/settlement share one path | Consider pure resolution decisions and narrow Windows adapter; preserve native Node independence, direct-child semantics, idempotent settlement and timers |
-| `src/commands.ts` | Parsing, validation, command dispatch, status formatting and terminal lifecycle use dense branch chains | Consider parsed request types and focused handlers/presentation; preserve prompt-free uninstall, confirmation-based deinit, errors and deterministic wizard equivalents |
-| `src/core.ts` | Nested try/finally accumulates errors, tracks failure stage, runs finalization/disposal and publishes terminal events; default registry imports demo | Clarify phase/result/error decisions and explicit registry composition without changing first-error cause, finalization order, passthrough or observer isolation |
-| `src/events.ts` | Payload/type correlation crosses generic assertions (`as ArchEvent<T>`, `as never`); observer/report errors are intentionally contained | Consider a tighter typed envelope/adapter boundary; characterize correlation and awaited observer-error isolation before changing assertions |
-| Lint/tooling | Recommended, non-type-aware typescript-eslint; lint command includes src/tests and only `scripts/check-wizard.mjs`; CJS fixture excluded; other B1 scripts and C/PowerShell/shell assets lack equivalent lint coverage | Inventory executable languages and provenance before extending checks; strict TS already enabled; formatting, coverage/mutation and dependency baselines absent |
-| Documentation/assets | `docs/testing.md` mixes ordinary instructions with B1 reproduction/evidence; B1 tests/scripts remain milestone-organized | Reassess navigation and naming after B2; preserve active prototypes, fixtures, evidence and workflow paths today |
+| Area                 | Observed concern                                                                                                                                                                                                       | Candidate improvement and contract risk                                                                                                                                                      |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/lifecycle.ts`   | Manifest/journal parsing, file staging/publication, route planning, recovery, mutation wrappers and status inspection coexist; `applyJournal` encodes ordered checkpoints                                              | Separate validated journal/plan decisions, ownership inspection and effectful reconciliation only where boundaries clarify flow; retain checkpoint order, no-clobber and recovery acceptance |
+| `src/setup.ts`       | Manifest validation, command validation, platform launcher rendering, initialization rollback, uninstall and symlink safety share a module; `checkFiles` uses a recovery boolean                                       | Consider renderer and ownership-validation boundaries plus named recovery policy; preserve frozen M1 bytes/hashes, missing-file rules, uninstall journal and edited config                   |
+| `src/process.ts`     | PATH filtering/resolution, Windows npm target/shebang/adjacent Node policy and child cancellation/settlement share one path                                                                                            | Consider pure resolution decisions and narrow Windows adapter; preserve native Node independence, direct-child semantics, idempotent settlement and timers                                   |
+| `src/commands.ts`    | Parsing, validation, command dispatch, status formatting and terminal lifecycle use dense branch chains                                                                                                                | Consider parsed request types and focused handlers/presentation; preserve prompt-free uninstall, confirmation-based deinit, errors and deterministic wizard equivalents                      |
+| `src/core.ts`        | Nested try/finally accumulates errors, tracks failure stage, runs finalization/disposal and publishes terminal events; default registry imports demo                                                                   | Clarify phase/result/error decisions and explicit registry composition without changing first-error cause, finalization order, passthrough or observer isolation                             |
+| `src/events.ts`      | Payload/type correlation crosses generic assertions (`as ArchEvent<T>`, `as never`); observer/report errors are intentionally contained                                                                                | Consider a tighter typed envelope/adapter boundary; characterize correlation and awaited observer-error isolation before changing assertions                                                 |
+| Lint/tooling         | Recommended, non-type-aware typescript-eslint; lint command includes src/tests and only `scripts/check-wizard.mjs`; CJS fixture excluded; other B1 scripts and C/PowerShell/shell assets lack equivalent lint coverage | Inventory executable languages and provenance before extending checks; strict TS already enabled; formatting, coverage/mutation and dependency baselines absent                              |
+| Documentation/assets | `docs/testing.md` mixes ordinary instructions with B1 reproduction/evidence; B1 tests/scripts remain milestone-organized                                                                                               | Reassess navigation and naming after B2; preserve active prototypes, fixtures, evidence and workflow paths today                                                                             |
 
 Dense one-line branches, right-hand literal comparisons and several positional
 parameters also differ from the new style. There is no measured complexity,

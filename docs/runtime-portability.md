@@ -14,10 +14,10 @@ the management command independently of project routing. A working current Arch
 can still status/deinit hash-valid old resources without executing their targets.
 The [explicit recovery recipe](usage.md) preserves edited middleware configuration.
 
-| Runtime | Selection authority | Isolation contract |
-| --- | --- | --- |
-| Arch | Explicit compatible Arch runtime or incoming PATH | Must meet >=24.15.0 <25 without changing project selection |
-| Project | User shell/version manager/project config | May select Node 20/22 independently |
+| Runtime    | Selection authority                                    | Isolation contract                                                 |
+| ---------- | ------------------------------------------------------ | ------------------------------------------------------------------ |
+| Arch       | Explicit compatible Arch runtime or incoming PATH      | Must meet >=24.15.0 <25 without changing project selection         |
+| Project    | User shell/version manager/project config              | May select Node 20/22 independently                                |
 | Native CLI | Native executable/shebang/supported npm-shim semantics | Keeps incoming native environment, never silently uses Arch's Node |
 
 The approved B1 production correction is limited to Windows npm Node selection:
@@ -28,13 +28,13 @@ setup. Direct Node/npm-bin invocation has no new pre-import engine guard yet.
 
 ## Chosen direction and rejected alternatives
 
-| Option | Decision and trade-off |
-| --- | --- |
-| PATH Node only | Simple, but fails with project Node 20/22; insufficient alone |
-| Implicit mise execution/discovery | Reject: manager/config/download coupling and possible native PATH changes |
-| Arch-managed Node copy | Reject: security updates and lifecycle become a custom runtime manager |
-| Independent narrow bootstrap | B1 demonstrates explicit override + first PATH policy without native environment substitution; does not alone solve checkout location |
-| Stable app plus narrow bootstrap | Preferred B2 direction, subject to approval and complete installation evidence |
+| Option                            | Decision and trade-off                                                                                                                |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| PATH Node only                    | Simple, but fails with project Node 20/22; insufficient alone                                                                         |
+| Implicit mise execution/discovery | Reject: manager/config/download coupling and possible native PATH changes                                                             |
+| Arch-managed Node copy            | Reject: security updates and lifecycle become a custom runtime manager                                                                |
+| Independent narrow bootstrap      | B1 demonstrates explicit override + first PATH policy without native environment substitution; does not alone solve checkout location |
+| Stable app plus narrow bootstrap  | Preferred B2 direction, subject to approval and complete installation evidence                                                        |
 
 `ARCH_NODE` is an **explicit absolute executable override**, not manager discovery.
 An invalid, empty, missing or incompatible override must fail without fallback.

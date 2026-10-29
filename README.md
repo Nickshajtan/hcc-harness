@@ -5,11 +5,11 @@ middleware around one native process, preserving arguments, cwd, terminal stream
 exit codes and supported signals. It has no AI SDK, agent loop, credentials,
 background service or remote telemetry.
 
-| Status | Capability |
-| --- | --- |
-| **CURRENT PRODUCTION** | npm-linked `arch`; project-local routing, wizard, configuration discovery, status, ownership-checked updates/recovery and removal |
-| **VERIFIED FEASIBILITY** | M2.2 B1 independent runtime bootstraps and real Node 24/22 isolation on Ubuntu, macOS and Windows |
-| **PLANNED / NOT TESTED** | M2.2 B2 stable installation and production portability; real AI CLI/TUI integration; Windows ARM64 |
+| Status                   | Capability                                                                                                                        |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| **CURRENT PRODUCTION**   | npm-linked `arch`; project-local routing, wizard, configuration discovery, status, ownership-checked updates/recovery and removal |
+| **VERIFIED FEASIBILITY** | M2.2 B1 independent runtime bootstraps and real Node 24/22 isolation on Ubuntu, macOS and Windows                                 |
+| **PLANNED / NOT TESTED** | M2.2 B2 stable installation and production portability; real AI CLI/TUI integration; Windows ARM64                                |
 
 ## Install the CLI
 
