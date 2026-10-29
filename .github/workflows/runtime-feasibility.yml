@@ -1,0 +1,70 @@
+name: M2.2 B1 runtime feasibility
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'src/process.ts'
+      - 'scripts/b1/**'
+      - 'tests/feasibility/runtime-bootstrap.test.ts'
+      - 'tests/integration/npm-runtime.test.ts'
+      - '.github/workflows/runtime-feasibility.yml'
+  pull_request:
+    paths:
+      - 'src/process.ts'
+      - 'scripts/b1/**'
+      - 'tests/feasibility/runtime-bootstrap.test.ts'
+      - 'tests/integration/npm-runtime.test.ts'
+      - '.github/workflows/runtime-feasibility.yml'
+permissions:
+  contents: read
+jobs:
+  windows-executable:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      # Test setup obtains real versions; Arch itself never downloads Node.
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20.19.0'
+      - name: Record native Node 20
+        shell: pwsh
+        run: '"ARCH_B1_NODE20=$((Get-Command node.exe).Source)" >> $env:GITHUB_ENV'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22.12.0'
+      - name: Record native Node 22
+        shell: pwsh
+        run: '"ARCH_B1_NODE22=$((Get-Command node.exe).Source)" >> $env:GITHUB_ENV'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.19.0'
+      - run: npm ci
+      - run: npm run build
+      - name: Build opt-in native prototype
+        shell: pwsh
+        run: |
+          ./scripts/b1/build-bootstrap.ps1
+          "ARCH_B1_BOOTSTRAP=$((Resolve-Path .test-state/b1-bootstrap/arch-bootstrap.exe).Path)" >> $env:GITHUB_ENV
+      - name: Run B1 executable and isolation checks
+        shell: pwsh
+        run: |
+          $env:npm_execpath = Join-Path (Split-Path (Get-Command node.exe).Source) 'node_modules/npm/bin/npm-cli.js'
+          node node_modules/vitest/vitest.mjs run tests/feasibility/runtime-bootstrap.test.ts tests/integration/npm-runtime.test.ts --reporter=default --reporter=json --outputFile=.test-state/m22-b1-executable.json
+      - name: Run standalone real terminal check
+        run: node scripts/b1/check-tty.mjs
+      - name: Record compiler and executable identity
+        if: always()
+        shell: pwsh
+        run: |
+          node --version | Out-File .test-state/m22-b1-versions.txt
+          & $env:ARCH_B1_NODE20 --version | Out-File .test-state/m22-b1-versions.txt -Append
+          & $env:ARCH_B1_NODE22 --version | Out-File .test-state/m22-b1-versions.txt -Append
+          Get-FileHash .test-state/b1-bootstrap/arch-bootstrap.exe | Format-List | Out-File .test-state/m22-b1-versions.txt -Append
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: m22-b1-windows-executable
+          path: |
+            .test-state/m22-b1-*.json
+            .test-state/m22-b1-versions.txt
+          include-hidden-files: true
