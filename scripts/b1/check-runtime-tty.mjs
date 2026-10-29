@@ -4,9 +4,24 @@ import { tmpdir } from 'node:os';
 import { delimiter, join, resolve } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 import * as pty from 'node-pty';
+import { createRequire } from 'node:module';
 
 assert.ok(['win32', 'darwin', 'linux'].includes(process.platform), 'Unsupported contract platform');
 const windows = process.platform === 'win32';
+if (process.platform === 'darwin') {
+  // npm's packaged node-pty helper can lose its executable bit. Match the
+  // existing wizard fixture preparation; never suppress a spawn failure.
+  const require = createRequire(import.meta.url);
+  const directory = resolve(require.resolve('node-pty/package.json'), '..');
+  const { access } = await import('node:fs/promises');
+  const { constants } = await import('node:fs');
+  for (const relative of ['build/Release/spawn-helper', 'build/Debug/spawn-helper', `prebuilds/darwin-${process.arch}/spawn-helper`]) {
+    const helper = join(directory, relative);
+    try { await access(helper); } catch (error) { if (error.code === 'ENOENT') continue; throw error; }
+    try { await access(helper, constants.X_OK); }
+    catch (error) { if (error.code !== 'EACCES') throw error; await chmod(helper, 0o755); }
+  }
+}
 assert.ok(process.env.ARCH_B1_NODE22, 'Real Node 22 is mandatory');
 if (windows) assert.ok(process.env.ARCH_B1_BOOTSTRAP, 'Compiled bootstrap is mandatory');
 const root = await mkdtemp(join(await realpath(tmpdir()), 'arch-runtime-terminal-'));

@@ -33,10 +33,17 @@ jobs:
           version: '2026.10.11'
           install: false
       - name: Record real mise and enable mandatory contract
+        if: runner.os != 'Windows'
         shell: bash
         run: |
           echo "ARCH_B1_MISE=$(command -v mise)" >> "$GITHUB_ENV"
           echo 'ARCH_RUNTIME_CONTRACT=1' >> "$GITHUB_ENV"
+      - name: Record native Windows mise path and enable mandatory contract
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          "ARCH_B1_MISE=$((Get-Command mise.exe).Source)" >> $env:GITHUB_ENV
+          'ARCH_RUNTIME_CONTRACT=1' >> $env:GITHUB_ENV
       - run: npm ci
       - run: npm run build
       - name: Record npm shim generator
