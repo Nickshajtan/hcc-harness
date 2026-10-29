@@ -3,8 +3,9 @@ import { tmpdir } from 'node:os';
 import { join, resolve, delimiter } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { spawn } from 'node:child_process';
-import { copyFile, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, readdir, stat, writeFile, unlink } from 'node:fs/promises';
 import { world, run, cli, records } from '../support.js';
+import { journalFrom } from '../../src/lifecycle/routing-journal.js';
 
 let fixture: Awaited<ReturnType<typeof world>>;
 beforeAll(async () => {
@@ -29,11 +30,19 @@ async function project() {
 const executable = (name: string) =>
   `.arch/bin/${name}${'win32' === process.platform ? '.exe' : ''}`;
 const checkpoints = [
+  'fs:before-journal',
+  'fs:partial-stage',
+  'fs:before-removals',
+  'fs:stage-cleanup',
+  'fs:after-journal-removal',
   'journal',
   `staged:${executable('gemini')}`,
   `published:${executable('gemini')}`,
-  ...('win32' === process.platform ? ['published:.arch/bin/gemini.shim'] : []),
+  ...('win32' === process.platform
+    ? ['staged:.arch/bin/gemini.shim', 'published:.arch/bin/gemini.shim']
+    : []),
   `removed:${executable('codex')}`,
+  ...('win32' === process.platform ? ['removed:.arch/bin/codex.shim'] : []),
   'before-manifest',
   'manifest',
   'cleanup',
@@ -101,10 +110,42 @@ it.each(checkpoints)(
         PATH: [join(root, '.arch/bin'), fixture.env.PATH].join(delimiter),
       };
       const status = await run(process.execPath, [cli, 'status', '--json'], root, env);
-      expect(JSON.parse(status.stdout)).toMatchObject({
-        state: 'recovery_pending',
-        pendingOperation: 'routing',
-      });
+      const parsedStatus: unknown = JSON.parse(status.stdout);
+      if (['fs:before-journal', 'fs:after-journal-removal'].includes(checkpoint)) {
+        expect(parsedStatus).toMatchObject({ state: 'initialized', recoveryPending: false });
+      } else if ('fs:partial-stage' === checkpoint) {
+        expect(parsedStatus).toMatchObject({ state: 'invalid_state', recoveryPending: true });
+      } else {
+        expect(parsedStatus).toMatchObject({
+          state: 'recovery_pending',
+          pendingOperation: 'routing',
+        });
+      }
+      if ('fs:before-journal' === checkpoint) {
+        // This stage has no published ownership authority: require explicit fixture-owner removal.
+        const stage = join(root, '.arch/routing.stage');
+        const bytes = await readFile(stage);
+        expect(
+          (await run(process.execPath, [cli, 'configure', 'claude', 'gemini'], root, env)).code,
+        ).toBe(1);
+        expect(await readFile(stage)).toEqual(bytes);
+        await unlink(stage);
+      }
+      if ('fs:partial-stage' === checkpoint) {
+        const recorded = await readFile(join(root, '.arch/routing.json'), 'utf8');
+        const journal = journalFrom(Buffer.from(recorded));
+        const stage = join(root, `.arch/.routing-${journal.id}-0.stage`);
+        expect(await readFile(stage)).toHaveLength(3);
+        expect(
+          (await run(process.execPath, [cli, 'configure', 'claude', 'gemini'], root, env)).code,
+        ).toBe(1);
+        expect(await readFile(stage)).toHaveLength(3);
+        const payload = Object.values(journal.additions)[0];
+        if (undefined === payload) {
+          throw new Error('Missing fixture addition');
+        }
+        await writeFile(stage, Buffer.from(payload, 'base64'));
+      }
       const retained = await run('claude', ['still-routed'], root, env);
       expect(retained.code).toBe(0);
       expect(retained.stderr).toContain('[arch:demo] preflight');

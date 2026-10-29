@@ -23,7 +23,7 @@ async function snapshot(root: string) {
         .filter((entry) => entry.isFile())
         .map(async (entry) => {
           const path = join(entry.parentPath, entry.name);
-          return [path, (await readFile(path)).toString('base64')];
+          return [path, (await readFile(path)).toString('base64')] as const;
         }),
     ),
   );
