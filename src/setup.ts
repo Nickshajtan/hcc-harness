@@ -1,72 +1,32 @@
-import { mkdir, readFile, writeFile, unlink, chmod, rename, lstat } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, unlink, chmod } from 'node:fs/promises';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createHash } from 'node:crypto';
 import { parseConfiguration } from './config.js';
 import { routerMarker } from './process.js';
+import {
+  configText,
+  routePath,
+  statePath,
+  uninstallPath,
+  digest,
+  stateFrom,
+  validateCommands,
+  type State,
+} from './lifecycle/manifest.js';
+import { readOptional, checkFiles, assertSafePath } from './lifecycle/ownership.js';
+export {
+  configText,
+  routePath,
+  statePath,
+  uninstallPath,
+  digest,
+  stateFrom,
+  validateCommands,
+  type State,
+} from './lifecycle/manifest.js';
+export { readOptional, checkFiles, assertSafePath } from './lifecycle/ownership.js';
 
-export const configText = 'schema = 1\n\n[[middleware]]\nid = "demo"\nenabled = true\n';
-export const routePath = '.config/mise/conf.d/arch.toml';
-export const statePath = '.arch/bootstrap.json';
-export const uninstallPath = '.arch/uninstall.json';
-export interface State {
-  files: Record<string, string>;
-  createdHarness: boolean;
-}
-export const digest = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
 const quote = (value: string) => "'" + value.replaceAll("'", "'\\''") + "'";
-
-export async function readOptional(file: string): Promise<Buffer | undefined> {
-  try {
-    return await readFile(file);
-  } catch (error) {
-    if ('ENOENT' === (error as NodeJS.ErrnoException).code) {
-      return undefined;
-    }
-    throw error;
-  }
-}
-export function stateFrom(text: Buffer): State {
-  const state: unknown = JSON.parse(text.toString());
-  if (!isOwnershipState(state)) {
-    throw new Error('Invalid bootstrap state');
-  }
-  return state;
-}
-function isOwnershipState(state: unknown): state is State {
-  if (
-    null === state ||
-    'object' !== typeof state ||
-    Array.isArray(state) ||
-    !('files' in state) ||
-    null === state.files ||
-    'object' !== typeof state.files ||
-    Array.isArray(state.files) ||
-    !('createdHarness' in state) ||
-    'boolean' !== typeof state.createdHarness ||
-    Object.entries(state.files).some(
-      ([file, hash]: [string, unknown]) =>
-        !(file === routePath || /^\.arch\/bin\/(?!\.{1,2}$)[a-zA-Z0-9_.-]+$/.test(file)) ||
-        'string' !== typeof hash ||
-        !/^[a-f0-9]{64}$/.test(hash),
-    )
-  ) {
-    return false;
-  }
-  return true;
-}
-export async function checkFiles(root: string, files: Record<string, string>, recovering = false) {
-  for (const [file, hash] of Object.entries(files)) {
-    await assertSafePath(root, file);
-    const contents = await readOptional(join(root, file));
-    if (contents === undefined && recovering) {
-      continue;
-    }
-    if (!contents || digest(contents) !== hash) {
-      throw new Error(`Managed file changed; refusing to overwrite/remove: ${file}`);
-    }
-  }
-}
 
 export async function setup(root: string, commands: readonly string[]): Promise<void> {
   root = resolve(root);
@@ -143,87 +103,6 @@ export async function setup(root: string, commands: readonly string[]): Promise<
   }
 }
 
-export async function uninstall(root: string): Promise<void> {
-  root = resolve(root);
-  for (const file of [statePath, uninstallPath, '.arch/routing.json', '.arch/harness.toml']) {
-    await assertSafePath(root, file);
-  }
-  if ((await readOptional(join(root, '.arch/routing.json'))) !== undefined) {
-    throw new Error('Routing recovery pending; finish configure before uninstall');
-  }
-  const stateFile = join(root, statePath),
-    journalFile = join(root, uninstallPath);
-  const [text, recovery] = await Promise.all([readOptional(stateFile), readOptional(journalFile)]);
-  if (text === undefined && recovery === undefined) {
-    return;
-  }
-  if (text !== undefined && recovery !== undefined) {
-    throw new Error('Conflicting bootstrap and uninstall state; refusing to remove files');
-  }
-  const state = stateFrom((recovery ?? text)!);
-  await checkFiles(root, state.files, recovery !== undefined);
-  if (recovery === undefined) {
-    // Atomic rename retains the complete ownership manifest before the first deletion.
-    try {
-      await rename(stateFile, journalFile);
-    } catch (error) {
-      throw new Error(`Unable to start uninstall: ${stateFile}`, { cause: error });
-    }
-  }
-  const remove = async (file: string, operation: string) => {
-    try {
-      await unlink(file);
-    } catch (error) {
-      if ('ENOENT' !== (error as NodeJS.ErrnoException).code) {
-        throw new Error(`Unable to ${operation}: ${file}`, { cause: error });
-      }
-    }
-  };
-  for (const file of Object.keys(state.files)) {
-    await remove(join(root, file), 'remove managed file');
-  }
-  const harnessFile = join(root, '.arch/harness.toml');
-  if (state.createdHarness && (await readOptional(harnessFile))?.toString() === configText) {
-    await remove(harnessFile, 'remove generated configuration');
-  }
-  await remove(journalFile, 'remove uninstall state');
-}
-
-// Check every managed component before reading or mutating it; never follow a
-// project-local symlink into another installation. This is not a hostile-race lock.
-export async function assertSafePath(root: string, file: string): Promise<void> {
-  let target = resolve(root);
-  for (const component of file.split('/')) {
-    target = join(target, component);
-    try {
-      if ((await lstat(target)).isSymbolicLink()) {
-        throw new Error(`Refusing managed symlink: ${file}`);
-      }
-    } catch (error) {
-      if ('ENOENT' === (error as NodeJS.ErrnoException).code) {
-        return;
-      }
-      throw error;
-    }
-  }
-}
-
-export function validateCommands(
-  commands: readonly string[],
-  windows = 'win32' === process.platform,
-): void {
-  if (
-    !commands.length ||
-    new Set(commands.map((c) => (windows ? c.toLowerCase() : c))).size !== commands.length ||
-    commands.some(
-      (c) =>
-        !/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(c) || ['node', 'mise', 'arch'].includes(c.toLowerCase()),
-    )
-  ) {
-    throw new Error('Supply unique executable names (node, mise, and arch are reserved)');
-  }
-}
-
 export async function renderFiles(
   commands: readonly string[],
 ): Promise<Map<string, string | Buffer>> {
@@ -252,3 +131,5 @@ export async function renderFiles(
   }
   return contents;
 }
+
+export { uninstall } from './lifecycle/removal.js';

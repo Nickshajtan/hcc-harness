@@ -110,12 +110,25 @@ for the source of these requirements; no automatic discovery, downloads or migra
 
 ## Core execution boundaries
 
-The public `execute()` facade owns discovery/passthrough. The internal execution
+The public `core.ts` export facade preserves imports; `core/index.ts` owns
+discovery/passthrough. The internal execution
 session coordinates configured stages and owns per-run resources. Failure accumulation
 is a separate ordered state object; environment composition is a deterministic function.
 Keep process resolution/cancellation in process.ts and hook dispatch/cleanup in the
 existing pipeline. Do not bypass those contracts through session-specific alternatives.
 See [the current responsibility map](../architecture.md#lifecycle-and-contracts).
+
+## Lifecycle ownership boundaries
+
+Keep recorded manifest parsing separate from route completeness, current-byte
+verification and mutation authorization. Historical hashes remain authoritative;
+renderer equality and runtime reachability are not ownership conditions.
+`lifecycle/index.ts` coordinates public operations, while setup retains its
+import-relative renderer. Low-level manifest/ownership/journal modules MUST NOT
+import those coordinators; dependency-cruiser enforces this existing boundary.
+Recovery validation is read-only. Recovery effects remain visible top-to-bottom
+with their exact checkpoint and cleanup ordering. Do not replace this sequence
+with generic transaction abstractions or hide deletion authority in an `isOwned()` boolean.
 
 ## Existing technical-debt baseline
 

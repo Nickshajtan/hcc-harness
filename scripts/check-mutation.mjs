@@ -7,12 +7,21 @@ export const pilots = {
   core: {
     report: 'reports/mutation-core/mutation.json',
     files: [
-      'src/core.ts',
-      'src/execution-session.ts',
-      'src/execution-failures.ts',
-      'src/execution-environment.ts',
+      'src/core/index.ts',
+      'src/core/execution-session.ts',
+      'src/core/execution-failures.ts',
+      'src/core/execution-environment.ts',
       'src/middleware.ts',
       'src/events.ts',
+    ],
+  },
+  lifecycle: {
+    report: 'reports/mutation-lifecycle/mutation.json',
+    files: [
+      'src/lifecycle/manifest.ts',
+      'src/lifecycle/ownership.ts',
+      'src/lifecycle/routing-journal.ts',
+      'src/lifecycle/recovery-validation.ts',
     ],
   },
 };
@@ -70,10 +79,14 @@ export function enforceMutation(scopes, expectedFiles = []) {
     'src/config.ts': 90,
     'src/events.ts': 95,
     'src/middleware.ts': 85,
-    'src/core.ts': 85,
-    'src/execution-session.ts': 85,
-    'src/execution-environment.ts': 85,
-    'src/execution-failures.ts': 85,
+    'src/core/index.ts': 85,
+    'src/core/execution-session.ts': 85,
+    'src/core/execution-environment.ts': 85,
+    'src/core/execution-failures.ts': 85,
+    'src/lifecycle/manifest.ts': 85,
+    'src/lifecycle/ownership.ts': 90,
+    'src/lifecycle/routing-journal.ts': 85,
+    'src/lifecycle/recovery-validation.ts': 90,
   };
   for (const scope of scopes) {
     const target = minimum[scope.file.replaceAll('\\', '/')];

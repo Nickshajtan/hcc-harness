@@ -1,7 +1,7 @@
-import type { Configuration } from './config.js';
-import { EventBus, event } from './events.js';
-import { createPipeline, type ExecutionContext, type Registry } from './middleware.js';
-import { launch, resolveExecutable, type LaunchResult } from './process.js';
+import type { Configuration } from '../config.js';
+import { EventBus, event } from '../events.js';
+import { createPipeline, type ExecutionContext, type Registry } from '../middleware.js';
+import { launch, resolveExecutable, type LaunchResult } from '../process.js';
 import { composeLaunchEnvironment } from './execution-environment.js';
 import { ExecutionFailures, type ExecutionStage } from './execution-failures.js';
 
@@ -36,12 +36,14 @@ export class ExecutionSession {
       this.result = await this.runNativeLifecycle();
       return this.result;
     } catch (error) {
+      // Retain the original failure and stage before finally attempts every remaining phase.
+      // Keep rejection pending while finally collects secondary failures.
       this.failures.record(error, this.stage);
       throw error;
     } finally {
       await this.finalize();
       await this.publishTerminalEvent();
-      // After terminal publication, replace the rethrow with the established ordered aggregate.
+      // Replace the pending throw so callers receive primary and secondary failures together.
       // Publication failures retain their existing precedence and still dispose the bus.
       this.failures.throwIfAny();
     }
@@ -51,6 +53,7 @@ export class ExecutionSession {
     try {
       await this.settings.options.observe?.(this.bus);
     } catch (error) {
+      // Diagnostics are isolated by EventBus: observers do not decide the native result.
       await this.bus.reportObserverError(error);
     }
     await this.bus.publish(
@@ -98,6 +101,7 @@ export class ExecutionSession {
   }
 
   private async finalize(): Promise<void> {
+    // Disposal must run even when hook dispatch fails; it owns reverse-order cleanup.
     try {
       await this.pipeline.run('finalize');
     } catch (error) {
@@ -111,6 +115,7 @@ export class ExecutionSession {
   }
 
   private async publishTerminalEvent(): Promise<void> {
+    // Completion means finalization and cleanup have both been attempted.
     try {
       if (this.failures.hasFailures) {
         await this.bus.publish(

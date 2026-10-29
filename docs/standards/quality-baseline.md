@@ -1,9 +1,10 @@
 # Quality baseline and remaining debt
 
-This is a maintained baseline, not a milestone history. Starting commit:
-`b4e911b692e89ad4fd9d658b6f192b8ff17fc180` (current main after M2.3.1).
-Core responsibility refactor: `4b6254d`; final gate/documentation commit is recorded
-in the PR. Measurements below are executed Windows x64 results on Node 24.19.0;
+This is a maintained baseline. Current refactor starts at
+`86eeb4c8de7235b00a8066e12339db385d9cb73b` (main after M2.4.1).
+Core consolidation: `a5418ce`; lifecycle extraction: `0910080`; characterization:
+`b1894b6` and `bcbbbba`; mutation integration: `d04cae2`. Final documentation/evidence
+commit is recorded in the PR. Measurements below are executed Windows x64 results on Node 24.19.0;
 hosted results are identified separately. No production dependency, public contract,
 launcher, ownership/journal format or process policy changes.
 
@@ -18,183 +19,161 @@ dependency-cruiser 18.7.0. No dependencies were added or updated.
 - `npm run lint:report` / `npm run report:dependencies`: JSON under reports/.
 - `npm run test:coverage`: V8 JSON/summary/HTML/LCOV plus test JSON under coverage/.
 - `npm run test:mutation`, `npm run test:mutation:core`,
-  `npm run test:mutation:check`: config and complete Core responsibility scopes;
-  JSON/HTML under reports/mutation and reports/mutation-core.
+  `npm run test:mutation:lifecycle`, `npm run test:mutation:check`: Config, complete Core
+  and complete manifest/ownership/journal/recovery-validation scopes;
+  JSON/HTML under reports/mutation, reports/mutation-core and reports/mutation-lifecycle.
 - `npm run test:acceptance`, `npm run test:wizard`: real routing and terminal contracts.
 
 ## Reproduced before / after
 
-| Measurement                                   |                  Starting main |      Refactored local result |
-| --------------------------------------------- | -----------------------------: | ---------------------------: |
-| Ordinary lint errors / warnings               |                        0 / 118 |                      0 / 116 |
-| Analysis warnings including metrics           |                            172 |                          167 |
-| Complexity / depth / params / length findings |               13 / 19 / 3 / 19 |             12 / 18 / 3 / 18 |
-| V8 lines                                      |               75.56% (631/835) |             76.26% (649/851) |
-| V8 branches                                   |               67.95% (403/593) |             68.47% (404/590) |
-| V8 statements / functions                     |                75.81% / 88.09% |              76.46% / 89.20% |
-| Ordinary tests                                | 167 passed / 30 existing skips |   181 passed / same 30 skips |
-| Dependency graph                              |   25 modules / 44 dependencies | 28 modules / 51 dependencies |
+| Measurement                                   |                  Starting main |                               Current local result |
+| --------------------------------------------- | -----------------------------: | -------------------------------------------------: |
+| Ordinary lint errors / warnings               |                        0 / 116 |      0 / 116; only existing fingerprints relocated |
+| Analysis warnings including metrics           |                            167 |                                                165 |
+| Complexity / depth / params / length findings |               12 / 18 / 3 / 18 |                                   11 / 18 / 3 / 17 |
+| Global V8 lines                               |               76.26% (649/851) |                                   78.06% (669/857) |
+| Global V8 branches                            |               68.47% (404/590) |                                   70.67% (417/590) |
+| Lifecycle + setup lines                       |               91.64% (329/359) |                                   95.61% (349/365) |
+| Lifecycle + setup branches                    |               86.21% (225/261) |                                   91.18% (238/261) |
+| Ordinary tests                                | 181 passed / 30 existing skips |                         258 passed / same 30 skips |
+| Dependency graph                              |   28 modules / 51 dependencies | 39 modules / 98 dependencies; no cycles/violations |
 
-The full check passed in 38.26 seconds; coverage in 79.51 seconds while other work
-was running. These are observed durations, not isolated performance comparisons.
-Acceptance: 1 real routing workflow PASS. Wizard: 14 unit tests and 13 real-terminal
-scenarios PASS. Quality tooling: 9 tests PASS, including negative tests proving the
-new execution mutation gates reject surviving-only reports.
+Coverage took 54.50 seconds with other work running. The final full check passed
+258 tests in 49.43 seconds; an earlier run took 97.37 seconds under heavier concurrent
+load. These are observed times, not performance benchmarks.
+All four Core responsibility gates retained their exact counts after consolidation:
+114/118 assertion kills, 96.61%, zero timeouts/errors. Config remains 87 killed,
+1 survivor, 5 timeouts (93.55% assertion-only); Middleware 92/96 and Events 15/15.
 
-## Core responsibility boundaries and readability
+## Lifecycle responsibilities and current evidence
 
-Previously execute() combined discovery, immutable context creation, observer setup,
-factory activation, lifecycle phases, Windows environment replacement, launch,
-failure accumulation, finalization and terminal events. It had complexity 23,
-maximum block depth 4 and 108 nonblank/noncomment function lines.
+Before: lifecycle.ts combined manifest layout, journal parsing, staging/publication,
+recovery validation/effects, planning, public operations and status observations;
+setup.ts combined renderer/init, manifest parsing, safe reads, hashes and uninstall.
+Now `lifecycle.ts` and `core.ts` forward existing public exports. `core/` groups its
+four responsibility files. `setup.ts` retains initialization and import-relative
+launcher rendering; `lifecycle/` has ten cohesive modules described in the
+[architecture map](../architecture.md#m2-project-lifecycle). No new classes or
+generic transaction/filesystem abstractions. Five focused local helpers separate
+journal header/file validation and inspection ownership/activation/config diagnostics.
 
-Now core.ts retains discovery/passthrough and delegates configured execution to
-execution-session.ts. The session owns one pipeline/bus/result/stage; execution-failures.ts
-owns ordered error identity and precedence; execution-environment.ts is a pure
-composition policy. Three new internal abstractions: two classes and one function.
-No inheritance, DI container, process adapter or circular barrel exports.
+The original lifecycle maximum complexity was 26, nesting 3, function length 107
+nonblank/noncomment lines; across its replacements the maxima are 14, 3 and 47.
+Journal parsing decreased from complexity 20 to at most 9 across its helpers.
+Inspection decreased from 26 to at most 13 across its helpers. Recovery effect
+ordering (complexity 14), recovery validation (13), setup (15 / 72 lines) and
+uninstall (14) retain their deliberate coordination debt. Setup/removal were not
+reordered to lower metrics. Whole-subsystem nesting remains 3; maximum complexity
+falls from 26 to 15 and function length from 107 to 72. The original files totaled
+754 physical lines; extraction adds import/type boundaries and five helpers rather
+than reducing total text. Dependency count also increases; no claim of lower raw coupling.
 
-execute() has complexity 5, depth 1 and 21 function lines. Across all four execution
-files the maximum function complexity is 6 (middleware activation), block depth 2,
-function length 21 and parameter count 4. The session's run() has complexity 2 and
-15 lines. These measurements include the helpers; complexity was not merely hidden
-behind the facade. The total implementation is longer because responsibilities and
-failure boundaries are named. Metrics alone do not prove readability.
+Characterization established before extraction: exact checkpoint sequence,
+retained launcher bytes, unchanged-route no-op, read-only inspection/orphan-stage
+refusal, modified retained-file recovery refusal and historical metadata/order.
+New focused tests cover journal headers/payloads, mixed layouts, invalid paths and
+digests, symlinks, absent versus changed resources, bootstrap mismatch, conflicts,
+private-stage corruption and validation idempotency. Rollback tests preserve reverse
+deletion and current cleanup-error precedence; rename failure retains uninstall
+ownership. Public runtime export names are asserted. Frozen M1 source is unchanged.
+An AST comparison of 18 original function bodies found no changes beyond formatting
+and comments, including renderer, init, uninstall, route planning and recovery effects.
 
-Human comprehension review: PASS. Start/discovery/passthrough are in execute();
-factory selection is registerMiddleware(); phase order and native launch are in
-runNativeLifecycle(); environment replacement is composeLaunchEnvironment(); primary
-stage/error selection is ExecutionFailures.record(); finalization then cleanup is
-finalize(); terminal publication and bus disposal are publishTerminalEvent().
-The architecture document contains the maintained contract map.
+Real Windows interruption coverage now has 18 scenarios: all existing checkpoints
+plus test-only filesystem boundaries before journal publication, partial private
+write, before removals, stage cleanup and after journal removal, plus exe/shim
+staging/publication/removal. Parent processes force-kill actual workers. Partial
+bytes are retained until explicitly restored by the fixture owner; orphan staging
+requires explicit fixture removal. No new production checkpoints or retry logic.
 
-## Behavioral and coverage evidence
+| Decision scope      | Total | Killed | Survived | Uncovered | Timeout | Errors | Assertion-only |
+| ------------------- | ----: | -----: | -------: | --------: | ------: | -----: | -------------: |
+| manifest            |   193 |    183 |        8 |         2 |       0 |      0 |         94.82% |
+| ownership           |    39 |     39 |        0 |         0 |       0 |      0 |           100% |
+| routing journal     |    92 |     90 |        2 |         0 |       0 |      0 |         97.83% |
+| recovery validation |    48 |     48 |        0 |         0 |       0 |      0 |           100% |
 
-Characterization tests passed against the old implementation before extraction.
-New contracts cover launch-stage cancellation with original AbortSignal/error identity,
-reverse-order compound cleanup failures, real spawn ENOENT after resolution,
-terminal completed/failed publication infrastructure rejection with listener disposal,
-invalid configuration before observer initialization, ambient environment fallback,
-and registry selection after awaited execution.started observers.
+Pilot: 74 tests, 115 seconds while other suites ran. Total 360/372 assertion kills,
+96.77%; no excluded mutators/branches. The initial pilot was 337/369, 91.33%; useful
+digest anchors, mixed pairs and default identity assertions killed genuine gaps.
+Gates: manifest/journal 85%, ownership/recovery validation 90%. All four also meet
+and enforce 95% line / 90% branch coverage. Existing gates remain unchanged.
 
-Real subprocess tests verify empty overrides, Windows case-insensitive replacement,
-POSIX case-sensitive preservation and unchanged caller environment. Pure policy tests
-exercise both platform branches deterministically; those simulations are not Windows
-runtime evidence. Existing concurrent subprocess/environment tests remain intact.
-Failure-policy tests preserve unknown thrown values, cause and ordered secondaries.
+Survivors reviewed: platform-constant identity/default mutants are equivalent on
+one host and require the other platform; upper/lower casing gives equivalent
+duplicate detection; number-to-string digest coercion and numeric UUID IDs outside
+the validated domain retain type-check mutants; regex prefix mutants encounter
+later route-name validation; a duplicate-Windows-route branch is unreachable after
+validateCommands already rejects duplicates (two uncovered mutants). The journal
+path constant is not used by the pure journal pilot, although real integration
+tests verify that exact on-disk path. No exclusions were added. Effect coordinators,
+routing planning and initialization/removal mutation remain NOT TESTED by this
+focused pilot; real filesystem and interruption tests cover those contracts.
 
-| Scope                          | Before lines / branches | After lines / branches |
-| ------------------------------ | ----------------------: | ---------------------: |
-| Core combined responsibilities |          95.31 / 83.33% |         98.75 / 96.29% |
-| core.ts facade                 |          included above |             100 / 100% |
-| execution-session.ts           |          included above |         98.21 / 91.66% |
-| execution-failures.ts          |          included above |             100 / 100% |
-| execution-environment.ts       |          included above |             100 / 100% |
-| config.ts                      |              100 / 100% |              unchanged |
-| events.ts                      |              100 / 100% |              unchanged |
-| middleware.ts                  |            100 / 95.83% |              unchanged |
+Remaining readability debt: original typed assertion at the journal JSON boundary,
+two non-null assertions justified by surrounding state checks, numeric staging-name
+interpolation, and the explicitly listed coordinator complexity. These findings
+were moved in the warning baseline without rule/message/context changes. No broad
+suppression or new warning fingerprint was accepted. Dependency rules now reject
+back-imports from manifest/ownership/journal into lifecycle/setup coordinators.
 
-Combined Core counts are 79/80 lines and 26/27 branches across facade and all three
-extractions. Per-file gates now enforce >=95% lines / >=90% branches for every Core
-responsibility as well as the existing config/events/middleware gates. No source is
-excluded. The defensive finalize-hook infrastructure rejection remains uncovered;
-normal finalizer errors are collected by the pipeline and asserted through disposal.
+Readability review: public operations start at lifecycle/index.ts; recorded paths
+and hashes at manifest/ownership; route classification at routing-plan; on-disk
+recovery permission at recovery-validation; exact writes/deletes/checkpoints at
+recovery; inspection never calls mutators. Renderer location is unchanged to keep
+captured CLI/vendor paths identical. Recovery order is visible top-to-bottom.
 
-Other measured files remain process 68.29/62.06%, lifecycle 92.08/84.39%, setup
-90.75/89.77%, discovery 90.90/90.90%, demo 71.42/50%, wizard 70.83/72.54%.
-CLI/commands remain 0% in ordinary V8 instrumentation despite real contract tests.
-The previous executed autoAttachSubprocess experiment left them at 0% because
-isolated fixtures omit NODE_V8_COVERAGE. No runtime environment injection or artificial
-private-helper tests were introduced to improve this number.
+The first baseline mutation attempt hit sandbox-denied Windows taskkill; an
+unchanged elevated rerun completed (79 seconds), and relocated Core completed in
+64 seconds. Existing Stryker node_modules junction warnings remain nonfatal; valid
+reports contain zero infrastructure errors. No dependency/security changes.
 
-## Mutation evidence and enforcement
+## Core gates and remaining debt
 
-The starting execution pilot was rerun before refactoring: Core 78 killed / 18
-survived / 7 uncovered (75.73%); middleware 92 killed / 4 survived (95.83%);
-events 15 killed (100%). It took 52 seconds. The new pilot mutates every extracted
-Core responsibility, unchanged middleware/events, with no mutator exclusions.
+Core facade, environment and failure policy remain 100% lines/branches; session
+98.21%/91.66%. The combined scope remains 98.75% lines / 96.29% branches. Mutation:
+facade 18/18, environment 18/18, failures 19/20, session 59/62 assertion kills.
+Session survivors/uncovered cases remain redundant terminal-result guarding and
+defensive finalize-hook infrastructure rejection. Failure collector initial-stage
+label is overwritten on the first failure. No moved source was dropped from gates.
 
-| Scope                 | Total | Killed | Survived | Uncovered | Timeout | Errors | Score / assertion-only |
-| --------------------- | ----: | -----: | -------: | --------: | ------: | -----: | ---------------------: |
-| config                |    93 |     87 |        1 |         0 |       5 |      0 |         98.92 / 93.55% |
-| core facade           |    18 |     18 |        0 |         0 |       0 |      0 |             100 / 100% |
-| execution session     |    62 |     59 |        1 |         2 |       0 |      0 |         95.16 / 95.16% |
-| execution failures    |    20 |     19 |        1 |         0 |       0 |      0 |               95 / 95% |
-| execution environment |    18 |     18 |        0 |         0 |       0 |      0 |             100 / 100% |
-| middleware            |    96 |     92 |        4 |         0 |       0 |      0 |         95.83 / 95.83% |
-| events                |    15 |     15 |        0 |         0 |       0 |      0 |             100 / 100% |
+Config >=90%, Middleware >=85%, Events >=95% and each Core file >=85% assertion-only
+gates are unchanged. Ordinary observer failures remain isolated. Terminal publication
+infrastructure failure still takes precedence while disposing the bus. Core's two
+stateful objects remain execution-local; process/middleware/event implementations
+and public contracts were not changed.
 
-Combined Core: 114 assertion kills / 118 mutants = **96.61%**, up from 75.73%.
-Mutation denominators change with the implementation; this is evidence of protected
-responsibilities, not an identical-mutant comparison. Expanded pilot: 42 focused tests,
-91 seconds (overlapped with coverage); config: 5 tests, 23 seconds.
+CLI/commands remain 0% under ordinary worker V8 coverage despite real subprocess
+tests. Prior autoAttachSubprocess experiments could not collect isolated environments;
+no runtime environment injection or artificial private-helper tests were added.
+Global targets remain debt outside the measured enforced scopes. Process native
+resolution/cancellation and commands/wizard remain separately authorized future
+refactoring candidates. Initialization/removal and routing effect mutation can expand
+after its cost and isolation are measured; do not replace real interruption tests.
 
-Gates now require >=85% assertion kills for each of the four execution files.
-Config >=90%, middleware >=85% and events >=95% are unchanged. Missing files/reports,
-ignored mutants and compile/runtime errors fail. Timeouts never count as assertion
-kills. A negative tooling test exercises every new gate.
+The warning ratchet still tracks file/rule/message/context and multiplicity rather
+than numeric line shifts; identical contexts remain indistinguishable. No new
+dependency or override. Existing dev-only Stryker -> typed-rest-client -> qs moderate
+advisories remain unresolved from the security baseline; no new clean-audit claim.
 
-Survivor review: the session's terminal-result guard is redundant after a successful
-launch under the established LaunchResult contract; it remains visible, not excluded.
-Two uncovered mutants concern finalize hook-dispatch infrastructure rejection. The
-failure collector's initial registration label is overwritten when recording the first
-error; its empty-string mutation is equivalent for valid transitions. Middleware's
-four survivors retain unsupported runtime type input, platform key identity, phase
-reset and hook removal characterization debt. Config retains a redundant valid-TOML
-prefix check and five loop/progress timeouts; these are not semantic assertion kills.
-Ownership/recovery and broad process mutation remain NOT TESTED and outside this refactor.
-Local Stryker still emits pre-existing .tools node_modules junction warnings, but
-workers complete and validated reports contain zero execution errors.
+## Cross-platform evidence
 
-## Static enforcement, dependencies and remaining work
-
-The warning ratchet is unchanged: file/rule/message/context plus duplicate multiplicity,
-ignoring numeric line shifts. Only the resolved dynamic-delete and result non-null
-assertion entries were pruned. No snapshot additions, suppressions or source exclusions.
-Identical contexts remain indistinguishable; this is not semantic-diff enforcement.
-Remaining warnings concern legacy assertions, conditions and test boundaries described
-by visible ESLint diagnostics. Core and all extracted modules have zero ordinary or
-complexity review findings. Existing typed rule severities remain intact.
-
-Dependency-cruiser finds zero cycles/violations. Presentation restrictions include all
-three internal execution modules; no imaginary pure layering is claimed. Core delegates
-to session, which composes existing config types, middleware, events and process.
-The failure collector has no imports; environment composition has no process-launch
-imports. Existing dynamic registries/native fixtures still make automatic Knip deletion
-inappropriate; no new tool or dead-code removal was introduced.
-
-Known dev-only Stryker -> typed-rest-client -> qs moderate advisories remain unresolved
-from M2.3.1; no dependency changes or new clean-audit claim. Process/native runtime
-selection, routing/recovery, manifests and middleware/event infrastructure are unchanged.
-
-Next separately authorized work should prioritize ownership/recovery failure boundaries,
-then native resolution/cancellation, retaining interruption/console tests. Lifecycle
-inspection (complexity 26), journal parsing (20), process resolution (16), launch (15),
-setup (15), uninstall (14), commands (37) and wizard (27) remain structural debt.
-B2, Windows ARM64, every terminal emulator and full-repository mutation remain NOT TESTED.
-
-## Cross-platform CI evidence
-
-Starting main inspected PASS: [regression](https://github.com/Nickshajtan/hcc-harness/actions/runs/40956631811),
-[wizard](https://github.com/Nickshajtan/hcc-harness/actions/runs/40956631709),
-[runtime and required aggregate](https://github.com/Nickshajtan/hcc-harness/actions/runs/40956631899).
-At validated code/tooling commit `ae13be0ee955247ab4f07cf02e2cddd8afc06792`,
-all PR matrices were inspected PASS: [regression](https://github.com/Nickshajtan/hcc-harness/actions/runs/40960531146),
-[wizard](https://github.com/Nickshajtan/hcc-harness/actions/runs/40960531220),
-[runtime and required aggregate](https://github.com/Nickshajtan/hcc-harness/actions/runs/40960531294),
-[quality measurements](https://github.com/Nickshajtan/hcc-harness/actions/runs/40960531363).
-Downloaded quality JSON confirms lint/dependency/coverage/mutation PASS, 116 legacy
-warnings and 51 metric findings. Hosted Ubuntu coverage is 75.79% lines / 67.45%
-branches, 178 passed / 32 existing skips. The four Core mutation counts match the
-Windows table; middleware is 90 killed / 5 survived / 1 uncovered (93.75%) due to
-platform reachability, with zero errors. Quality job: 90 seconds.
-
-A separate push run at the identical commit failed Windows temporary historical-Node
-rename with EBUSY before relocation/recovery assertions. The PR run passed the same
-scenario. The lock owner is unproven; this is retained as a Windows fixture stability
-risk, not called a Core defect or hidden as a passing attempt. See [push evidence](https://github.com/Nickshajtan/hcc-harness/actions/runs/40960429126).
-The single manual failed-job rerun passed unchanged, including the required aggregate.
-No retry loop, increased timeout, skipped test or weakened assertion was added.
-Required runtime workflow/aggregate and branch protection are unchanged. Mutation
-selection includes the new policy tests and all production source. Reports remain
-fail-closed with PASS / FAIL / NOT TESTED and visible skips/timeouts.
+Starting main at 86eeb4c has inspected successful
+[regression](https://github.com/Nickshajtan/hcc-harness/actions/runs/40966026432),
+[wizard](https://github.com/Nickshajtan/hcc-harness/actions/runs/40966026579) and
+[runtime portability](https://github.com/Nickshajtan/hcc-harness/actions/runs/40966026457)
+workflow conclusions and individual jobs. At code/tooling commit
+`a65a38cd701a7da9bcdceb28e4c78538cb8737ee`, all refactor PR jobs were inspected PASS:
+[regression](https://github.com/Nickshajtan/hcc-harness/actions/runs/40971163613),
+[wizard](https://github.com/Nickshajtan/hcc-harness/actions/runs/40971163581),
+[runtime and required aggregate](https://github.com/Nickshajtan/hcc-harness/actions/runs/40971163598),
+[quality measurements](https://github.com/Nickshajtan/hcc-harness/actions/runs/40971163599).
+Downloaded quality JSON reports lint/dependency/coverage/mutation PASS, 116 legacy
+warnings, 49 metric findings and Ubuntu coverage 77.71% lines / 70.16% branches
+(253 passed / 32 existing platform skips). Ubuntu manifest mutation is 180 killed,
+10 survived, 3 uncovered (93.26%); ownership/recovery validation remain 100%, journal
+97.83%. Core counts match Windows; Middleware is 90 killed / 5 survived / 1 uncovered
+(93.75%). Platform reachability differences remain visible; no exclusions or errors.
+The required aggregate name and branch protection remain unchanged. Windows ARM64,
+every terminal emulator, power-loss durability, hostile filesystem races and full
+repository mutation remain NOT TESTED. B2 and process refactoring are outside scope.

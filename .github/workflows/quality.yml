@@ -35,14 +35,14 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          changed="$(git diff --name-only "$BASE_SHA" HEAD -- src tests/unit/core.test.ts tests/unit/execution-policy.test.ts tests/unit/environment.test.ts tests/unit/events.test.ts tests/unit/config.test.ts package.json package-lock.json 'stryker*.json' 'vitest*mutation.config.ts' scripts/check-mutation.mjs scripts/summarize-quality.mjs .github/workflows/quality.yml)"
+          changed="$(git diff --name-only "$BASE_SHA" HEAD -- src tests/unit/core.test.ts tests/unit/execution-policy.test.ts tests/unit/environment.test.ts tests/unit/events.test.ts tests/unit/config.test.ts tests/unit/manifest.test.ts tests/unit/routing-journal.test.ts tests/unit/ownership.test.ts package.json package-lock.json 'stryker*.json' 'vitest*mutation.config.ts' scripts/check-mutation.mjs scripts/summarize-quality.mjs .github/workflows/quality.yml)"
           if [ -n "$changed" ]; then
             echo 'run=true' >> "$GITHUB_OUTPUT"
           fi
-      - name: Focused config and execution mutation pilots
+      - name: Focused config, execution and ownership mutation pilots
         id: mutation
         if: github.event_name != 'pull_request' || steps.pilot.outputs.run == 'true'
-        run: npm run test:mutation && npm run test:mutation:core && npm run test:mutation:check
+        run: npm run test:mutation && npm run test:mutation:core && npm run test:mutation:lifecycle && npm run test:mutation:check
       - name: Publish verified measurement evidence
         if: always()
         env:

@@ -10,9 +10,10 @@
     "tests/unit/core.test.ts",
     "tests/unit/execution-policy.test.ts",
     "tests/unit/environment.test.ts",
-    "tests/unit/events.test.ts"
+    "tests/unit/events.test.ts",
+    "src/core/*.ts"
   ],
-  "mutate": ["src/core.ts", "src/execution-*.ts", "src/middleware.ts", "src/events.ts"],
+  "mutate": ["src/core/**/*.ts", "src/middleware.ts", "src/events.ts"],
   "vitest": {
     "configFile": "vitest.core-mutation.config.ts"
   },

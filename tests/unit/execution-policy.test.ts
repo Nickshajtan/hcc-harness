@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
-import { ExecutionFailures } from '../../src/execution-failures.js';
-import { composeLaunchEnvironment } from '../../src/execution-environment.js';
+import { ExecutionFailures } from '../../src/core/execution-failures.js';
+import { composeLaunchEnvironment } from '../../src/core/execution-environment.js';
 
 it('keeps failures absent until recorded and preserves primary identity, stage and secondary order', () => {
   const failures = new ExecutionFailures();
