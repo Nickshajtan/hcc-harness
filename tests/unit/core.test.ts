@@ -105,10 +105,40 @@ it('uses configuration order, immutable identity, fresh middleware, lifecycle ev
   expect(new Set(received.map((e) => e.executionId)).size).toBe(1);
   expect(received.map((e) => e.type)).toEqual([
     'execution.started',
-    ...Array(6).fill('middleware.completed'),
+    ...Array.from({ length: 6 }, () => 'middleware.completed'),
     'execution.completed',
   ]);
   expect(bus?.listenerCount).toBe(0);
+  expect(received[0]?.payload).toEqual({ command: basename(process.execPath), projectRoot: root });
+  expect(
+    received.filter((value) => 'middleware.completed' === value.type).map((value) => value.payload),
+  ).toEqual(
+    ['preflight', 'prepareLaunch', 'finalize'].flatMap((phase) =>
+      ['second', 'first'].map((middlewareId) => ({ middlewareId, phase })),
+    ),
+  );
+});
+
+it('skips disabled unknown middleware and supports an omitted observer', async () => {
+  await writeFile(
+    join(root, '.arch/harness.toml'),
+    'schema=1\n[[middleware]]\nid="unknown"\nenabled=false\n',
+  );
+  expect((await execute(launchOptions())).exitCode).toBe(7);
+});
+
+it('uses the default registry and preserves native environment case semantics', async () => {
+  await configure(['demo']);
+  const file = join(root, 'native-env.json');
+  const env = { ...launchOptions().env, ARCH_DEMO: 'incoming' };
+  const result = await execute({
+    ...launchOptions(),
+    env,
+    args: ['-e', `require('fs').writeFileSync(${JSON.stringify(file)},process.env.ARCH_DEMO)`],
+  });
+  expect(result.exitCode).toBe(0);
+  expect(await readFile(file, 'utf8')).toBe('1');
+  expect(env.ARCH_DEMO).toBe('incoming');
 });
 
 it('denial prevents launch and observer failures cannot reverse it; all finalizers and cleanup run', async () => {
