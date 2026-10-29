@@ -1,70 +1,81 @@
-name: M2.2 B1 runtime feasibility
-on:
-  workflow_dispatch:
-  push:
-    paths:
-      - 'src/process.ts'
-      - 'scripts/b1/**'
-      - 'tests/feasibility/runtime-bootstrap.test.ts'
-      - 'tests/integration/npm-runtime.test.ts'
-      - '.github/workflows/runtime-feasibility.yml'
-  pull_request:
-    paths:
-      - 'src/process.ts'
-      - 'scripts/b1/**'
-      - 'tests/feasibility/runtime-bootstrap.test.ts'
-      - 'tests/integration/npm-runtime.test.ts'
-      - '.github/workflows/runtime-feasibility.yml'
+name: M2.2 runtime portability
+on: [push, pull_request, workflow_dispatch, merge_group]
 permissions:
   contents: read
 jobs:
-  windows-executable:
-    runs-on: windows-latest
+  runtime-contract:
+    name: Runtime portability (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
-      # Test setup obtains real versions; Arch itself never downloads Node.
       - uses: actions/setup-node@v6
         with:
           node-version: '20.19.0'
-      - name: Record native Node 20
-        shell: pwsh
-        run: '"ARCH_B1_NODE20=$((Get-Command node.exe).Source)" >> $env:GITHUB_ENV'
+      - name: Record Node 20
+        shell: bash
+        run: node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV, "ARCH_B1_NODE20=" + process.execPath + "\n")'
       - uses: actions/setup-node@v6
         with:
           node-version: '22.12.0'
-      - name: Record native Node 22
-        shell: pwsh
-        run: '"ARCH_B1_NODE22=$((Get-Command node.exe).Source)" >> $env:GITHUB_ENV'
+      - name: Record project Node 22
+        shell: bash
+        run: node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV, "ARCH_B1_NODE22=" + process.execPath + "\n")'
       - uses: actions/setup-node@v6
         with:
           node-version: '24.19.0'
+      - uses: jdx/mise-action@v4
+        with:
+          version: '2026.10.11'
+          install: false
+      - name: Record real mise and enable mandatory contract
+        shell: bash
+        run: |
+          echo "ARCH_B1_MISE=$(command -v mise)" >> "$GITHUB_ENV"
+          echo 'ARCH_RUNTIME_CONTRACT=1' >> "$GITHUB_ENV"
       - run: npm ci
       - run: npm run build
-      - name: Build opt-in native prototype
+      - name: Record npm shim generator
+        shell: bash
+        run: npm exec -- node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV, "npm_execpath=" + process.env.npm_execpath + "\n")'
+      - name: Build Windows bootstrap
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
           ./scripts/b1/build-bootstrap.ps1
           "ARCH_B1_BOOTSTRAP=$((Resolve-Path .test-state/b1-bootstrap/arch-bootstrap.exe).Path)" >> $env:GITHUB_ENV
-      - name: Run B1 executable and isolation checks
-        shell: pwsh
-        run: |
-          $env:npm_execpath = Join-Path (Split-Path (Get-Command node.exe).Source) 'node_modules/npm/bin/npm-cli.js'
-          node node_modules/vitest/vitest.mjs run tests/feasibility/runtime-bootstrap.test.ts tests/integration/npm-runtime.test.ts --reporter=default --reporter=json --outputFile=.test-state/m22-b1-executable.json
-      - name: Run standalone real terminal check
-        run: node scripts/b1/check-tty.mjs
-      - name: Record compiler and executable identity
+      - name: Shared runtime contract (no platform skips permitted)
+        run: node node_modules/vitest/vitest.mjs run tests/feasibility/runtime-contract.test.ts --reporter=default --reporter=json --outputFile=.test-state/m22-runtime-contract.json
+      - name: Windows executable / console / runtime isolation
+        if: runner.os == 'Windows'
+        run: node node_modules/vitest/vitest.mjs run tests/feasibility/runtime-bootstrap.test.ts tests/integration/npm-runtime.test.ts --reporter=default --reporter=json --outputFile=.test-state/m22-b1-executable.json
+      - name: Real terminal contract
+        run: node scripts/b1/check-runtime-tty.mjs
+      - name: Publish PASS / FAIL / NOT TESTED evidence
         if: always()
-        shell: pwsh
-        run: |
-          node --version | Out-File .test-state/m22-b1-versions.txt
-          & $env:ARCH_B1_NODE20 --version | Out-File .test-state/m22-b1-versions.txt -Append
-          & $env:ARCH_B1_NODE22 --version | Out-File .test-state/m22-b1-versions.txt -Append
-          Get-FileHash .test-state/b1-bootstrap/arch-bootstrap.exe | Format-List | Out-File .test-state/m22-b1-versions.txt -Append
+        run: node scripts/b1/summarize-runtime.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: m22-b1-windows-executable
+          name: m22-runtime-${{ matrix.os }}
           path: |
-            .test-state/m22-b1-*.json
-            .test-state/m22-b1-versions.txt
+            .test-state/m22-runtime-*.json
+            .test-state/m22-b1-executable.json
           include-hidden-files: true
+          if-no-files-found: error
+  required-runtime-portability:
+    name: M2.2 runtime portability required
+    if: always()
+    needs: runtime-contract
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every platform
+        env:
+          MATRIX_RESULT: ${{ needs.runtime-contract.result }}
+        run: |
+          echo "Runtime portability matrix: $MATRIX_RESULT" >> "$GITHUB_STEP_SUMMARY"
+          test "$MATRIX_RESULT" = success
