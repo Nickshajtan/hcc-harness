@@ -65,7 +65,23 @@ export async function launch(executable: string, args: readonly string[], cwd: s
       try { await handle.read(buffer, 0, buffer.length, 0); } finally { await handle.close(); }
       const shebang = buffer.toString('utf8').split(/\r?\n/)[0] ?? '';
       if (!/^#!\s*(?:\/usr\/bin\/env\s+)?(?:\S*[/\\])?node(?:\.exe)?\s*$/.test(shebang)) throw new Error('npm shim target must be a Node script or native executable');
-      target = process.execPath;
+      // npm's standard Node shim prefers its adjacent node.exe; simple Node
+      // shims use PATH. Neither may inherit Arch's independently chosen Node.
+      const shimText = await readFile(executable, 'utf8');
+      const adjacent = join(dirname(executable), 'node.exe');
+      const prefersAdjacent = /IF EXIST "%(?:dp0%|~dp0)\\node\.exe"\s*\(/i.test(shimText);
+      let adjacentExists = false;
+      if (prefersAdjacent) {
+        try { await access(adjacent, constants.F_OK); adjacentExists = true; }
+        catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+      }
+      if (adjacentExists) {
+        target = await realpath(adjacent);
+        if (!(await stat(target)).isFile() || await isRouter(dirname(target))) throw new Error('Recursive or invalid adjacent npm Node runtime refused');
+      } else {
+        try { target = await resolveExecutable('node.exe', cwd, env); }
+        catch (error) { throw new Error('Native npm CLI requires node.exe on its own PATH (or the standard shim\'s adjacent node.exe); Arch\'s runtime and ARCH_NODE are not native runtime fallbacks', { cause: error }); }
+      }
       nativeArgs = [destination, ...args];
     }
   }

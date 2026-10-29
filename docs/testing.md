@@ -6,6 +6,13 @@ regressions, and current three-platform evidence, see the
 [filesystem compatibility](filesystem-compatibility.md). Npm link/unlink tests use
 an isolated temporary prefix and never modify the user's global installation.
 
+For the opt-in Windows runtime bootstrap, real Node 20/22 isolation checks, native
+console/terminal evidence and reproduction commands, see the
+[M2.2 B1 feasibility report](m2.2-b1-feasibility-report.md). The dedicated B1 workflow
+builds the prototype with MSVC and runs its executable tests separately; ordinary
+test runs explicitly skip those tests without their fixture variables. Stable
+installation and real version-manager switching remain deferred to B2 review.
+
 ## Commands
 
 Prerequisites: Node 24.15+ (24.x), dependencies installed, and mise 2026.10.11 on PATH.
