@@ -105,3 +105,4 @@ CI provisions additional real runtimes; normal local tests skip those opt-in cas
 - [Development, tests and CI evidence](docs/testing.md)
 - [Platform and filesystem compatibility](docs/compatibility.md)
 - [Active M2.2 design and B2 review gate](docs/runtime-portability.md)
+- [Engineering standards and quality policy](docs/standards/README.md)
