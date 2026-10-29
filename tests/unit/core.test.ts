@@ -1,4 +1,4 @@
-import { beforeEach, afterEach, expect, it } from 'vitest';
+import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, basename, dirname } from 'node:path';
@@ -17,7 +17,123 @@ beforeEach(async () => {
   await mkdir(join(root, '.arch'));
 });
 afterEach(async () => {
+  vi.restoreAllMocks();
   await rm(root, { recursive: true, force: true });
+});
+
+it('preserves launch cancellation as primary ahead of reverse-order cleanup failures', async () => {
+  await configure(['local']);
+  const controller = new AbortController();
+  const primary = new Error('cancel during preparation');
+  const first = new Error('first cleanup');
+  const second = new Error('second cleanup');
+  const calls: string[] = [];
+  const stages: string[] = [];
+  const failure: unknown = await execute({
+    ...launchOptions(),
+    signal: controller.signal,
+    registry: new Map([
+      [
+        'local',
+        () => ({
+          id: 'local',
+          register(api) {
+            expect(api.context.signal).toBe(controller.signal);
+            api.on('prepareLaunch', () => controller.abort(primary));
+            api.on('finalize', () => {
+              calls.push('finalize');
+            });
+            api.cleanup(() => {
+              calls.push('first');
+              throw first;
+            });
+            api.cleanup(() => {
+              calls.push('second');
+              throw second;
+            });
+          },
+        }),
+      ],
+    ]),
+    observe(bus) {
+      bus.subscribe('execution.failed', (value) => {
+        stages.push(value.payload.stage);
+      });
+    },
+  }).catch((error: unknown) => error);
+  expect(failure).toBeInstanceOf(AggregateError);
+  if (!(failure instanceof AggregateError)) {
+    throw new Error('Expected execution failure');
+  }
+  expect(failure.message).toBe('Arch execution failed during launch');
+  expect(failure.cause).toBe(primary);
+  expect(failure.errors[0]).toBe(primary);
+  const secondary: unknown = failure.errors[1];
+  expect(secondary).toBeInstanceOf(AggregateError);
+  if (!(secondary instanceof AggregateError)) {
+    throw new Error('Expected cleanup failure');
+  }
+  expect(secondary.errors).toEqual([second, first]);
+  expect(calls).toEqual(['finalize', 'second', 'first']);
+  expect(stages).toEqual(['launch']);
+});
+
+it('disposes listeners when terminal infrastructure publication fails', async () => {
+  await configure([]);
+  const primary = new Error('terminal infrastructure failed');
+  const publish = EventBus.prototype.publish;
+  vi.spyOn(EventBus.prototype, 'publish').mockImplementation(function (this: EventBus, value) {
+    if ('execution.completed' === value.type) {
+      return Promise.reject(primary);
+    }
+    return publish.call(this, value);
+  });
+  let captured: EventBus | undefined;
+  await expect(
+    execute({
+      ...launchOptions(),
+      observe(bus) {
+        captured = bus;
+        bus.subscribe('execution.completed', () => undefined);
+      },
+    }),
+  ).rejects.toBe(primary);
+  expect(captured?.listenerCount).toBe(0);
+});
+
+it('composes native casing and empty overrides without mutating incoming environment', async () => {
+  await configure(['local']);
+  const output = join(root, 'environment');
+  const env = { ...launchOptions().env, Mixed: 'incoming', UNTOUCHED: 'kept' };
+  const registry: Registry = new Map([
+    [
+      'local',
+      () => ({
+        id: 'local',
+        register(api) {
+          api.on('prepareLaunch', () => {
+            api.setEnv('mixed', '');
+          });
+        },
+      }),
+    ],
+  ]);
+  await execute({
+    ...launchOptions(),
+    env,
+    registry,
+    args: [
+      '-e',
+      `require('fs').writeFileSync(${JSON.stringify(output)},JSON.stringify(Object.fromEntries(Object.entries(process.env).filter(([key])=>/^(mixed|untouched)$/i.test(key)))))`,
+    ],
+  });
+  const nativeEnvironment: unknown = JSON.parse(await readFile(output, 'utf8'));
+  expect(nativeEnvironment).toEqual(
+    'win32' === process.platform
+      ? { UNTOUCHED: 'kept', MIXED: '' }
+      : { Mixed: 'incoming', UNTOUCHED: 'kept', mixed: '' },
+  );
+  expect(env).toEqual({ ...launchOptions().env, Mixed: 'incoming', UNTOUCHED: 'kept' });
 });
 const context = (): ExecutionContext =>
   Object.freeze({
