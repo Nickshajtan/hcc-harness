@@ -116,10 +116,12 @@ it('skips directory candidates without losing later PATH candidates', async () =
 });
 
 it('retains mixed-case PATH keys and exact non-router relative entries without mutating input', async () => {
+  const file = await candidate(root);
   const env = Object.freeze({ Path: ['', '.', 'missing', ''].join(delimiter), EMPTY: '' });
   const filtered = await nativeEnvironment(env, root);
   expect(filtered).toEqual({ Path: ['.', 'missing'].join(delimiter), EMPTY: '' });
   expect(filtered).not.toBe(env);
+  await expect(resolveExecutable('tool', root, env)).resolves.toBe(file);
   expect(await nativeEnvironment({ EMPTY: '' }, root)).toEqual({ EMPTY: '', PATH: '' });
 });
 

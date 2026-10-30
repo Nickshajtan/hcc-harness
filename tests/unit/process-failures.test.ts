@@ -1,11 +1,16 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { access, readFile, mkdtemp, mkdir, writeFile, rm, chmod } from 'node:fs/promises';
+import { access, readFile, open, mkdtemp, mkdir, writeFile, rm, chmod } from 'node:fs/promises';
 import { resolve, join, delimiter } from 'node:path';
 import { launch, nativeEnvironment, resolveExecutable } from '../../src/process.js';
 
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs/promises')>();
-  return { ...actual, access: vi.fn(actual.access), readFile: vi.fn(actual.readFile) };
+  return {
+    ...actual,
+    access: vi.fn(actual.access),
+    readFile: vi.fn(actual.readFile),
+    open: vi.fn(actual.open),
+  };
 });
 vi.mock('node:child_process', () => ({
   spawn: vi.fn(() => {
@@ -18,6 +23,7 @@ let root: string;
 beforeEach(async () => {
   vi.mocked(access).mockReset().mockImplementation(actual.access);
   vi.mocked(readFile).mockReset().mockImplementation(actual.readFile);
+  vi.mocked(open).mockReset().mockImplementation(actual.open);
   await mkdir('.test-state', { recursive: true });
   root = await mkdtemp(resolve('.test-state/process-failure-'));
 });
@@ -56,6 +62,24 @@ it('continues ordered lookup only for the established EACCES miss', async () => 
   await expect(
     resolveExecutable('tool', root, { PATH: [root, native].join(delimiter) }),
   ).resolves.toBe(target);
+});
+it('closes the real shebang file handle exactly once before refusing a non-Node target', async () => {
+  Object.defineProperty(process, 'platform', { value: 'win32' });
+  const script = join(root, 'tool.cjs');
+  const shim = join(root, 'tool.cmd');
+  await writeFile(script, '#!/bin/sh\n');
+  await writeFile(shim, '@echo off\r\nnode "%~dp0\\tool.cjs" %*\r\n');
+  const handle = await actual.open(script, 'r');
+  const close = vi.spyOn(handle, 'close');
+  vi.mocked(open).mockResolvedValueOnce(handle);
+  try {
+    await expect(launch(shim, [], root, {}, new AbortController().signal)).rejects.toThrow(
+      'npm shim target must be a Node script or native executable',
+    );
+    expect(close).toHaveBeenCalledTimes(1);
+  } finally {
+    await handle.close();
+  }
 });
 it.each([undefined, 'EACCES'])(
   'does not turn adjacent Node access failure %s into PATH fallback',
