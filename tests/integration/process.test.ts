@@ -126,7 +126,8 @@ it.skipIf('win32' === process.platform)(
       const native: unknown = JSON.parse(line);
       assert(null !== native && 'object' === typeof native && 'pid' in native);
       assert('number' === typeof native.pid);
-      expect(() => process.kill(native.pid, 0)).toThrow();
+      const pid = native.pid;
+      expect(() => process.kill(pid, 0)).toThrow();
     } finally {
       invocation.child.kill('SIGKILL');
     }

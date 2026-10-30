@@ -36,6 +36,7 @@ it.each([
   [['route', 'other', 'tool'], 'Unknown route operation'],
   [['route', 'add'], 'Expected route list | route add/remove <commands...>'],
   [['route', 'remove', '--tool'], 'Expected route list | route add/remove <commands...>'],
+  [['route', 'add', 'tool', '--flag'], 'Expected route list | route add/remove <commands...>'],
   [['deinit'], 'Removal requires deinit --yes outside an interactive terminal'],
   [['deinit', '--no'], 'Expected deinit/uninstall [--yes]'],
   [['uninstall', '--yes', '--yes'], 'Expected deinit/uninstall [--yes]'],
@@ -52,6 +53,7 @@ it.each([
   ['Y', true, true],
   ['n', false, false],
   ['yes please', false, false],
+  ['maybe yes', false, false],
   ['cancel', false, false],
 ] as const)('keeps removal and setup defaults distinct for %j', (answer, removal, setup) => {
   expect(removalConfirmed(answer)).toBe(removal);
@@ -65,6 +67,7 @@ it('separates cancellation, defaults and explicit command input without validati
   expect(selectedCommands('', defaults)).toBe(defaults);
   expect(selectedCommands('  ', defaults)).toBe(defaults);
   expect(selectedCommands(' custom\tother ', defaults)).toEqual(['custom', 'other']);
+  expect(selectedCommands('custom   other', defaults)).toEqual(['custom', 'other']);
   // Domain validation still belongs to the authoritative setup validator.
   expect(selectedCommands('node node', defaults)).toEqual(['node', 'node']);
   expect(defaults).toEqual(['claude']);
