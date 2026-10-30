@@ -111,6 +111,14 @@ it('retains mixed-case PATH keys and exact non-router relative entries without m
   expect(await nativeEnvironment({ EMPTY: '' }, root)).toEqual({ EMPTY: '', PATH: '' });
 });
 
+it('propagates unexpected marker-read failures without silently selecting another executable', async () => {
+  const directory = join(root, 'broken');
+  await candidate(directory);
+  await mkdir(join(directory, '.arch-router'));
+  await expect(nativeEnvironment({ PATH: directory }, root)).rejects.toThrow();
+  await expect(resolveExecutable('tool', root, { PATH: directory })).rejects.toThrow();
+});
+
 it.skipIf('win32' === process.platform)(
   'skips non-executable files and resolves native symlink identity',
   async () => {

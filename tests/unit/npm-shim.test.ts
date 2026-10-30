@@ -114,3 +114,36 @@ it('checks cancellation again after asynchronous shim preparation', async () => 
   await expect(result).rejects.toBe(reason);
   expect(spawn).not.toHaveBeenCalled();
 });
+
+async function standardShim() {
+  await writeFile(join(native, 'tool.cjs'), '#!/usr/bin/env node\n');
+  await writeFile(
+    shim,
+    '@echo off\r\nIF EXIST "%~dp0\\node.exe" (\r\n)\r\nnode "%~dp0\\native/tool.cjs" %*\r\n',
+  );
+}
+it('prefers adjacent Node only for standard npm shims and falls back when absent', async () => {
+  await standardShim();
+  const pathNode = join(native, 'node.exe');
+  const adjacent = join(root, 'node.exe');
+  await writeFile(pathNode, 'PATH runtime');
+  await run();
+  expect(spawn.mock.calls.at(-1)?.[0]).toBe(await realpath(pathNode));
+  await writeFile(adjacent, 'adjacent runtime');
+  await run();
+  expect(spawn.mock.calls.at(-1)?.[0]).toBe(await realpath(adjacent));
+  await script();
+  await run();
+  expect(spawn.mock.calls.at(-1)?.[0]).toBe(await realpath(pathNode));
+});
+it('rejects adjacent directories and router-marked adjacent runtimes', async () => {
+  await standardShim();
+  const adjacent = join(root, 'node.exe');
+  await mkdir(adjacent);
+  await expect(run()).rejects.toThrow('Recursive or invalid adjacent npm Node runtime refused');
+  await rm(adjacent, { recursive: true });
+  await writeFile(adjacent, 'runtime');
+  await writeFile(join(root, '.arch-router'), routerMarker);
+  await expect(run()).rejects.toThrow('Recursive or invalid adjacent npm Node runtime refused');
+  expect(spawn).not.toHaveBeenCalled();
+});
