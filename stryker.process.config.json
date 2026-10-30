@@ -1,0 +1,23 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "testRunner": "vitest",
+  "plugins": ["@stryker-mutator/vitest-runner"],
+  "files": [
+    "package.json",
+    "tsconfig.json",
+    "vitest.process-mutation.config.ts",
+    "src/**/*.ts",
+    "tests/unit/process.test.ts",
+    "tests/unit/resolution.test.ts",
+    "tests/unit/npm-shim.test.ts",
+    "tests/unit/process-policy.test.ts"
+  ],
+  "mutate": ["src/process/**/*.ts"],
+  "vitest": { "configFile": "vitest.process-mutation.config.ts" },
+  "coverageAnalysis": "perTest",
+  "concurrency": 2,
+  "reporters": ["clear-text", "json", "html"],
+  "jsonReporter": { "fileName": "reports/mutation-process/mutation.json" },
+  "htmlReporter": { "fileName": "reports/mutation-process/index.html" },
+  "thresholds": { "break": 0 }
+}

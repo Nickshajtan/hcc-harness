@@ -24,6 +24,16 @@ export const pilots = {
       'src/lifecycle/recovery-validation.ts',
     ],
   },
+  process: {
+    report: 'reports/mutation-process/mutation.json',
+    files: [
+      'src/process/native-environment.ts',
+      'src/process/executable-resolver.ts',
+      'src/process/windows-npm-shim.ts',
+      'src/process/launch.ts',
+      'src/process/child-lifecycle.ts',
+    ],
+  },
 };
 
 export function mutationEvidence(report) {

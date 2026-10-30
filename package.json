@@ -33,8 +33,9 @@
     "test:quality": "node --test scripts/check-lint-baseline-tests.mjs scripts/check-mutation-tests.mjs scripts/quality-evidence-tests.mjs",
     "test:mutation:core": "stryker run stryker.core.config.json",
     "lint:baseline:prune": "node scripts/check-lint-baseline.mjs --prune",
-    "test:mutation:check": "node scripts/check-mutation.mjs config core lifecycle",
-    "test:mutation:lifecycle": "stryker run stryker.lifecycle.config.json"
+    "test:mutation:check": "node scripts/check-mutation.mjs config core lifecycle process",
+    "test:mutation:lifecycle": "stryker run stryker.lifecycle.config.json",
+    "test:mutation:process": "stryker run stryker.process.config.json"
   },
   "dependencies": {
     "emittery": "2.1.0",
