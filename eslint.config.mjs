@@ -36,7 +36,7 @@ export default ts.config(
       '@typescript-eslint/no-dynamic-delete': 'warn',
       '@typescript-eslint/restrict-template-expressions': 'warn',
       '@typescript-eslint/no-confusing-void-expression': 'error',
-      '@typescript-eslint/no-unnecessary-type-conversion': 'warn',
+      '@typescript-eslint/no-unnecessary-type-conversion': 'error',
     },
   },
   {

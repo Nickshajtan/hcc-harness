@@ -23,7 +23,7 @@ function usage(message: string): never {
 export async function publicCommand(args: readonly string[]): Promise<void> {
   const [operation, ...rest] = args,
     root = process.cwd();
-  const interactive = !!process.stdin.isTTY && !!process.stdout.isTTY;
+  const interactive = process.stdin.isTTY && process.stdout.isTTY;
   if ('--help' === operation && !rest.length) {
     console.log(help);
     return;

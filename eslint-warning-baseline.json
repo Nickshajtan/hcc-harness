@@ -1,6 +1,4 @@
 [
-  "{\"file\":\"src/commands.ts\",\"rule\":\"@typescript-eslint/no-unnecessary-type-conversion\",\"diagnostic\":\"unnecessaryTypeConversion\",\"source\":\"const interactive = !!process.stdin.isTTY && !!process.stdout.isTTY;\"}",
-  "{\"file\":\"src/commands.ts\",\"rule\":\"@typescript-eslint/no-unnecessary-type-conversion\",\"diagnostic\":\"unnecessaryTypeConversion\",\"source\":\"const interactive = !!process.stdin.isTTY && !!process.stdout.isTTY;\"}",
   "{\"file\":\"src/wizard.ts\",\"rule\":\"@typescript-eslint/no-non-null-assertion\",\"diagnostic\":\"noNonNull\",\"source\":\"await reconcileRoutes(root, status.desiredRoutes!);\"}",
   "{\"file\":\"src/wizard.ts\",\"rule\":\"@typescript-eslint/no-non-null-assertion\",\"diagnostic\":\"noNonNull\",\"source\":\"ui.write(`Interrupted routing update. Desired routes: ${status.desiredRoutes!.join(', ')}`);\"}",
   "{\"file\":\"tests/acceptance/routing.test.ts\",\"rule\":\"@typescript-eslint/no-non-null-assertion\",\"diagnostic\":\"noNonNull\",\"source\":\"return observed[0]!.executionId;\"}",
