@@ -21,8 +21,8 @@ Machine-readable reports live under coverage/ and reports/mutation*.
 
 | Measurement                                   |                 Starting main |               Measured result |
 | --------------------------------------------- | ----------------------------: | ----------------------------: |
-| Ordinary lint errors / warnings               |                       0 / 116 |                       0 / 105 |
-| Analysis warnings including metrics           |                           165 |                           142 |
+| Ordinary lint errors / warnings               |                       0 / 116 |                        0 / 87 |
+| Analysis warnings including metrics           |                           165 |                           124 |
 | Complexity / depth / params / length findings |              11 / 18 / 3 / 17 |               8 / 11 / 3 / 15 |
 | Global V8 lines                               |              78.06% (669/857) |              83.04% (730/879) |
 | Global V8 branches                            |              70.67% (417/590) |              76.21% (455/597) |
@@ -35,8 +35,8 @@ Machine-readable reports live under coverage/ and reports/mutation*.
 | Process maximum parameters                    |                             5 |      5 (unchanged public API) |
 | Process functions / classes / physical lines  |                  15 / 0 / 218 |                  24 / 1 / 312 |
 
-Full check: 331 passed / 31 explicit skips, 88.83s; gated coverage: same tests,
-112.34s. A subsequent file-handle characterization adds one test. Starting main:
+Full check: 332 passed / 31 explicit skips, 60.70s; an earlier gated coverage run
+passed the same tests. Starting main:
 258 / 30 skips, 98.15s; coverage 105.63s. Windows skips include a new POSIX permission
 case; POSIX skips the new actual-Windows PATHEXT case. Mandatory shared runtime tests
 permit no skips. Times reflect concurrent load, not performance benchmarks.
@@ -76,10 +76,10 @@ Counts below are assertion kills; timeouts earn no credit.
 | Resolver        |    84 |                   76 / 8 / 0 (90.48%) |                  75 / 9 / 0 (89.29%) |  85% |
 | Launch          |    17 |                   16 / 1 / 0 (94.12%) |                  16 / 1 / 0 (94.12%) |  85% |
 | Environment     |    38 |                   37 / 1 / 0 (97.37%) |                  37 / 1 / 0 (97.37%) |  90% |
-| Windows shim    |    79 |                   73 / 5 / 1 (92.41%) |                  76 / 2 / 1 (96.20%) |  90% |
+| Windows shim    |    79 |                   77 / 1 / 1 (97.47%) |                  76 / 2 / 1 (96.20%) |  90% |
 
-Windows: 302/319, 94.67%, zero timeouts/errors, 272s. Ubuntu: 304/319, 95.30%,
-zero timeouts/errors, later shim assertions. Initial pilot: 249 killed / 47 survived /
+Windows: 306/319, 95.92%, zero timeouts/errors, 282s. Earlier Ubuntu: 304/319, 95.30%,
+zero timeouts/errors, before final casing/handle assertions. Initial pilot: 249 killed / 47 survived /
 6 uncovered / 8 timeouts, 310 total, 80.32% assertion-only versus 82.90% Stryker, 380s.
 Second: 293/319, 91.85%, zero timeouts/errors, 283s. Real disposal/cancellation/lookup
 gaps were closed; scope did not shrink. Gates followed executed measurements.
@@ -120,12 +120,18 @@ bytes; staging index conversion preserves bytes; wizard close uses an explicit v
 block. TTY coercions were redundant in a truthiness-only predicate; noninteractive
 undefined remains falsey. Renderer location/import.meta.url and recovery ordering remain.
 
+Additional fixture fixes: explicit UTF-8 Buffer decoding, runtime-copy tuple typing,
+numeric diagnostic conversion and validated partial-stage journal payloads. Empty
+MISE_BIN/SystemRoot still select their existing fallbacks; intentional no-op test
+handlers remain explicit debt rather than receiving filler code to satisfy metrics.
+
 Promoted globally: prefer-optional-chain, no-confusing-void-expression,
-no-unnecessary-type-conversion. Production no-unnecessary-condition and
+no-unnecessary-type-conversion and restrict-template-expressions. Test plus operands
+are also errors now. Production no-unnecessary-condition and
 Core/lifecycle/process no-non-null-assertion now block. Ratchet only pruned.
-105 remaining warnings: 34 non-null, 26 unsafe member, 10 unsafe assignment,
-8 unsafe argument, 7 unnecessary condition, 6 template, 4 each plus operands,
-nullish and empty function, 2 unsafe return. Only two wizard non-null findings remain
+87 remaining warnings: 32 non-null, 24 unsafe member, 9 unsafe assignment,
+7 unsafe argument, 7 unnecessary condition, 2 each unsafe return/nullish, and
+4 intentional empty functions. Only two wizard non-null findings remain
 in production; the rest are test-boundary debt. Identical-context fingerprint limits remain.
 
 DEFER: wizard desiredRoutes/status typing; cohesive subprocess JSON boundary validation;

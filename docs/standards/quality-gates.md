@@ -48,9 +48,9 @@ are deliberately applied afterwards. Prettier is the sole layout authority.
 The configuration names specific legacy rules at warning severity with rationale.
 These warnings are **deferred debt, not compliance**: no-non-null-assertion
 outside the clean Core/lifecycle/process directories, test no-unnecessary-condition,
-prefer-nullish-coalescing, no-dynamic-delete, restrict-template-expressions;
+prefer-nullish-coalescing, no-dynamic-delete;
 tests additionally retain
-unsafe boundary/assertion/plus-operand and empty-function warnings.
+unsafe boundary/assertion and intentional empty-function warnings.
 They remain reported and reviewable, not hidden by eslint-disable blocks.
 
 Before promoting one of these rules, characterize the affected behavior, remediate
@@ -60,8 +60,9 @@ and require-await now block. A small source-context fingerprint ratchet rejects 
 ordinary warnings and requires pruning resolved debt. The measured baseline explains
 its limits: identical contexts remain indistinguishable. Snapshot additions need review
 and MUST NOT conceal new debt. Do not create a generic lint framework.
-Prefer-optional-chain, no-confusing-void-expression and no-unnecessary-type-conversion
-now block globally. No-unnecessary-condition blocks production; no-non-null-assertion
+Prefer-optional-chain, no-confusing-void-expression, no-unnecessary-type-conversion
+and restrict-template-expressions now block globally; test plus operands also block.
+No-unnecessary-condition blocks production; no-non-null-assertion
 blocks the clean Core/lifecycle/process directories. Remaining test and wizard findings
 stay visible in the ratchet. This does not claim that every type assertion is safe.
 Strict-boolean-expressions remains unadopted pending review of intentional length,
@@ -92,7 +93,7 @@ Process mutation covers all five implementation modules, using deterministic chi
 events, explicit platform-policy tests, real filesystem fixtures and supplemental
 fault injection. Real Windows npm, console, terminal and runtime contracts remain
 separate required regression/portability evidence. No production branch is excluded.
-The Windows process pilot took 272 seconds under concurrent load; the initial
+The Windows process pilot took 282 seconds under concurrent load; the initial
 pilot took 380 seconds. See the baseline for final hosted cost. These are observations,
 not isolated performance benchmarks. Keep focused mutation in the existing measurement
 job, not every platform regression job; its existing 15-minute budget is unchanged.
