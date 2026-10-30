@@ -83,7 +83,7 @@ const lines = [
   '',
   ...details.map((detail) => `- ${detail}`),
   '',
-  'Timeouts are not assertion kills. CLI subprocess contracts remain separate from in-process V8 coverage. Core, lifecycle decision and process scopes enforce assertion-only mutation gates; remaining global coverage targets are measured debt.',
+  'Timeouts are not assertion kills. CLI subprocess and real terminal contracts remain separate from in-process V8 coverage. Core, lifecycle decision, process and measured CLI/Wizard scopes enforce assertion-only mutation gates; remaining global coverage targets are measured debt.',
 ];
 if (process.env.GITHUB_STEP_SUMMARY) {
   await appendFile(process.env.GITHUB_STEP_SUMMARY, lines.join('\n') + '\n');

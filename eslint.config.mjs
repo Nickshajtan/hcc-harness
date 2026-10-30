@@ -33,7 +33,7 @@ export default ts.config(
       '@typescript-eslint/no-unnecessary-condition': 'warn',
       '@typescript-eslint/prefer-optional-chain': 'error',
       '@typescript-eslint/prefer-nullish-coalescing': 'warn',
-      '@typescript-eslint/no-dynamic-delete': 'warn',
+      '@typescript-eslint/no-dynamic-delete': 'error',
       '@typescript-eslint/restrict-template-expressions': 'error',
       '@typescript-eslint/no-confusing-void-expression': 'error',
       '@typescript-eslint/no-unnecessary-type-conversion': 'error',
@@ -44,7 +44,7 @@ export default ts.config(
     rules: { '@typescript-eslint/no-unnecessary-condition': 'error' },
   },
   {
-    files: ['src/core/**/*.ts', 'src/lifecycle/**/*.ts', 'src/process/**/*.ts'],
+    files: ['src/**/*.ts'],
     rules: { '@typescript-eslint/no-non-null-assertion': 'error' },
   },
   {
@@ -58,7 +58,7 @@ export default ts.config(
       '@typescript-eslint/no-unsafe-argument': 'warn',
       '@typescript-eslint/no-unnecessary-type-assertion': 'warn',
       '@typescript-eslint/restrict-plus-operands': 'error',
-      '@typescript-eslint/no-empty-function': 'warn',
+      '@typescript-eslint/no-empty-function': 'error',
       '@typescript-eslint/require-await': 'error',
     },
   },

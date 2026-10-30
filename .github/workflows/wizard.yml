@@ -8,6 +8,7 @@ on:
       - 'src/**'
       - 'scripts/check-wizard.mjs'
       - 'tests/unit/wizard.test.ts'
+      - 'tests/unit/cli-policy.test.ts'
       - 'tests/unit/discovery.test.ts'
       - 'package*.json'
       - 'tsconfig*.json'
@@ -17,6 +18,7 @@ on:
       - 'src/**'
       - 'scripts/check-wizard.mjs'
       - 'tests/unit/wizard.test.ts'
+      - 'tests/unit/cli-policy.test.ts'
       - 'tests/unit/discovery.test.ts'
       - 'package*.json'
       - 'tsconfig*.json'
@@ -46,7 +48,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - name: Wizard and discovery unit tests
-        run: npm exec -- vitest run tests/unit/wizard.test.ts tests/unit/discovery.test.ts --reporter=default --reporter=json --outputFile=.test-state/wizard/unit.json
+        run: npm exec -- vitest run tests/unit/wizard.test.ts tests/unit/cli-policy.test.ts tests/unit/discovery.test.ts --reporter=default --reporter=json --outputFile=.test-state/wizard/unit.json
       - name: Real terminal wizard scenarios
         run: npm run test:wizard:terminal
       - name: Publish wizard test summary
@@ -78,6 +80,9 @@ jobs:
             if (check.result === 'FAIL') console.log(`::error title=Wizard terminal failure::${escape(`${check.name}: ${check.error ?? ''}`)}`);
           }
           console.log(`::notice title=Wizard evidence::unit ${unit ? `${unit.numPassedTests} passed, ${unit.numFailedTests} failed` : 'NOT RUN'}; terminal ${terminal?.result ?? 'NOT RUN'}; ${terminal?.checks.length ?? 0} scenarios`);
+          if (!unit?.success || !unit.numPassedTests || unit.numFailedTests || terminal?.result !== 'PASS' || !terminal.checks?.length) {
+            throw new Error('Missing or failing wizard evidence; see uploaded transcripts and JSON.');
+          }
           NODE
       - uses: actions/upload-artifact@v4
         if: always()
@@ -85,5 +90,5 @@ jobs:
           name: wizard-evidence-${{ matrix.os }}
           path: .test-state/wizard/
           include-hidden-files: true
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 14

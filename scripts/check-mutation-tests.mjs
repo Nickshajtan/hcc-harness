@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mutationEvidence, enforceMutation } from './check-mutation.mjs';
+import { mutationEvidence, enforceMutation, pilots } from './check-mutation.mjs';
 
 const report = (statuses) => ({
   files: { 'src/config.ts': { mutants: statuses.map((status) => ({ status })) } },
@@ -65,6 +65,15 @@ test('every measured process scope rejects survivors and timeout-only evidence',
     'src/process/launch.ts',
     'src/process/child-lifecycle.ts',
   ]) {
+    for (const status of ['Survived', 'Timeout']) {
+      const scopes = mutationEvidence({ files: { [file]: { mutants: [{ status }] } } });
+      assert.throws(() => enforceMutation(scopes), /below (85|90)%/);
+    }
+  }
+});
+
+test('each CLI and Wizard gate rejects survivors and timeout-only evidence', () => {
+  for (const file of pilots.cli.files) {
     for (const status of ['Survived', 'Timeout']) {
       const scopes = mutationEvidence({ files: { [file]: { mutants: [{ status }] } } });
       assert.throws(() => enforceMutation(scopes), /below (85|90)%/);
