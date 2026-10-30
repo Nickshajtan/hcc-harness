@@ -1,5 +1,14 @@
 import { afterEach, beforeEach, expect, it } from 'vitest';
-import { mkdtemp, mkdir, writeFile, chmod, rm, symlink, realpath } from 'node:fs/promises';
+import {
+  mkdtemp,
+  mkdir,
+  writeFile,
+  chmod,
+  rm,
+  symlink,
+  realpath,
+  readFile,
+} from 'node:fs/promises';
 import { resolve, join, delimiter } from 'node:path';
 import { nativeEnvironment, resolveExecutable, routerMarker } from '../../src/process.js';
 
@@ -118,8 +127,20 @@ it('propagates unexpected marker-read failures without silently selecting anothe
   const directory = join(root, 'broken');
   await candidate(directory);
   await mkdir(join(directory, '.arch-router'));
-  await expect(nativeEnvironment({ PATH: directory }, root)).rejects.toThrow();
-  await expect(resolveExecutable('tool', root, { PATH: directory })).rejects.toThrow();
+  // Node reports EINVAL on this Windows filesystem and EISDIR on POSIX.
+  // Compare against the actual filesystem failure, never a generic lookup miss.
+  const failure: unknown = await readFile(join(directory, '.arch-router')).catch(
+    (error: unknown) => error,
+  );
+  if (!(failure instanceof Error) || !('code' in failure)) {
+    throw new Error('Expected a filesystem error reading a directory');
+  }
+  await expect(nativeEnvironment({ PATH: directory }, root)).rejects.toMatchObject({
+    code: failure.code,
+  });
+  await expect(resolveExecutable('tool', root, { PATH: directory })).rejects.toMatchObject({
+    code: failure.code,
+  });
 });
 
 it('skips non-directory PATH entries and selects PATH rather than an earlier unrelated key', async () => {

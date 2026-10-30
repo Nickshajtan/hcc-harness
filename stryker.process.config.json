@@ -10,7 +10,8 @@
     "tests/unit/process.test.ts",
     "tests/unit/resolution.test.ts",
     "tests/unit/npm-shim.test.ts",
-    "tests/unit/process-policy.test.ts"
+    "tests/unit/process-policy.test.ts",
+    "tests/unit/process-failures.test.ts"
   ],
   "mutate": ["src/process/**/*.ts"],
   "vitest": { "configFile": "vitest.process-mutation.config.ts" },

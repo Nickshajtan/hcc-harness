@@ -9,6 +9,7 @@ export default defineConfig({
       'tests/unit/resolution.test.ts',
       'tests/unit/npm-shim.test.ts',
       'tests/unit/process-policy.test.ts',
+      'tests/unit/process-failures.test.ts',
     ],
     maxWorkers: 1,
   },

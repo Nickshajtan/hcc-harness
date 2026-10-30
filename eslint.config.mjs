@@ -40,6 +40,14 @@ export default ts.config(
     },
   },
   {
+    files: ['src/**/*.ts'],
+    rules: { '@typescript-eslint/no-unnecessary-condition': 'error' },
+  },
+  {
+    files: ['src/core/**/*.ts', 'src/lifecycle/**/*.ts', 'src/process/**/*.ts'],
+    rules: { '@typescript-eslint/no-non-null-assertion': 'error' },
+  },
+  {
     files: ['tests/**/*.ts'],
     rules: {
       // Legacy subprocess JSON and test doubles require real boundary validation,

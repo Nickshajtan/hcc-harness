@@ -37,31 +37,35 @@ async function script(shebang = '#!/usr/bin/env node') {
 function run(env: NodeJS.ProcessEnv = { PATH: native }) {
   return launch(shim, ['', 'a"b', '%PATH% & |', 'tail\\'], root, env, new AbortController().signal);
 }
-it.each(['#!/usr/bin/env node', '#!/usr/bin/node', '#! node.exe', '#!C:\\runtime\\node.exe'])(
-  'accepts supported Node shebang %s and uses native PATH',
-  async (shebang) => {
-    await script(shebang);
-    const node = join(native, 'node.exe');
-    await writeFile(node, 'native runtime');
-    const env = { PATH: native, ARCH_NODE: 'removed-arch-runtime', EMPTY: '' };
-    expect(await run(env)).toEqual({ exitCode: 0, signal: null });
-    expect(spawn).toHaveBeenCalledExactlyOnceWith(
-      await realpath(node),
-      [join(root, 'tool.cjs'), '', 'a"b', '%PATH% & |', 'tail\\'],
-      { cwd: root, env, stdio: 'inherit', shell: false },
-    );
-  },
-);
-it.each(['#!/bin/sh', '', '#!/usr/bin/env node --inspect', '#!/usr/bin/env nodejs'])(
-  'rejects unsupported target shebang %s before spawning',
-  async (shebang) => {
-    await script(shebang);
-    await expect(run()).rejects.toThrow(
-      'npm shim target must be a Node script or native executable',
-    );
-    expect(spawn).not.toHaveBeenCalled();
-  },
-);
+it.each([
+  '#!/usr/bin/env node',
+  '#!/usr/bin/env  node',
+  '#!/usr/bin/node',
+  '#! node.exe',
+  '#!C:\\runtime\\node.exe',
+])('accepts supported Node shebang %s and uses native PATH', async (shebang) => {
+  await script(shebang);
+  const node = join(native, 'node.exe');
+  await writeFile(node, 'native runtime');
+  const env = { PATH: native, ARCH_NODE: 'removed-arch-runtime', EMPTY: '' };
+  expect(await run(env)).toEqual({ exitCode: 0, signal: null });
+  expect(spawn).toHaveBeenCalledExactlyOnceWith(
+    await realpath(node),
+    [join(root, 'tool.cjs'), '', 'a"b', '%PATH% & |', 'tail\\'],
+    { cwd: root, env, stdio: 'inherit', shell: false },
+  );
+});
+it.each([
+  '#!/bin/sh',
+  '',
+  '#!/usr/bin/env node --inspect',
+  '#!/usr/bin/env nodejs',
+  'prefix#!/usr/bin/env node',
+])('rejects unsupported target shebang %s before spawning', async (shebang) => {
+  await script(shebang);
+  await expect(run()).rejects.toThrow('npm shim target must be a Node script or native executable');
+  expect(spawn).not.toHaveBeenCalled();
+});
 it('does not fall back to Arch runtime when native PATH has no Node', async () => {
   await script();
   try {
@@ -132,11 +136,11 @@ it('checks cancellation again after asynchronous shim preparation', async () => 
   expect(spawn).not.toHaveBeenCalled();
 });
 
-async function standardShim() {
+async function standardShim(spacing = ' ') {
   await writeFile(join(native, 'tool.cjs'), '#!/usr/bin/env node\n');
   await writeFile(
     shim,
-    '@echo off\r\nIF EXIST "%~dp0\\node.exe" (\r\n)\r\nnode "%~dp0\\native/tool.cjs" %*\r\n',
+    `@echo off\r\nIF EXIST "%~dp0\\node.exe"${spacing}(\r\n)\r\nnode "%~dp0\\native/tool.cjs" %*\r\n`,
   );
 }
 it('prefers adjacent Node only for standard npm shims and falls back when absent', async () => {
@@ -162,5 +166,18 @@ it('rejects adjacent directories and router-marked adjacent runtimes', async () 
   await writeFile(adjacent, 'runtime');
   await writeFile(join(root, '.arch-router'), routerMarker);
   await expect(run()).rejects.toThrow('Recursive or invalid adjacent npm Node runtime refused');
+  expect(spawn).not.toHaveBeenCalled();
+});
+it.each(['', '  '])('retains standard adjacent preference with %j spacing', async (spacing) => {
+  await standardShim(spacing);
+  const adjacent = join(root, 'node.exe');
+  await writeFile(adjacent, 'native runtime');
+  await run();
+  expect(spawn.mock.calls.at(-1)?.[0]).toBe(await realpath(adjacent));
+});
+it('does not treat an executable extension prefix as a native target', async () => {
+  await writeFile(join(root, 'tool.exe.cjs'), '#!/bin/sh\n');
+  await writeFile(shim, '@echo off\r\nnode "%~dp0\\tool.exe.cjs" %*\r\n');
+  await expect(run()).rejects.toThrow('npm shim target must be a Node script or native executable');
   expect(spawn).not.toHaveBeenCalled();
 });
