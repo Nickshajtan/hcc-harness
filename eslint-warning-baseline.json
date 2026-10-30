@@ -8,7 +8,6 @@
   "{\"file\":\"src/lifecycle/routing-journal.ts\",\"rule\":\"@typescript-eslint/no-unnecessary-condition\",\"diagnostic\":\"alwaysFalsy\",\"source\":\"!value.additions ||\"}",
   "{\"file\":\"src/lifecycle/routing-journal.ts\",\"rule\":\"@typescript-eslint/no-unnecessary-condition\",\"diagnostic\":\"comparisonBetweenLiteralTypes\",\"source\":\"1 !== value.schema ||\"}",
   "{\"file\":\"src/lifecycle/routing-journal.ts\",\"rule\":\"@typescript-eslint/prefer-optional-chain\",\"diagnostic\":\"preferOptionalChain\",\"source\":\"!value ||\"}",
-  "{\"file\":\"src/process.ts\",\"rule\":\"@typescript-eslint/no-unnecessary-condition\",\"diagnostic\":\"alwaysFalsy\",\"source\":\"if (settled) {\"}",
   "{\"file\":\"src/wizard.ts\",\"rule\":\"@typescript-eslint/no-confusing-void-expression\",\"diagnostic\":\"invalidVoidExprArrow\",\"source\":\"close: () => terminal.close(),\"}",
   "{\"file\":\"src/wizard.ts\",\"rule\":\"@typescript-eslint/no-non-null-assertion\",\"diagnostic\":\"noNonNull\",\"source\":\"await reconcileRoutes(root, status.desiredRoutes!);\"}",
   "{\"file\":\"src/wizard.ts\",\"rule\":\"@typescript-eslint/no-non-null-assertion\",\"diagnostic\":\"noNonNull\",\"source\":\"ui.write(`Interrupted routing update. Desired routes: ${status.desiredRoutes!.join(', ')}`);\"}",
