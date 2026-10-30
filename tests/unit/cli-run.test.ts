@@ -9,6 +9,7 @@ vi.mock('../../src/core.js', () => ({ execute: vi.fn() }));
 const platform = Object.getOwnPropertyDescriptor(process, 'platform');
 const originalExitCode = process.exitCode;
 const listeners = new Map<string, (...args: unknown[]) => void>();
+const subscriptions: [string, (...args: unknown[]) => void][] = [];
 const removed = vi.fn<typeof process.off>();
 const killed = vi.fn<typeof process.kill>();
 const addProcessListener = process.on.bind(process);
@@ -16,9 +17,11 @@ const removeProcessListener = process.off.bind(process);
 beforeEach(() => {
   vi.resetAllMocks();
   listeners.clear();
+  subscriptions.length = 0;
   vi.spyOn(process, 'on').mockImplementation((name, listener) => {
     if ('string' === typeof name && ['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGBREAK'].includes(name)) {
       listeners.set(name, listener);
+      subscriptions.push([name, listener]);
     }
     return addProcessListener(name, listener);
   });
@@ -32,7 +35,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   // Also release subscriptions if a mutant omitted the production finally.
-  for (const [name, listener] of listeners) {
+  for (const [name, listener] of subscriptions) {
     removeProcessListener(name, listener);
   }
   vi.restoreAllMocks();

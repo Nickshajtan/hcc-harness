@@ -154,6 +154,33 @@ it('preserves cwd, stdio, stdin and native nonzero exit codes', async () => {
   expect(events(result).at(-1)?.payload.exitCode).toBe(23);
 });
 
+it('does not confuse stderr readiness with complete stdout on independent pipes', async () => {
+  const invocation = start(
+    process.execPath,
+    [
+      '-e',
+      "process.stdin.once('data', () => console.log(JSON.stringify({pid:process.pid}))); console.error('native ready');",
+    ],
+    fixture.C,
+    fixture.env,
+  );
+  try {
+    await waitForOutput(invocation, 'native ready');
+    expect(invocation.output().stdout).toBe('');
+    invocation.child.stdin.end('release');
+    const result = await invocation.result;
+    expect(result, result.stderr).toMatchObject({ code: 0, signal: null });
+    const output: unknown = JSON.parse(result.stdout);
+    assert(null !== output && 'object' === typeof output && 'pid' in output);
+    expect(typeof output.pid).toBe('number');
+  } finally {
+    if (null === invocation.child.exitCode && null === invocation.child.signalCode) {
+      invocation.child.kill('SIGKILL');
+    }
+    await invocation.result;
+  }
+});
+
 it('invalid configuration fails explicitly and never launches native', async () => {
   const config = join(fixture.A, '.arch/harness.toml');
   const original = await readFile(config, 'utf8');
