@@ -1,180 +1,177 @@
 # Quality baseline and remaining debt
 
-Baseline: `3e86a4b22388cb0cc7faeff744ec17e967c6224b`, main after M2.4.2.
-Measurements are executed Windows x64 / Node 24.19.0 results unless identified
-otherwise. Final revision and current CI are in [PR #13](https://github.com/Nickshajtan/hcc-harness/pull/13).
-Human comprehension and preserved contracts take priority over metrics.
+Baseline: `36df37c8bb2811edb4b4faa9eb9634e3f0550bd6`, main after PR #13.
+Measurements below are executed Windows x64 / Node 24.19.0 observations, not
+cross-platform substitutes. Human comprehension, ownership and preserved behavior
+take priority over metrics. B1 remains feasibility; B2 is not implemented.
 
-## Tools and commands
+## Stability investigation: UNRESOLVED
+
+**NOT READY FOR B2.** One earlier local run returned uninstall code 1 immediately
+after a native fixture completed. Its original stderr and fixture were not retained.
+No root cause can be established from that evidence. A successful rerun, previous
+30 repetitions and current green tests do not resolve the incident.
+
+The exact path is the first case in tests/integration/process.test.ts: initialize
+project B with preexisting middleware, execute its arbitrary launcher, await child
+close, then invoke legacy uninstall. Fixture roots are unique mkdtemp directories;
+the test helper waits for close, not exit. Other workers have independent roots.
+ReadFile operations close their handles; uninstall validates hashes before creating
+its rename checkpoint and removing files. No demonstrated synchronization, ownership
+or stream defect explains the original Windows result. OS sharing remains a
+possible external factor, not an established cause.
+
+New evidence: three isolated lanes each run four immediate init/native/uninstall
+cycles without retries. All 12 passed. Failed lanes retain their fixture plus
+operation/stage/path/stdout/stderr/exit/signal evidence. The original test also
+captures resource names on failure. Existing cleanup errors remain test failures.
+
+A deterministic real Windows test holds a managed launcher with FileShare.ReadWrite
+(no delete sharing), signals readiness through stdout, and releases via stdin.
+Uninstall returns 1 with operation/path/OS errno, leaves its ownership checkpoint
+and the locked bytes intact; explicit recovery succeeds after release. This proves
+the sharing-refusal/recovery contract, **not** the historical incident's mechanism.
+No production retry, sleep, increased timeout or speculative repair was introduced.
+The investigation remains open pending a captured recurrence or independent causal
+evidence. This unresolved P0 blocks stability acceptance even with passing CI.
+
+## Tools and measurements
 
 Pins unchanged: TypeScript 6.0.3, ESLint 10.12.0, typescript-eslint 8.71.2,
-Prettier 3.9.10, Vitest/V8 5.0.5, Stryker core/runner 10.1.1,
+Prettier 3.9.10, Vitest/V8 5.0.5, Stryker core/runner 10.1.1 and
 dependency-cruiser 18.7.0. No dependency, override or lockfile change.
 
-Run `npm run check`, `npm run lint:report`, `npm run report:dependencies`,
-`npm run test:coverage`, `npm run test:mutation`, `npm run test:mutation:core`,
-`npm run test:mutation:lifecycle`, `npm run test:mutation:process`,
-`npm run test:mutation:check`, `npm run test:acceptance`, `npm run test:wizard`.
-Machine-readable reports live under coverage/ and reports/mutation*.
+| Measurement                                     |               Reproduced starting main | Measured implementation |
+| ----------------------------------------------- | -------------------------------------: | ----------------------: |
+| Lint errors / ordinary warnings                 |                                 0 / 87 |                  0 / 55 |
+| Global V8 lines                                 |                                 83.06% |        94.95% (866/912) |
+| Global V8 branches                              |                                 76.21% |        91.86% (565/615) |
+| Process V8 lines / branches                     |                          100% / 97.82% |           100% / 97.77% |
+| CLI policy/dispatch/presentation/signal mapping | 0% worker coverage in old commands/CLI |   100% lines / branches |
+| Wizard workflow lines / branches                |    old combined wizard 70.83% / 72.54% |         98.59% / 95.55% |
+| Affected subsystem max complexity / nesting     |                                 37 / 4 |                  27 / 3 |
+| Max nonblank/noncomment function length         |                                     98 |                      61 |
+| Subsystem modules / functions / classes         |                             4 / 23 / 1 |             12 / 33 / 1 |
+| Subsystem physical lines                        |                                    389 |                     508 |
+| Dependency graph                                |                 44 modules / 114 edges |  52 modules / 130 edges |
+| Cycles / violations                             |                                  0 / 0 |                   0 / 0 |
 
-## Reproduced measurements
+Subsystem counts include cli.ts, commands.ts, wizard.ts, discovery.ts and their
+extracted modules; no class was added. The parser remains a complexity review
+hotspot, with direct syntactic variants rather than a command framework. More
+imports/lines expose responsibilities; no claim of lower raw coupling is made.
+Process consolidation removes duplicate PATH decision mutants/branches, not scope.
 
-| Measurement                                   |                 Starting main |               Measured result |
-| --------------------------------------------- | ----------------------------: | ----------------------------: |
-| Ordinary lint errors / warnings               |                       0 / 116 |                        0 / 87 |
-| Analysis warnings including metrics           |                           165 |                           124 |
-| Complexity / depth / params / length findings |              11 / 18 / 3 / 17 |               8 / 11 / 3 / 15 |
-| Global V8 lines                               |              78.06% (669/857) |              83.06% (731/880) |
-| Global V8 branches                            |              70.67% (417/590) |              76.21% (455/597) |
-| Process V8 lines                              |               68.29% (84/123) |                100% (141/141) |
-| Process V8 branches                           |                62.06% (54/87) |                97.82% (90/92) |
-| Dependency graph                              |  39 modules / 98 dependencies | 44 modules / 114 dependencies |
-| Cycles / violations                           |                         0 / 0 |                         0 / 0 |
-| Process maximum complexity / nesting          |                        16 / 5 |                         8 / 3 |
-| Process maximum function length               | 132 nonblank/noncomment lines |                            37 |
-| Process maximum parameters                    |                             5 |      5 (unchanged public API) |
-| Process functions / classes / physical lines  |                  15 / 0 / 218 |                  24 / 1 / 317 |
+Starting check: 334 passed / 31 explicit skips, ordinary test phase 88.57s;
+starting coverage: same counts, 86.76s. Measured coverage: 452 passed / 31 explicit
+skips, 68.80s. Timings reflect load and are not performance benchmarks.
+Thin cli.ts and wizard/terminal.ts still show 0% in worker V8 despite real CLI and
+PTY tests. All production sources remain included. Numeric scopes add only
+measured CLI/Wizard modules; existing Core/lifecycle/process thresholds remain.
 
-Full check: 334 passed / 31 explicit skips, 53.53s; gated coverage passed the same
-tests in 62.37s. Starting main:
-258 / 30 skips, 98.15s; coverage 105.63s. Windows skips include a new POSIX permission
-case; POSIX skips the new actual-Windows PATHEXT case. Mandatory shared runtime tests
-permit no skips. Times reflect concurrent load, not performance benchmarks.
-Final-head counts are in the PR.
+## Responsibilities and regression protection
 
-All five process files now enforce >=95% lines / >=90% branches. Child lifecycle,
-environment and launch: 100% / 100%; resolver: 100% / 96.15%; shim: 100% / 95%.
-CLI/commands remain 0% in worker V8 despite real subprocess tests. No production
-source is excluded; global targets remain debt outside achieved scopes.
+Before: commands mixed syntax, effects, output and confirmation ownership;
+wizard mixed readline, display, input policy, recovery/menu navigation and mutation.
+Now: export-only facades retain imports; parsing returns explicit requests, dispatch
+selects existing operations, status presentation formats results, native-run owns
+CLI subscriptions/exit mapping. Wizard terminal, decisions and presentation are
+separate; workflow reads as inspect/navigation/selection/confirmation/application.
+Configuration results are select/changed/unchanged. No new ownership engine or
+generic workflow framework was introduced. See [architecture](../architecture.md).
 
-## Responsibility and contract review
+Subprocess characterization preceded extraction: usage diagnostics, exit 1 versus
+2, streams, no-prompt uninstall and noninteractive confirmation. New tests cover
+dispatch exclusivity, terminal closure on errors, no success after operation failure,
+EOF/defaults, cancelled menu actions without discovery, input validation, recorded
+recovery resumption and read-only inspection. Public export assertions protect the
+compatibility facades. Original terminal, interruption, npm and runtime tests remain.
 
-Before: process.ts mixed router detection, PATH/PATHEXT lookup, npm adaptation,
-native Node selection, spawn, cancellation, escalation and settlement. Now its
-export-only facade preserves every public name and LaunchResult. Five internal
-modules own environment, resolver, Windows shim, launch and child lifecycle.
-One ChildExecution owns per-child state/listeners/timer; stateless policies remain
-functions. See the [map](../architecture.md#processes-and-platforms). More imports and
-functions expose responsibilities; no claim of fewer lines or lower raw coupling.
+An independent POSIX fixture race was corrected locally: stderr readiness does not
+guarantee stdout PID delivery. That assertion now parses the PID after close. It
+does not explain the Windows incident. Existing child settlement/cancellation,
+managed bytes, manifest/journal formats and checkpoint sequences are unchanged.
 
-Characterization preceded extraction: immutable argv/env, inherited streams,
-shell:false, signal policy, concurrent isolation, callback races, PATH precedence,
-empty/relative entries, files/permissions/aliases and PATHEXT. Shim tests protect
-adjacent/PATH Node, recursion, anchors/spacing, invalid targets and preparation abort.
-Resource assertions cover exactly-once disposal, unref/escalation, error identity
-and actual FileHandle.close. Real Windows npm/console, subprocess, terminal and
-interruption tests remain authoritative; platform simulations supplement them.
+## Mutation evidence
 
-## Mutation baseline
+Counts distinguish assertion kills from timeouts. No source ranges/mutators were
+excluded. Complete report files are required; errors, ignored mutants and missing
+evidence fail. Gates never give timeout-as-assertion credit.
 
-All process implementation modules are mutated in full. No mutator/range exclusions.
-Counts below are assertion kills; timeouts earn no credit.
+| Scope                      | Killed / total | Survived / uncovered / timeout | Assertion-only |
+| -------------------------- | -------------: | -----------------------------: | -------------: |
+| CLI parsing                |        141/141 |                      0 / 0 / 0 |           100% |
+| CLI dispatch               |          71/71 |                      0 / 0 / 0 |           100% |
+| CLI status presentation    |          23/23 |                      0 / 0 / 0 |           100% |
+| CLI native-run mapping     |          42/42 |                      0 / 0 / 0 |           100% |
+| Wizard input decisions     |          34/35 |                      0 / 0 / 1 |         97.14% |
+| Wizard workflow            |        129/146 |                     11 / 2 / 4 |         88.36% |
+| Config                     |          87/93 |                      1 / 0 / 5 |         93.55% |
+| Core + middleware/events   |        221/229 |                      6 / 2 / 0 |         96.51% |
+| Lifecycle decision modules |        385/397 |                     10 / 2 / 0 |         96.98% |
+| Process modules            |        301/313 |                     11 / 1 / 0 |         96.17% |
 
-| Process scope   | Total | Windows killed / survived / uncovered | Ubuntu killed / survived / uncovered | Gate |
-| --------------- | ----: | ------------------------------------: | -----------------------------------: | ---: |
-| Child lifecycle |   101 |                  100 / 1 / 0 (99.01%) |                 100 / 1 / 0 (99.01%) |  90% |
-| Resolver        |    84 |                   76 / 8 / 0 (90.48%) |                  80 / 4 / 0 (95.24%) |  85% |
-| Launch          |    18 |                   17 / 1 / 0 (94.44%) |                  17 / 1 / 0 (94.44%) |  85% |
-| Environment     |    38 |                   37 / 1 / 0 (97.37%) |                  37 / 1 / 0 (97.37%) |  90% |
-| Windows shim    |    79 |                   77 / 1 / 1 (97.47%) |                  77 / 1 / 1 (97.47%) |  90% |
+CLI/Wizard: 440/458, 96.07% assertion-only versus 97.16% Stryker, 114s.
+Initial five-file pilot: 400 mutants, weaker workflow assertions and five timeouts;
+later native-run extraction adds a complete scope, not an exclusion. The current
+six-file scope is fixed. Config took 16s, Core 62s, lifecycle 71s, process 234s
+under load. Hosted timing/evidence belongs in the PR; do not extrapolate platforms.
 
-Windows: 307/320, 95.94%, and Ubuntu: 311/320, 97.19%; zero timeouts/errors.
-The Windows pilot took 257s. Initial pilot: 249 killed / 47 survived /
-6 uncovered / 8 timeouts, 310 total, 80.32% assertion-only versus 82.90% Stryker, 380s.
-Second: 293/319, 91.85%, zero timeouts/errors, 283s. Real disposal/cancellation/lookup
-gaps were closed; scope did not shrink. Gates followed executed measurements.
+Survivors include defensive missing-desired-routes status (inspection cannot emit
+that valid state), harmless delimiter variants, equivalent status predicates and
+non-Error validation reporting. Workflow loop-removal mutants time out; they are
+visible, not assertion kills. Remaining process platform/access, code-less errno,
+SIGTERM fallback and unreachable shebang fallback mutants retain their prior review.
+Core/config/lifecycle decisions preserve their prior gates and known survivors.
+Readline and static installation messages are not mutated in this focused pilot;
+their real terminal/subprocess contracts are retained. Full-repository mutation is
+not enabled. No impossible fixture states were manufactured to improve scores.
 
-Survivors reviewed: selecting SIGTERM equals its fallback; empty read encoding yields
-equivalent regex string coercion; code-less errno fallback literals stay outside miss
-codes. String.split always returns an element, so the empty shebang fallback is
-unreachable (one uncovered mutant). Platform/access and PATH casing differ by host.
-Later mixed-case resolver and actual handle-close assertions address genuine Ubuntu
-survivors; final artifacts record their effect. Missing-PATH mutants can invent a
-speculative directory: retain the real missing/empty PATH contract without manufacturing
-mutant-specific fixtures.
+## Debt decisions and enforcement
 
-| Existing scope           | Windows killed / total | Assertion-only | Other outcomes                                           |
-| ------------------------ | ---------------------: | -------------: | -------------------------------------------------------- |
-| Config                   |                  87/93 |         93.55% | 1 survivor, 5 timeouts; Stryker 98.92%                   |
-| Core index / environment |             18/18 each |           100% | none                                                     |
-| Core failures            |                  19/20 |            95% | equivalent initial-stage survivor                        |
-| Core session             |                  59/62 |         95.16% | 1 survivor / 2 uncovered defensive branches              |
-| Middleware               |                  92/96 |         95.83% | 4 survivors; Ubuntu 90 killed / 5 survived / 1 uncovered |
-| Events                   |                  15/15 |           100% | none                                                     |
-| Manifest                 |                183/193 |         94.82% | 8 survived / 2 uncovered; Ubuntu 180/193                 |
-| Ownership                |                  39/39 |           100% | none                                                     |
-| Journal                  |                115/117 |         98.29% | 2 survivors                                              |
-| Recovery validation      |                  48/48 |           100% | none                                                     |
+**FIX NOW:** shared first-match PATH-key lookup preserving casing/duplicate order;
+ENOENT/EACCES/ENOTDIR versus unexpected-error tests; JSON enters as unknown in
+native/status assertions; frozen M1 output is independently narrowed before use;
+journal fixtures are validated before intentional tampering; no-op callbacks use
+explicit undefined results; assertions removed where richer result comparisons
+are clearer. Wizard desired routes are narrowed with an internal invariant check.
 
-Lifecycle: 385/397, 96.98%, zero timeouts/errors, 267s under load. Core counts match
-starting main exactly; latest run 78s versus baseline 63s. Config took 45s.
-The hosted quality job ran all four pilots in 151s and the job in 200s.
-Existing 15-minute budget and three-platform workflows are unchanged.
+The ChildExecution constructor stays: child/signal/resolve/reject already describe
+its four responsibilities. An options object would not improve current call sites.
+Existing lookup-miss code is explicit and tested; no generic error policy was added.
+Production non-null assertions, dynamic deletion and test empty functions now block.
+Warning fingerprints only pruned; identical-context limitations remain documented.
 
-## Debt disposition and enforcement
+**DEFER:** 28 test non-null assertions, seven test unnecessary conditions, remaining
+heterogeneous B1/subprocess JSON boundaries and matcher-related unsafe diagnostics.
+These mix optional fixture lifetime, protocol-specific arrays and external payloads;
+systematic narrowing needs fixture/protocol characterization rather than replacement
+casts or a universal decoder. Two truthy environment fallbacks intentionally treat
+empty strings as absent. Renderer relocation/B2, broad uninstall redesign, event
+generic correlation and subprocess V8 aggregation need separate compatibility work.
 
-FIX NOW: journal JSON now enters as unknown with structural/payload narrowing;
-129 old/new outcomes matched metadata/order, errors and diagnostics. Historical
-acceptance was not strengthened. Two inspection/removal assertions use named recorded
-bytes; staging index conversion preserves bytes; wizard close uses an explicit void
-block. TTY coercions were redundant in a truthiness-only predicate; noninteractive
-undefined remains falsey. Renderer location/import.meta.url and recovery ordering remain.
+**REJECT:** retries/sleeps as an incident repair, generic command/workflow frameworks,
+constructor wrappers to game parameters, broad disables, synthetic impossible states,
+raised thresholds and excluded critical sources. No production Core, lifecycle,
+setup, middleware, events, config, native shim or child lifecycle implementation changed.
 
-Additional fixture fixes: explicit UTF-8 Buffer decoding, runtime-copy tuple typing,
-numeric diagnostic conversion and validated partial-stage journal payloads. Empty
-MISE_BIN/SystemRoot still select their existing fallbacks; intentional no-op test
-handlers remain explicit debt rather than receiving filler code to satisfy metrics.
+Security audit: two moderate dev-only vulnerable package entries remain through
+Stryker 10.1.1 -> typed-rest-client 2.3.1 -> qs 6.15.1. Actual registry inspection
+still shows no compatible newer 2.x typed-rest-client; it pins qs. No forced override
+or unrelated upgrade. Audit used Node's system CA store, not disabled TLS.
+This is **not a clean audit**. Production does not import Stryker.
 
-Promoted globally: prefer-optional-chain, no-confusing-void-expression,
-no-unnecessary-type-conversion and restrict-template-expressions. Test plus operands
-are also errors now. Production no-unnecessary-condition and
-Core/lifecycle/process no-non-null-assertion now block. Ratchet only pruned.
-87 remaining warnings: 32 non-null, 24 unsafe member, 9 unsafe assignment,
-7 unsafe argument, 7 unnecessary condition, 2 each unsafe return/nullish, and
-4 intentional empty functions. Only two wizard non-null findings remain
-in production; the rest are test-boundary debt. Identical-context fingerprint limits remain.
+## Validation and remaining limits
 
-DEFER: wizard desiredRoutes/status typing; cohesive subprocess JSON boundary validation;
-correlated event generic assertions; Core defensive infrastructure survivors;
-lifecycle effect/planning/init/removal mutation; CLI subprocess instrumentation;
-setup renderer relocation/B2. Commands/wizard workflow complexity is next.
-REJECT: broad disables, impossible mutant-specific states, arbitrary thresholds,
-generic process frameworks, renderer URL moves or weakened recovery.
+Run check, lint:report, test:coverage, all five mutation commands and
+test:mutation:check, test:acceptance and test:wizard. CI must inspect actual
+Ubuntu/macOS/Windows regression, wizard and runtime jobs plus the unchanged
+`M2.2 runtime portability required` aggregate. Results and exact reviewed commit
+are in the dedicated PR; local results alone are not platform verification.
 
-Security audit (2026-10-30): two moderate vulnerable dev dependency entries through
-Stryker 10.1.1 -> typed-rest-client 2.3.1 -> qs 6.15.1. Registry inspection found no
-newer compatible typed-rest-client 2.x; it pins qs. No forced major update, override
-or audit disabling. TLS succeeded using Node's system CA store. This is not a clean
-audit. Native production execution does not import Stryker.
-
-## Executed evidence and limits
-
-PASS: check, lint/ratchet/report, dependency rules/report, gated coverage, all four
-mutation pilots/checker, acceptance, wizard (14 unit / 13 real terminal scenarios),
-public exports, journal differential check and frozen M1 hash.
-Frozen blob: `2748032203bc587d465543e1e2d1317d13a8a4f4`.
-Core/middleware/events/config/setup/vendor/frozen fixtures/lockfile are unchanged.
-
-At implementation `e4a087e`, inspected hosted jobs/artifacts passed:
-[regression](https://github.com/Nickshajtan/hcc-harness/actions/runs/41036503296),
-[wizard](https://github.com/Nickshajtan/hcc-harness/actions/runs/41036503173),
-[runtime and required aggregate](https://github.com/Nickshajtan/hcc-harness/actions/runs/41036503097),
-[quality](https://github.com/Nickshajtan/hcc-harness/actions/runs/41036503277).
-Windows artifact: 290 unit / 42 integration / 1 acceptance passed; real npm
-PATH/adjacent selection, arguments/exit, Ctrl+C/Ctrl+Break and recovery passed.
-Ubuntu quality: 329 passed / 33 explicit platform/opt-in skips, coverage 83.06% /
-76.71%, all areas PASS. Later revisions need their own checks; final results are in
-the PR. Required status name and protection remain unchanged.
-
-One local full run returned uninstall code 1 immediately after a native fixture ran;
-its stderr was not retained by the old assertion. The assertion now reports stderr.
-Targeted tests, 30 immediate init/run/uninstall sequences without retries, and the
-full 334-test run passed afterward. The original intermittent cause remains
-unconfirmed; no production retries, sleeps or weaker assertions were introduced.
-This remains diagnostic debt rather than a claimed filesystem-sharing diagnosis.
-
-Known limits: sandbox taskkill required unchanged elevated mutation reruns; existing
-.tools junction warnings are nonfatal with valid reports and zero mutation errors.
-Windows ARM64, every terminal emulator, hostile filesystem races, power-loss durability
-and full-repository mutation remain NOT TESTED. B1 stays feasibility; B2 and CLI/Wizard
-refactoring remain separately gated.
+Windows ARM64, every terminal emulator, real AI TUIs, real nvm/fnm, hostile filesystem
+races and power-loss durability remain NOT TESTED. M2.2 B2 is not implemented.
+Next priority is evidence for the unresolved uninstall incident, not metrics-driven
+architecture work. Apply the [determinism standard](determinism.md); stability and
+B2 readiness remain blocked until the incident is explained or specifically
+characterized as external with causal evidence.

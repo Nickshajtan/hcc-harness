@@ -23,6 +23,17 @@ integration/terminal tests. Dependencies/tools need network for provisioning; te
 run mise offline and make no AI/provider calls. No CLI credentials are needed.
 Npm link/unlink tests use temporary prefixes/config/cache, never the user's globals.
 
+`npm run test:mutation:cli` measures parsing, dispatch, CLI signal mapping, status
+presentation and Wizard decisions/workflow. It excludes real terminal tests from
+mutation, not from regression. See [quality gates](standards/quality-gates.md).
+
+`tests/integration/uninstall-stability.test.ts` runs three independent project lanes,
+four init/native/immediate-uninstall cycles each, without retries. Failed lanes retain
+their fixture and operation/stage/path/stderr/status/signal evidence. The Windows-only
+sharing test holds a managed launcher until an explicit stdin barrier releases it,
+verifies refusal/checkpoint retention, then requests recovery. A passing stress or
+sharing test does not resolve the historical unexplained uninstall failure.
+
 Register trusted middleware using [the architecture contract](architecture.md).
 Tests/build configuration and dependency pins are the executable source of truth;
 do not change assertions merely to accommodate a platform failure.
