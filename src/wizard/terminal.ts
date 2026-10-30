@@ -21,6 +21,8 @@ export function terminalInteraction() {
       console.log(message);
     },
     close: () => {
+      // Readline owns an idempotent closed state: SIGINT/EOF can close first,
+      // while the command owner still releases the terminal in finally.
       terminal.close();
     },
   };

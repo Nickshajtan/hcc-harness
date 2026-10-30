@@ -60,4 +60,5 @@ jobs:
           path: |
             .test-state/mise-*.json
             .test-state/m2-*.json
+            reports/removal-diagnostics/
           include-hidden-files: true
