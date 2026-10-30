@@ -276,20 +276,78 @@ it('keeps simultaneous children and cancellation resources independent', async (
 });
 
 it('ignores a captured close callback after an error has already settled execution', async () => {
+  const remove = vi.spyOn(controller.signal, 'removeEventListener');
   const result = run();
   const rejected = expect(result).rejects.toThrow('first failure');
   const close = child.listeners('close')[0];
   child.emit('error', new Error('first failure'));
   close?.(0, null);
   await rejected;
+  expect(remove).toHaveBeenCalledTimes(1);
   disposed();
 });
 
 it('ignores a captured error callback after native completion has already settled execution', async () => {
+  const remove = vi.spyOn(controller.signal, 'removeEventListener');
   const result = run();
   const failed = child.listeners('error')[0];
   child.emit('close', 8, null);
   failed?.(new Error('late failure'));
   expect(await result).toEqual({ exitCode: 8, signal: null });
+  expect(remove).toHaveBeenCalledTimes(1);
+  disposed();
+});
+
+it('observes signal-only termination during initialization without cancelling it', async () => {
+  const add = vi.spyOn(controller.signal, 'addEventListener');
+  spawn.mockImplementation(() => {
+    child.signalCode = 'SIGINT';
+    return child;
+  });
+  expect(await run()).toEqual({ exitCode: 1, signal: 'SIGINT' });
+  expect(add).toHaveBeenCalledWith('abort', expect.any(Function), { once: true });
+  expect(child.kill).not.toHaveBeenCalled();
+  disposed();
+});
+
+it('does not cancel when signal termination becomes visible before abort', async () => {
+  const result = run();
+  child.signalCode = 'SIGINT';
+  controller.abort();
+  expect(child.kill).not.toHaveBeenCalled();
+  child.emit('close', null, 'SIGINT');
+  await result;
+  disposed();
+});
+
+it('unrefs escalation and refuses an already-queued timer callback after settlement', async () => {
+  const scheduled = vi.spyOn(globalThis, 'setTimeout');
+  const result = run();
+  controller.abort();
+  const timer = scheduled.mock.results[0];
+  expect(timer?.type).toBe('return');
+  if ('return' !== timer?.type) {
+    throw new Error('Expected an escalation timer');
+  }
+  expect(timer.value.hasRef()).toBe(false);
+  const callback = scheduled.mock.calls[0]?.[0];
+  child.emit('close', 0, null);
+  await result;
+  if ('function' !== typeof callback) {
+    throw new Error('Expected an escalation callback');
+  }
+  callback();
+  expect(child.kill).toHaveBeenCalledTimes(1);
+  disposed();
+});
+
+it('does not escalate when a normal exit becomes visible before close', async () => {
+  const result = run();
+  controller.abort();
+  child.exitCode = 7;
+  await vi.advanceTimersByTimeAsync(3000);
+  expect(child.kill).toHaveBeenCalledTimes(1);
+  child.emit('close', 7, null);
+  await result;
   disposed();
 });

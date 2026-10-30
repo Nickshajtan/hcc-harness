@@ -104,6 +104,23 @@ it('rejects arbitrary batch files before invoking a shell', async () => {
   await expect(run()).rejects.toThrow();
   expect(spawn).not.toHaveBeenCalled();
 });
+it('rejects an already-aborted shim launch before reading missing files', async () => {
+  const controller = new AbortController();
+  const reason = new Error('already cancelled');
+  controller.abort(reason);
+  await expect(launch(shim, [], root, {}, controller.signal)).rejects.toBe(reason);
+  expect(spawn).not.toHaveBeenCalled();
+});
+it('leaves non-batch extension suffixes on the native launch path', async () => {
+  const executable = join(root, 'native.cmdx');
+  await launch(executable, [], root, {}, new AbortController().signal);
+  expect(spawn).toHaveBeenCalledExactlyOnceWith(executable, [], {
+    cwd: root,
+    env: {},
+    stdio: 'inherit',
+    shell: false,
+  });
+});
 it('checks cancellation again after asynchronous shim preparation', async () => {
   await script();
   await writeFile(join(native, 'node.exe'), 'native runtime');

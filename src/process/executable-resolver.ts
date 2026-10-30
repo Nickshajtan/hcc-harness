@@ -13,14 +13,7 @@ export async function resolveExecutable(
   }
   const pathKey = Object.keys(env).find((k) => 'PATH' === k.toUpperCase());
   const dirs = (env[pathKey ?? 'PATH'] ?? '').split(delimiter).filter(Boolean);
-  const pathExtKey = Object.keys(env).find((k) => 'PATHEXT' === k.toUpperCase()) ?? 'PATHEXT';
-  let extensions = [''];
-  if ('win32' === process.platform && !extname(command)) {
-    extensions = (env[pathExtKey] ?? '.COM;.EXE;.BAT;.CMD')
-      .split(';')
-      .map((ext) => ext.toLowerCase())
-      .filter((ext) => ['.exe', '.com', '.cmd', '.bat'].includes(ext));
-  }
+  const extensions = executableExtensions(command, env, process.platform);
   for (const dir of dirs) {
     for (const extension of extensions) {
       const candidate = resolve(cwd, dir, command + extension);
@@ -31,6 +24,21 @@ export async function resolveExecutable(
     }
   }
   throw new Error(`Native executable not found: ${command}`);
+}
+
+export function executableExtensions(
+  command: string,
+  env: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform,
+): string[] {
+  if ('win32' !== platform || extname(command)) {
+    return [''];
+  }
+  const pathExtKey = Object.keys(env).find((key) => 'PATHEXT' === key.toUpperCase()) ?? 'PATHEXT';
+  return (env[pathExtKey] ?? '.COM;.EXE;.BAT;.CMD')
+    .split(';')
+    .map((extension) => extension.toLowerCase())
+    .filter((extension) => ['.exe', '.com', '.cmd', '.bat'].includes(extension));
 }
 
 // Resolve identity before router checks so aliases cannot re-enter Arch. Only

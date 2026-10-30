@@ -90,6 +90,9 @@ it('does not interpret empty PATH entries as the working directory', async () =>
       'Native executable not found: tool',
     );
   }
+  await expect(resolveExecutable('tool', root, {})).rejects.toThrow(
+    'Native executable not found: tool',
+  );
 });
 
 it('skips directory candidates without losing later PATH candidates', async () => {
@@ -117,6 +120,19 @@ it('propagates unexpected marker-read failures without silently selecting anothe
   await mkdir(join(directory, '.arch-router'));
   await expect(nativeEnvironment({ PATH: directory }, root)).rejects.toThrow();
   await expect(resolveExecutable('tool', root, { PATH: directory })).rejects.toThrow();
+});
+
+it('skips non-directory PATH entries and selects PATH rather than an earlier unrelated key', async () => {
+  const file = await candidate(join(root, 'native'));
+  const entry = join(root, 'not-a-directory');
+  await writeFile(entry, 'unrelated file');
+  const env = { OTHER: entry, PATH: [entry, join(root, 'native')].join(delimiter) };
+  expect(await nativeEnvironment(env, root)).toEqual(env);
+  expect(await resolveExecutable('tool', root, env)).toBe(file);
+});
+
+it('retains the exact router marker protocol bytes', () => {
+  expect(routerMarker).toBe('arch-harness-router-v1\n');
 });
 
 it.skipIf('win32' === process.platform)(

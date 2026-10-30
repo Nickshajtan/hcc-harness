@@ -5,6 +5,12 @@ export interface LaunchResult {
   readonly signal: NodeJS.Signals | null;
 }
 
+export function cancellationSignal(reason: unknown, platform: NodeJS.Platform): NodeJS.Signals {
+  const forwarded =
+    'SIGINT' === reason || 'SIGTERM' === reason || 'SIGHUP' === reason ? reason : 'SIGTERM';
+  return 'win32' === platform ? 'SIGTERM' : forwarded;
+}
+
 // Running -> cancellation requested -> settled, or running -> settled.
 // An observed exit suppresses cancellation while close is still pending. Both
 // error and close can settle, but only the first owns the result and disposal.
@@ -67,15 +73,12 @@ export class ChildExecution {
       return;
     }
     this.cancelled = true;
-    const reason: unknown = this.signal.reason;
-    const forwarded =
-      'SIGINT' === reason || 'SIGTERM' === reason || 'SIGHUP' === reason ? reason : 'SIGTERM';
-    this.terminateGracefully(forwarded);
+    this.terminateGracefully(cancellationSignal(this.signal.reason, process.platform));
   };
 
   private terminateGracefully(forwarded: NodeJS.Signals): void {
     try {
-      this.child.kill('win32' === process.platform ? 'SIGTERM' : forwarded);
+      this.child.kill(forwarded);
     } catch (error) {
       this.failed(error);
       return;
