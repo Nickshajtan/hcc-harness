@@ -45,7 +45,8 @@ environment isolation, cwd, inherited streams/TTY, exit status and cancellation.
 Coverage and a focused mutation pilot are measured in the [baseline](quality-baseline.md).
 These are adoption targets. Config, events and middleware enforce the achieved
 95% line / 90% branch scopes, as do Core, the measured manifest/ownership/journal/recovery-validation
-modules and all five process implementation modules; other coverage scopes remain nonblocking:
+modules, all five process implementation modules and measured CLI/Wizard scopes;
+other coverage scopes remain nonblocking:
 
 | Metric          | Critical modules | Other production |
 | --------------- | ---------------: | ---------------: |
@@ -100,6 +101,10 @@ recovery-validation modules using focused decision and real filesystem tests.
 with controlled child races, real filesystem decisions and explicit platform policies.
 Simulated Windows adapter tests supplement actual Windows npm/console integration;
 they do not replace it.
+`npm run test:mutation:cli` measures complete parsing, dispatch, status presentation,
+CLI signal/exit mapping and Wizard input/workflow decisions, without expensive PTY
+mutation. Per-file assertion gates are 85%, with 90% for input decisions. Real
+terminal evidence remains separate. Missing scopes and timeout-only evidence fail.
 Stryker's timeout-inclusive break remains zero; `npm run test:mutation:check` instead
 enforces reviewed assertion-only thresholds (config 90%, middleware 85%, events 95%, each Core responsibility file 85%)
 and expected nonempty scopes. Lifecycle gates require manifest/journal 85% and

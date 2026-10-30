@@ -1,6 +1,7 @@
 # Quality baseline and remaining debt
 
 Baseline: `36df37c8bb2811edb4b4faa9eb9634e3f0550bd6`, main after PR #13.
+Implementation and current-head validation status: [PR #14](https://github.com/Nickshajtan/hcc-harness/pull/14).
 Measurements below are executed Windows x64 / Node 24.19.0 observations, not
 cross-platform substitutes. Human comprehension, ownership and preserved behavior
 take priority over metrics. B1 remains feasibility; B2 is not implemented.
@@ -12,6 +13,15 @@ after a native fixture completed. Its original stderr and fixture were not retai
 No root cause can be established from that evidence. A successful rerun, previous
 30 repetitions and current green tests do not resolve the incident.
 
+A final local coverage run also returned code 1 in the existing interrupted-uninstall
+recovery case (452 passed / one failed). Its old assertion again omitted stderr;
+the retained JSON report contains only the code mismatch. This is additional
+unexplained evidence, not a resolved rerun. The test helper now persists every
+nonzero direct CLI removal result, streams and resource/checkpoint names before
+assertions or cleanup, and CI uploads those records. Expected refusals are recorded
+too; the records do not themselves classify a result as unexpected. No full
+environments or manifest contents are logged.
+
 The exact path is the first case in tests/integration/process.test.ts: initialize
 project B with preexisting middleware, execute its arbitrary launcher, await child
 close, then invoke legacy uninstall. Fixture roots are unique mkdtemp directories;
@@ -21,8 +31,12 @@ its rename checkpoint and removing files. No demonstrated synchronization, owner
 or stream defect explains the original Windows result. OS sharing remains a
 possible external factor, not an established cause.
 
-New evidence: three isolated lanes each run four immediate init/native/uninstall
-cycles without retries. All 12 passed. Failed lanes retain their fixture plus
+New evidence: three isolated lanes each run four immediate routed native/uninstall
+cycles in both fresh and interrupted-removal modes, without retries. All 24 passed.
+Each lane prepends its own launcher directory and asserts Arch execution events;
+that assertion failed against the initial, incorrectly inherited fixture PATH.
+The initial direct-native stress was weaker evidence and is superseded.
+Failed lanes retain their fixture plus
 operation/stage/path/stdout/stderr/exit/signal evidence. The original test also
 captures resource names on failure. Existing cleanup errors remain test failures.
 
@@ -52,7 +66,7 @@ dependency-cruiser 18.7.0. No dependency, override or lockfile change.
 | Affected subsystem max complexity / nesting     |                                 37 / 4 |                  27 / 3 |
 | Max nonblank/noncomment function length         |                                     98 |                      61 |
 | Subsystem modules / functions / classes         |                             4 / 23 / 1 |             12 / 33 / 1 |
-| Subsystem physical lines                        |                                    389 |                     508 |
+| Subsystem physical lines                        |                                    389 |                     510 |
 | Dependency graph                                |                 44 modules / 114 edges |  52 modules / 130 edges |
 | Cycles / violations                             |                                  0 / 0 |                   0 / 0 |
 
@@ -63,8 +77,13 @@ imports/lines expose responsibilities; no claim of lower raw coupling is made.
 Process consolidation removes duplicate PATH decision mutants/branches, not scope.
 
 Starting check: 334 passed / 31 explicit skips, ordinary test phase 88.57s;
-starting coverage: same counts, 86.76s. Measured coverage: 452 passed / 31 explicit
-skips, 68.80s. Timings reflect load and are not performance benchmarks.
+starting coverage: same counts, 86.76s. Final coverage: 455 passed / 31 explicit
+skips, 106.97s; final check: 455 / 31, 96.58s test phase. Wizard: 75 unit cases and
+15 real terminal scenarios, including partial-input interruption and an unowned
+collision failure. Timings reflect load and are not performance benchmarks.
+Analysis findings: 124 to 92 total; metric review triggers remain 37 (complexity /
+nesting / parameters / length: 8/11/3/15 to 9/10/3/15). New test/diagnostic lengths
+remain visible; source readability is not inferred from warning totals.
 Thin cli.ts and wizard/terminal.ts still show 0% in worker V8 despite real CLI and
 PTY tests. All production sources remain included. Numeric scopes add only
 measured CLI/Wizard modules; existing Core/lifecycle/process thresholds remain.

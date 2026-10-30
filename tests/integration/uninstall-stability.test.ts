@@ -84,6 +84,8 @@ it.skipIf('win32' !== process.platform)(
     const target = join(project, '.arch/bin/tool.exe');
     const initialized = await fixture.init(project, ['tool']);
     expect(initialized, initialized.stderr).toMatchObject({ code: 0 });
+    const ownedBytes = await readFile(target);
+    const manifestBytes = await readFile(join(project, '.arch/bootstrap.json'));
     // FileShare.ReadWrite deliberately withholds Delete. The readiness line is
     // emitted only after the handle is held; stdin releases it deterministically.
     const holder = start(
@@ -126,8 +128,8 @@ it.skipIf('win32' !== process.platform)(
       expect(removed, removed.stderr).toMatchObject({ code: 1, signal: null, stdout: '' });
       expect(removed.stderr).toContain(`Unable to remove managed file: ${target}`);
       expect(removed.stderr).toMatch(/EPERM|EACCES|EBUSY/);
-      expect(await readFile(join(project, '.arch/uninstall.json'), 'utf8')).toContain('files');
-      expect(await readFile(target)).not.toHaveLength(0);
+      expect(await readFile(join(project, '.arch/uninstall.json'))).toEqual(manifestBytes);
+      expect(await readFile(target)).toEqual(ownedBytes);
     } finally {
       holder.child.stdin.end('\n');
       const released = await holder.result;
@@ -136,6 +138,10 @@ it.skipIf('win32' !== process.platform)(
     // An explicit recovery request after release, never an automatic retry.
     const recovered = await run(process.execPath, [cli, 'uninstall'], project, fixture.env);
     expect(recovered, recovered.stderr).toMatchObject({ code: 0 });
+    await expect(readFile(target)).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(readFile(join(project, '.arch/uninstall.json'))).rejects.toMatchObject({
+      code: 'ENOENT',
+    });
     await fixture.dispose();
   },
 );

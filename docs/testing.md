@@ -28,11 +28,19 @@ presentation and Wizard decisions/workflow. It excludes real terminal tests from
 mutation, not from regression. See [quality gates](standards/quality-gates.md).
 
 `tests/integration/uninstall-stability.test.ts` runs three independent project lanes,
-four init/native/immediate-uninstall cycles each, without retries. Failed lanes retain
+four init/routed-native/immediate-uninstall cycles each, in both fresh and interrupted
+removal modes, without retries. Launcher PATH precedence and Arch execution events
+are asserted so native passthrough cannot masquerade as routing. Failed lanes retain
 their fixture and operation/stage/path/stderr/status/signal evidence. The Windows-only
 sharing test holds a managed launcher until an explicit stdin barrier releases it,
 verifies refusal/checkpoint retention, then requests recovery. A passing stress or
 sharing test does not resolve the historical unexplained uninstall failure.
+
+The subprocess helper also logs and saves nonzero direct CLI deinit/uninstall
+results under `reports/removal-diagnostics/` before assertions or cleanup. Regression
+and quality artifacts retain these records. Expected refusal/usage tests generate
+records too; correlate them with the test and expected status rather than treating
+every record as an incident. No environment values or manifest contents are dumped.
 
 Register trusted middleware using [the architecture contract](architecture.md).
 Tests/build configuration and dependency pins are the executable source of truth;
