@@ -1,6 +1,16 @@
 import { beforeAll, afterAll, expect, it } from 'vitest';
-import { writeFile, readFile, mkdir, unlink, copyFile, rename, chmod } from 'node:fs/promises';
+import {
+  writeFile,
+  readFile,
+  mkdir,
+  unlink,
+  copyFile,
+  rename,
+  chmod,
+  readdir,
+} from 'node:fs/promises';
 import { join, dirname, delimiter } from 'node:path';
+import assert from 'node:assert/strict';
 import { world, events, records, run, start, cli, mise } from '../support.js';
 
 let fixture: Awaited<ReturnType<typeof world>>;
@@ -30,7 +40,19 @@ it('bootstrap is idempotent, preserves existing user files, and supports arbitra
   expect((await fixture.invoke(fixture.B, 'arbitrary')).code).toBe(0);
   expect(await readFile(join(fixture.B, 'mise.toml'), 'utf8')).toContain('# user settings');
   const removed = await run(process.execPath, [cli, 'uninstall'], fixture.B, fixture.env);
-  expect(removed, removed.stderr).toMatchObject({
+  let diagnostics = removed.stderr;
+  if (0 !== removed.code) {
+    const resources = await readdir(join(fixture.B, '.arch')).catch((error: unknown) =>
+      String(error),
+    );
+    diagnostics = JSON.stringify({
+      operation: 'uninstall after native close',
+      project: fixture.B,
+      ...removed,
+      resources,
+    });
+  }
+  expect(removed, diagnostics).toMatchObject({
     code: 0,
   });
   expect(await readFile(join(fixture.B, '.arch/harness.toml'), 'utf8')).toBe(customHarness);
@@ -76,7 +98,8 @@ it('resumes interrupted uninstall through the CLI and restores native command ro
   const native = await run('claude', ['after-uninstall'], project, env);
   expect(native, native.stderr).toMatchObject({ code: 0 });
   expect(events(native)).toEqual([]);
-  expect(JSON.parse(native.stdout.trim()).args).toEqual(['after-uninstall']);
+  const nativeOutput: unknown = JSON.parse(native.stdout.trim());
+  expect(nativeOutput).toMatchObject({ args: ['after-uninstall'] });
   expect(await run(process.execPath, [cli, 'uninstall'], project, env)).toMatchObject({ code: 0 });
 });
 
@@ -91,12 +114,18 @@ it.skipIf('win32' === process.platform)(
     invocation.child.stdin.end();
     try {
       await waitForOutput(invocation, 'native ready');
-      const native = JSON.parse(invocation.output().stdout.split(/\r?\n/)[0]!);
       invocation.child.kill('SIGTERM');
       const result = await invocation.result;
       expect(result.stderr).toContain('ignored SIGTERM');
       expect(result.stderr).toContain('[arch:demo] cleanup');
       expect(result.code).toBe(143);
+      // stderr readiness and stdout are independent pipes. Decode the PID only
+      // after close guarantees the complete stdout, not when stderr arrives.
+      const line = result.stdout.split(/\r?\n/)[0];
+      assert(line !== undefined);
+      const native: unknown = JSON.parse(line);
+      assert(null !== native && 'object' === typeof native && 'pid' in native);
+      assert('number' === typeof native.pid);
       expect(() => process.kill(native.pid, 0)).toThrow();
     } finally {
       invocation.child.kill('SIGKILL');
@@ -229,7 +258,8 @@ it('runs the extensionless POSIX fixture as CommonJS inside this ESM repository'
   await copyFile('tests/fixtures/native.cjs', file);
   const result = await run(process.execPath, [file, 'fixture-argument'], fixture.A, fixture.env);
   expect(result, result.stderr).toMatchObject({ code: 0 });
-  expect(JSON.parse(result.stdout.trim()).args).toEqual(['fixture-argument']);
+  const output: unknown = JSON.parse(result.stdout.trim());
+  expect(output).toMatchObject({ args: ['fixture-argument'] });
 });
 
 it('mise activates the project-local launchers and leaves unconfigured projects native', async () => {

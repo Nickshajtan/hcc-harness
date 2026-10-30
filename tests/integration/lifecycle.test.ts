@@ -99,10 +99,12 @@ it.each(checkpoints)(
       });
       // At a publication checkpoint both names refer to the same complete bytes.
       if (checkpoint === `published:${executable('gemini')}`) {
-        const journal = JSON.parse(await readFile(join(root, '.arch/routing.json'), 'utf8'));
+        const journal = journalFrom(await readFile(join(root, '.arch/routing.json')));
+        const addition = journal.additions[executable('gemini')];
+        assert('string' === typeof addition);
         expect((await stat(join(root, executable('gemini')))).nlink).toBeGreaterThanOrEqual(2);
         expect(await readFile(join(root, executable('gemini')))).toEqual(
-          Buffer.from(journal.additions[executable('gemini')], 'base64'),
+          Buffer.from(addition, 'base64'),
         );
       }
       child.kill('SIGKILL');

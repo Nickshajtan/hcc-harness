@@ -123,7 +123,8 @@ it('dispatches deterministic reconciliation through the npm executable', async (
 });
 
 it('retains non-interactive confirmation and prevents recursive route creation', async () => {
-  expect(JSON.parse((await arch(['status', '--json'])).stdout).state).toBe('initialized');
+  const status: unknown = JSON.parse((await arch(['status', '--json'])).stdout);
+  expect(status).toMatchObject({ state: 'initialized' });
   expect((await arch(['deinit'])).code).toBe(2);
   const before = await readFile(join(fixture.A, '.arch/bootstrap.json'));
   expect((await arch(['route', 'add', 'arch'])).code).toBe(1);

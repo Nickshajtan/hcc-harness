@@ -3,6 +3,7 @@ import { afterEach, expect, it } from 'vitest';
 import { mkdir, mkdtemp, readFile, rm, writeFile, rename, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
+import assert from 'node:assert/strict';
 import { setup as m1Setup } from '../fixtures/m1-setup.js';
 import {
   inspectInstallation,
@@ -28,7 +29,10 @@ it.each([true, false])(
       await writeFile(join(root, '.arch/harness.toml'), 'schema=1\nmiddleware=[]\n');
     }
     await m1Setup(root, ['Claude', 'my_tool-2']);
-    const state = JSON.parse(await readFile(join(root, '.arch/bootstrap.json'), 'utf8'));
+    const state: unknown = JSON.parse(await readFile(join(root, '.arch/bootstrap.json'), 'utf8'));
+    // Inspect the frozen generator independently of the production parser.
+    assert(isRecord(state));
+    assert(isRecord(state.files));
     expect(Object.keys(state).sort()).toEqual(['createdHarness', 'files']);
     expect(state.createdHarness).toBe(created);
     expect(Object.keys(state.files)).toHaveLength('win32' === process.platform ? 6 : 4);
@@ -58,6 +62,10 @@ it.each([true, false])(
     expect(await readFile(join(root, '.arch/harness.toml'), 'utf8')).toContain('# user edit');
   },
 );
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return null !== value && 'object' === typeof value && !Array.isArray(value);
+}
 
 it('does not require a generated harness to remain present for route integrity or removal', async () => {
   await mkdir('.test-state', { recursive: true });
