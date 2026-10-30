@@ -1,5 +1,14 @@
 import { afterEach, beforeEach, expect, it } from 'vitest';
-import { mkdtemp, mkdir, writeFile, chmod, rm, symlink } from 'node:fs/promises';
+import {
+  mkdtemp,
+  mkdir,
+  writeFile,
+  chmod,
+  rm,
+  symlink,
+  realpath,
+  readFile,
+} from 'node:fs/promises';
 import { resolve, join, delimiter } from 'node:path';
 import { nativeEnvironment, resolveExecutable, routerMarker } from '../../src/process.js';
 
@@ -71,5 +80,115 @@ it.skipIf('win32' === process.platform)(
     await expect(
       resolveExecutable('tool', root, { PATH: [alias, native].join(delimiter) }),
     ).resolves.toBe(file);
+  },
+);
+
+it.each(['../tool', '/tool', 'a/b', 'a\\b', '', '-tool', 'tool name', 'tool;echo'])(
+  'rejects executable path or invalid name %j before lookup',
+  async (name) => {
+    await expect(resolveExecutable(name, root, {})).rejects.toThrow(
+      'Expected an executable name without paths',
+    );
+  },
+);
+
+it('does not interpret empty PATH entries as the working directory', async () => {
+  await candidate(root);
+  for (const PATH of ['', delimiter, delimiter + delimiter]) {
+    await expect(resolveExecutable('tool', root, { PATH })).rejects.toThrow(
+      'Native executable not found: tool',
+    );
+  }
+  await expect(resolveExecutable('tool', root, {})).rejects.toThrow(
+    'Native executable not found: tool',
+  );
+});
+
+it('skips directory candidates without losing later PATH candidates', async () => {
+  const directory = join(root, 'directory');
+  await mkdir(join(directory, command), { recursive: true });
+  const file = await candidate(join(root, 'native'));
+  await expect(
+    resolveExecutable('tool', root, {
+      PATH: [directory, join(root, 'native')].join(delimiter),
+    }),
+  ).resolves.toBe(file);
+});
+
+it('retains mixed-case PATH keys and exact non-router relative entries without mutating input', async () => {
+  const file = await candidate(root);
+  const env = Object.freeze({ Path: ['', '.', 'missing', ''].join(delimiter), EMPTY: '' });
+  const filtered = await nativeEnvironment(env, root);
+  expect(filtered).toEqual({ Path: ['.', 'missing'].join(delimiter), EMPTY: '' });
+  expect(filtered).not.toBe(env);
+  await expect(resolveExecutable('tool', root, env)).resolves.toBe(file);
+  expect(await nativeEnvironment({ EMPTY: '' }, root)).toEqual({ EMPTY: '', PATH: '' });
+});
+
+it('propagates unexpected marker-read failures without silently selecting another executable', async () => {
+  const directory = join(root, 'broken');
+  await candidate(directory);
+  await mkdir(join(directory, '.arch-router'));
+  // Node reports EINVAL on this Windows filesystem and EISDIR on POSIX.
+  // Compare against the actual filesystem failure, never a generic lookup miss.
+  const failure: unknown = await readFile(join(directory, '.arch-router')).catch(
+    (error: unknown) => error,
+  );
+  if (!(failure instanceof Error) || !('code' in failure)) {
+    throw new Error('Expected a filesystem error reading a directory');
+  }
+  await expect(nativeEnvironment({ PATH: directory }, root)).rejects.toMatchObject({
+    code: failure.code,
+  });
+  await expect(resolveExecutable('tool', root, { PATH: directory })).rejects.toMatchObject({
+    code: failure.code,
+  });
+});
+
+it('skips non-directory PATH entries and selects PATH rather than an earlier unrelated key', async () => {
+  const file = await candidate(join(root, 'native'));
+  const entry = join(root, 'not-a-directory');
+  await writeFile(entry, 'unrelated file');
+  const env = { OTHER: entry, PATH: [entry, join(root, 'native')].join(delimiter) };
+  expect(await nativeEnvironment(env, root)).toEqual(env);
+  expect(await resolveExecutable('tool', root, env)).toBe(file);
+});
+
+it('retains the exact router marker protocol bytes', () => {
+  expect(routerMarker).toBe('arch-harness-router-v1\n');
+});
+
+it.skipIf('win32' === process.platform)(
+  'skips non-executable files and resolves native symlink identity',
+  async () => {
+    const denied = join(root, 'denied');
+    await chmod(await candidate(denied), 0o644);
+    const file = await candidate(join(root, 'native'));
+    const alias = join(root, 'alias');
+    await mkdir(alias);
+    await symlink(file, join(alias, command));
+    await expect(
+      resolveExecutable('tool', root, { PATH: [denied, alias].join(delimiter) }),
+    ).resolves.toBe(await realpath(file));
+  },
+);
+
+it.skipIf('win32' !== process.platform)(
+  'honors PATHEXT order, case-insensitive keys and explicit extensions',
+  async () => {
+    await writeFile(join(root, 'tool.cmd'), 'fixture');
+    const exe = await candidate(root);
+    await expect(
+      resolveExecutable('tool', root, { Path: root, PathExt: '.IGNORED;.CMD;.EXE' }),
+    ).resolves.toBe(join(root, 'tool.cmd'));
+    await expect(
+      resolveExecutable('tool', root, { Path: root, PathExt: '.EXE;.CMD' }),
+    ).resolves.toBe(exe);
+    await expect(resolveExecutable('tool.cmd', root, { PATH: root, PATHEXT: '' })).resolves.toBe(
+      join(root, 'tool.cmd'),
+    );
+    await expect(resolveExecutable('tool', root, { PATH: root, PATHEXT: '' })).rejects.toThrow(
+      'Native executable not found: tool',
+    );
   },
 );

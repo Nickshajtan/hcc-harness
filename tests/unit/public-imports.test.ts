@@ -2,9 +2,16 @@ import { expect, it } from 'vitest';
 import * as core from '../../src/core.js';
 import * as lifecycle from '../../src/lifecycle.js';
 import * as setup from '../../src/setup.js';
+import * as nativeProcess from '../../src/process.js';
 
 it('preserves the established runtime export surfaces', () => {
   expect(Object.keys(core).sort()).toEqual(['defaultRegistry', 'execute']);
+  expect(Object.keys(nativeProcess).sort()).toEqual([
+    'launch',
+    'nativeEnvironment',
+    'resolveExecutable',
+    'routerMarker',
+  ]);
   expect(Object.keys(lifecycle).sort()).toEqual([
     'addRoutes',
     'configuredRoutes',

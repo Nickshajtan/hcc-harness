@@ -56,3 +56,18 @@ test('lifecycle decision gates reject survivors and timeout-only reports', () =>
     }
   }
 });
+
+test('every measured process scope rejects survivors and timeout-only evidence', () => {
+  for (const file of [
+    'src/process/native-environment.ts',
+    'src/process/executable-resolver.ts',
+    'src/process/windows-npm-shim.ts',
+    'src/process/launch.ts',
+    'src/process/child-lifecycle.ts',
+  ]) {
+    for (const status of ['Survived', 'Timeout']) {
+      const scopes = mutationEvidence({ files: { [file]: { mutants: [{ status }] } } });
+      assert.throws(() => enforceMutation(scopes), /below (85|90)%/);
+    }
+  }
+});

@@ -24,6 +24,16 @@ export const pilots = {
       'src/lifecycle/recovery-validation.ts',
     ],
   },
+  process: {
+    report: 'reports/mutation-process/mutation.json',
+    files: [
+      'src/process/native-environment.ts',
+      'src/process/executable-resolver.ts',
+      'src/process/windows-npm-shim.ts',
+      'src/process/launch.ts',
+      'src/process/child-lifecycle.ts',
+    ],
+  },
 };
 
 export function mutationEvidence(report) {
@@ -87,6 +97,11 @@ export function enforceMutation(scopes, expectedFiles = []) {
     'src/lifecycle/ownership.ts': 90,
     'src/lifecycle/routing-journal.ts': 85,
     'src/lifecycle/recovery-validation.ts': 90,
+    'src/process/native-environment.ts': 90,
+    'src/process/executable-resolver.ts': 85,
+    'src/process/windows-npm-shim.ts': 90,
+    'src/process/launch.ts': 85,
+    'src/process/child-lifecycle.ts': 90,
   };
   for (const scope of scopes) {
     const target = minimum[scope.file.replaceAll('\\', '/')];

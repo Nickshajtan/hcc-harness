@@ -29,7 +29,9 @@ export function terminalInteraction() {
     write: (message: string) => {
       console.log(message);
     },
-    close: () => terminal.close(),
+    close: () => {
+      terminal.close();
+    },
   };
 }
 export async function confirmRemoval(root: string, ui: Interaction): Promise<boolean> {

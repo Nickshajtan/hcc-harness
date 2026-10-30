@@ -114,9 +114,15 @@ The public `core.ts` export facade preserves imports; `core/index.ts` owns
 discovery/passthrough. The internal execution
 session coordinates configured stages and owns per-run resources. Failure accumulation
 is a separate ordered state object; environment composition is a deterministic function.
-Keep process resolution/cancellation in process.ts and hook dispatch/cleanup in the
+Keep process resolution/cancellation behind process.ts and hook dispatch/cleanup in the
 existing pipeline. Do not bypass those contracts through session-specific alternatives.
 See [the current responsibility map](../architecture.md#lifecycle-and-contracts).
+
+The process facade forwards to focused environment, resolver, Windows shim, launch
+and child-lifecycle modules. Mutable cancellation state belongs to one child;
+resolution/adaptation remain functions. Process infrastructure MUST NOT import Core,
+lifecycle or setup coordinators. Generic Core MUST NOT import Windows shim internals.
+Do not replace direct-child settlement with process-tree management or runtime discovery.
 
 ## Lifecycle ownership boundaries
 

@@ -54,10 +54,10 @@ describe.skipIf(!enabled)(
         ['24', process.execPath],
         ['20', node20!],
         ['22', node22!],
-      ]) {
+      ] as const) {
         const dir = join(f.root, 'Node ' + name);
         await mkdir(dir);
-        await copyFile(source!, join(dir, 'node.exe'));
+        await copyFile(source, join(dir, 'node.exe'));
       }
       path24 = join(f.root, 'Node 24/node.exe');
       path20 = join(f.root, 'Node 20/node.exe');

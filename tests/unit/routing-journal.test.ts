@@ -68,6 +68,17 @@ it.each([
   expect(() => parse(value)).toThrow('Invalid routing journal');
 });
 
+it.each([true, 1, 'journal', [1], { schema: 1 }, { ...journal(), additions: false }])(
+  'retains the journal-header diagnostic for external JSON shape %j',
+  (value) => {
+    expect(() => parse(value)).toThrow('Invalid routing journal');
+  },
+);
+it.each(['before', 'after'] as const)('retains missing %s manifest failure precedence', (field) => {
+  const value = { ...journal(), [field]: undefined };
+  expect(() => parse(value)).toThrow(TypeError);
+});
+
 const invalid: { name: string; change: (value: RoutingJournal) => void; message: string }[] = [
   {
     name: 'ownership',

@@ -6,7 +6,7 @@
     "package.json",
     "tsconfig.json",
     "vitest.core-mutation.config.ts",
-    "src/*.ts",
+    "src/**/*.ts",
     "tests/unit/core.test.ts",
     "tests/unit/execution-policy.test.ts",
     "tests/unit/environment.test.ts",

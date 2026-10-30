@@ -102,6 +102,7 @@ async function inspectOwnership(root: string, status: InstallationStatus) {
   const [bootstrap, removal, routing] = await Promise.all(
     [statePath, uninstallPath, routingPath].map((path) => readAt(root, path)),
   );
+  const recorded = removal ?? bootstrap;
   status.recoveryPending = removal !== undefined || routing !== undefined;
   if (
     (bootstrap !== undefined && removal !== undefined) ||
@@ -123,8 +124,8 @@ async function inspectOwnership(root: string, status: InstallationStatus) {
     status.warnings.push(
       `Resume with configure ${status.desiredRoutes.join(' ')} or deinit --yes.`,
     );
-  } else if (removal !== undefined || bootstrap !== undefined) {
-    const state = stateFrom((removal ?? bootstrap)!);
+  } else if (recorded !== undefined) {
+    const state = stateFrom(recorded);
     status.managedPaths = Object.keys(state.files);
     if (removal !== undefined) {
       status.pendingOperation = 'uninstall';

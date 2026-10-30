@@ -1,179 +1,180 @@
 # Quality baseline and remaining debt
 
-This is a maintained baseline. Current refactor starts at
-`86eeb4c8de7235b00a8066e12339db385d9cb73b` (main after M2.4.1).
-Core consolidation: `a5418ce`; lifecycle extraction: `0910080`; characterization:
-`b1894b6` and `bcbbbba`; mutation integration: `d04cae2`. Final documentation/evidence
-commit is recorded in the PR. Measurements below are executed Windows x64 results on Node 24.19.0;
-hosted results are identified separately. No production dependency, public contract,
-launcher, ownership/journal format or process policy changes.
+Baseline: `3e86a4b22388cb0cc7faeff744ec17e967c6224b`, main after M2.4.2.
+Measurements are executed Windows x64 / Node 24.19.0 results unless identified
+otherwise. Final revision and current CI are in [PR #13](https://github.com/Nickshajtan/hcc-harness/pull/13).
+Human comprehension and preserved contracts take priority over metrics.
 
-## Tools and reproducible checks
+## Tools and commands
 
-Pinned tools remain TypeScript 6.0.3, ESLint 10.12.0, typescript-eslint 8.71.2,
-Prettier 3.9.10, Vitest/V8 5.0.5, Stryker core/runner 10.1.1 and
-dependency-cruiser 18.7.0. No dependencies were added or updated.
+Pins unchanged: TypeScript 6.0.3, ESLint 10.12.0, typescript-eslint 8.71.2,
+Prettier 3.9.10, Vitest/V8 5.0.5, Stryker core/runner 10.1.1,
+dependency-cruiser 18.7.0. No dependency, override or lockfile change.
 
-- `npm run check`: formatting, types, lint, context-based warning ratchet, tooling
-  tests, dependency checks, build and ordinary regression.
-- `npm run lint:report` / `npm run report:dependencies`: JSON under reports/.
-- `npm run test:coverage`: V8 JSON/summary/HTML/LCOV plus test JSON under coverage/.
-- `npm run test:mutation`, `npm run test:mutation:core`,
-  `npm run test:mutation:lifecycle`, `npm run test:mutation:check`: Config, complete Core
-  and complete manifest/ownership/journal/recovery-validation scopes;
-  JSON/HTML under reports/mutation, reports/mutation-core and reports/mutation-lifecycle.
-- `npm run test:acceptance`, `npm run test:wizard`: real routing and terminal contracts.
+Run `npm run check`, `npm run lint:report`, `npm run report:dependencies`,
+`npm run test:coverage`, `npm run test:mutation`, `npm run test:mutation:core`,
+`npm run test:mutation:lifecycle`, `npm run test:mutation:process`,
+`npm run test:mutation:check`, `npm run test:acceptance`, `npm run test:wizard`.
+Machine-readable reports live under coverage/ and reports/mutation*.
 
-## Reproduced before / after
+## Reproduced measurements
 
-| Measurement                                   |                  Starting main |                               Current local result |
-| --------------------------------------------- | -----------------------------: | -------------------------------------------------: |
-| Ordinary lint errors / warnings               |                        0 / 116 |      0 / 116; only existing fingerprints relocated |
-| Analysis warnings including metrics           |                            167 |                                                165 |
-| Complexity / depth / params / length findings |               12 / 18 / 3 / 18 |                                   11 / 18 / 3 / 17 |
-| Global V8 lines                               |               76.26% (649/851) |                                   78.06% (669/857) |
-| Global V8 branches                            |               68.47% (404/590) |                                   70.67% (417/590) |
-| Lifecycle + setup lines                       |               91.64% (329/359) |                                   95.61% (349/365) |
-| Lifecycle + setup branches                    |               86.21% (225/261) |                                   91.18% (238/261) |
-| Ordinary tests                                | 181 passed / 30 existing skips |                         258 passed / same 30 skips |
-| Dependency graph                              |   28 modules / 51 dependencies | 39 modules / 98 dependencies; no cycles/violations |
+| Measurement                                   |                 Starting main |               Measured result |
+| --------------------------------------------- | ----------------------------: | ----------------------------: |
+| Ordinary lint errors / warnings               |                       0 / 116 |                        0 / 87 |
+| Analysis warnings including metrics           |                           165 |                           124 |
+| Complexity / depth / params / length findings |              11 / 18 / 3 / 17 |               8 / 11 / 3 / 15 |
+| Global V8 lines                               |              78.06% (669/857) |              83.06% (731/880) |
+| Global V8 branches                            |              70.67% (417/590) |              76.21% (455/597) |
+| Process V8 lines                              |               68.29% (84/123) |                100% (141/141) |
+| Process V8 branches                           |                62.06% (54/87) |                97.82% (90/92) |
+| Dependency graph                              |  39 modules / 98 dependencies | 44 modules / 114 dependencies |
+| Cycles / violations                           |                         0 / 0 |                         0 / 0 |
+| Process maximum complexity / nesting          |                        16 / 5 |                         8 / 3 |
+| Process maximum function length               | 132 nonblank/noncomment lines |                            37 |
+| Process maximum parameters                    |                             5 |      5 (unchanged public API) |
+| Process functions / classes / physical lines  |                  15 / 0 / 218 |                  24 / 1 / 317 |
 
-Coverage took 54.50 seconds with other work running. The final full check passed
-258 tests in 49.43 seconds; an earlier run took 97.37 seconds under heavier concurrent
-load. These are observed times, not performance benchmarks.
-All four Core responsibility gates retained their exact counts after consolidation:
-114/118 assertion kills, 96.61%, zero timeouts/errors. Config remains 87 killed,
-1 survivor, 5 timeouts (93.55% assertion-only); Middleware 92/96 and Events 15/15.
+Full check: 334 passed / 31 explicit skips, 53.53s; gated coverage passed the same
+tests in 62.37s. Starting main:
+258 / 30 skips, 98.15s; coverage 105.63s. Windows skips include a new POSIX permission
+case; POSIX skips the new actual-Windows PATHEXT case. Mandatory shared runtime tests
+permit no skips. Times reflect concurrent load, not performance benchmarks.
+Final-head counts are in the PR.
 
-## Lifecycle responsibilities and current evidence
+All five process files now enforce >=95% lines / >=90% branches. Child lifecycle,
+environment and launch: 100% / 100%; resolver: 100% / 96.15%; shim: 100% / 95%.
+CLI/commands remain 0% in worker V8 despite real subprocess tests. No production
+source is excluded; global targets remain debt outside achieved scopes.
 
-Before: lifecycle.ts combined manifest layout, journal parsing, staging/publication,
-recovery validation/effects, planning, public operations and status observations;
-setup.ts combined renderer/init, manifest parsing, safe reads, hashes and uninstall.
-Now `lifecycle.ts` and `core.ts` forward existing public exports. `core/` groups its
-four responsibility files. `setup.ts` retains initialization and import-relative
-launcher rendering; `lifecycle/` has ten cohesive modules described in the
-[architecture map](../architecture.md#m2-project-lifecycle). No new classes or
-generic transaction/filesystem abstractions. Five focused local helpers separate
-journal header/file validation and inspection ownership/activation/config diagnostics.
+## Responsibility and contract review
 
-The original lifecycle maximum complexity was 26, nesting 3, function length 107
-nonblank/noncomment lines; across its replacements the maxima are 14, 3 and 47.
-Journal parsing decreased from complexity 20 to at most 9 across its helpers.
-Inspection decreased from 26 to at most 13 across its helpers. Recovery effect
-ordering (complexity 14), recovery validation (13), setup (15 / 72 lines) and
-uninstall (14) retain their deliberate coordination debt. Setup/removal were not
-reordered to lower metrics. Whole-subsystem nesting remains 3; maximum complexity
-falls from 26 to 15 and function length from 107 to 72. The original files totaled
-754 physical lines; extraction adds import/type boundaries and five helpers rather
-than reducing total text. Dependency count also increases; no claim of lower raw coupling.
+Before: process.ts mixed router detection, PATH/PATHEXT lookup, npm adaptation,
+native Node selection, spawn, cancellation, escalation and settlement. Now its
+export-only facade preserves every public name and LaunchResult. Five internal
+modules own environment, resolver, Windows shim, launch and child lifecycle.
+One ChildExecution owns per-child state/listeners/timer; stateless policies remain
+functions. See the [map](../architecture.md#processes-and-platforms). More imports and
+functions expose responsibilities; no claim of fewer lines or lower raw coupling.
 
-Characterization established before extraction: exact checkpoint sequence,
-retained launcher bytes, unchanged-route no-op, read-only inspection/orphan-stage
-refusal, modified retained-file recovery refusal and historical metadata/order.
-New focused tests cover journal headers/payloads, mixed layouts, invalid paths and
-digests, symlinks, absent versus changed resources, bootstrap mismatch, conflicts,
-private-stage corruption and validation idempotency. Rollback tests preserve reverse
-deletion and current cleanup-error precedence; rename failure retains uninstall
-ownership. Public runtime export names are asserted. Frozen M1 source is unchanged.
-An AST comparison of 18 original function bodies found no changes beyond formatting
-and comments, including renderer, init, uninstall, route planning and recovery effects.
+Characterization preceded extraction: immutable argv/env, inherited streams,
+shell:false, signal policy, concurrent isolation, callback races, PATH precedence,
+empty/relative entries, files/permissions/aliases and PATHEXT. Shim tests protect
+adjacent/PATH Node, recursion, anchors/spacing, invalid targets and preparation abort.
+Resource assertions cover exactly-once disposal, unref/escalation, error identity
+and actual FileHandle.close. Real Windows npm/console, subprocess, terminal and
+interruption tests remain authoritative; platform simulations supplement them.
 
-Real Windows interruption coverage now has 18 scenarios: all existing checkpoints
-plus test-only filesystem boundaries before journal publication, partial private
-write, before removals, stage cleanup and after journal removal, plus exe/shim
-staging/publication/removal. Parent processes force-kill actual workers. Partial
-bytes are retained until explicitly restored by the fixture owner; orphan staging
-requires explicit fixture removal. No new production checkpoints or retry logic.
+## Mutation baseline
 
-| Decision scope      | Total | Killed | Survived | Uncovered | Timeout | Errors | Assertion-only |
-| ------------------- | ----: | -----: | -------: | --------: | ------: | -----: | -------------: |
-| manifest            |   193 |    183 |        8 |         2 |       0 |      0 |         94.82% |
-| ownership           |    39 |     39 |        0 |         0 |       0 |      0 |           100% |
-| routing journal     |    92 |     90 |        2 |         0 |       0 |      0 |         97.83% |
-| recovery validation |    48 |     48 |        0 |         0 |       0 |      0 |           100% |
+All process implementation modules are mutated in full. No mutator/range exclusions.
+Counts below are assertion kills; timeouts earn no credit.
 
-Pilot: 74 tests, 115 seconds while other suites ran. Total 360/372 assertion kills,
-96.77%; no excluded mutators/branches. The initial pilot was 337/369, 91.33%; useful
-digest anchors, mixed pairs and default identity assertions killed genuine gaps.
-Gates: manifest/journal 85%, ownership/recovery validation 90%. All four also meet
-and enforce 95% line / 90% branch coverage. Existing gates remain unchanged.
+| Process scope   | Total | Windows killed / survived / uncovered | Ubuntu killed / survived / uncovered | Gate |
+| --------------- | ----: | ------------------------------------: | -----------------------------------: | ---: |
+| Child lifecycle |   101 |                  100 / 1 / 0 (99.01%) |                 100 / 1 / 0 (99.01%) |  90% |
+| Resolver        |    84 |                   76 / 8 / 0 (90.48%) |                  80 / 4 / 0 (95.24%) |  85% |
+| Launch          |    18 |                   17 / 1 / 0 (94.44%) |                  17 / 1 / 0 (94.44%) |  85% |
+| Environment     |    38 |                   37 / 1 / 0 (97.37%) |                  37 / 1 / 0 (97.37%) |  90% |
+| Windows shim    |    79 |                   77 / 1 / 1 (97.47%) |                  77 / 1 / 1 (97.47%) |  90% |
 
-Survivors reviewed: platform-constant identity/default mutants are equivalent on
-one host and require the other platform; upper/lower casing gives equivalent
-duplicate detection; number-to-string digest coercion and numeric UUID IDs outside
-the validated domain retain type-check mutants; regex prefix mutants encounter
-later route-name validation; a duplicate-Windows-route branch is unreachable after
-validateCommands already rejects duplicates (two uncovered mutants). The journal
-path constant is not used by the pure journal pilot, although real integration
-tests verify that exact on-disk path. No exclusions were added. Effect coordinators,
-routing planning and initialization/removal mutation remain NOT TESTED by this
-focused pilot; real filesystem and interruption tests cover those contracts.
+Windows: 307/320, 95.94%, and Ubuntu: 311/320, 97.19%; zero timeouts/errors.
+The Windows pilot took 257s. Initial pilot: 249 killed / 47 survived /
+6 uncovered / 8 timeouts, 310 total, 80.32% assertion-only versus 82.90% Stryker, 380s.
+Second: 293/319, 91.85%, zero timeouts/errors, 283s. Real disposal/cancellation/lookup
+gaps were closed; scope did not shrink. Gates followed executed measurements.
 
-Remaining readability debt: original typed assertion at the journal JSON boundary,
-two non-null assertions justified by surrounding state checks, numeric staging-name
-interpolation, and the explicitly listed coordinator complexity. These findings
-were moved in the warning baseline without rule/message/context changes. No broad
-suppression or new warning fingerprint was accepted. Dependency rules now reject
-back-imports from manifest/ownership/journal into lifecycle/setup coordinators.
+Survivors reviewed: selecting SIGTERM equals its fallback; empty read encoding yields
+equivalent regex string coercion; code-less errno fallback literals stay outside miss
+codes. String.split always returns an element, so the empty shebang fallback is
+unreachable (one uncovered mutant). Platform/access and PATH casing differ by host.
+Later mixed-case resolver and actual handle-close assertions address genuine Ubuntu
+survivors; final artifacts record their effect. Missing-PATH mutants can invent a
+speculative directory: retain the real missing/empty PATH contract without manufacturing
+mutant-specific fixtures.
 
-Readability review: public operations start at lifecycle/index.ts; recorded paths
-and hashes at manifest/ownership; route classification at routing-plan; on-disk
-recovery permission at recovery-validation; exact writes/deletes/checkpoints at
-recovery; inspection never calls mutators. Renderer location is unchanged to keep
-captured CLI/vendor paths identical. Recovery order is visible top-to-bottom.
+| Existing scope           | Windows killed / total | Assertion-only | Other outcomes                                           |
+| ------------------------ | ---------------------: | -------------: | -------------------------------------------------------- |
+| Config                   |                  87/93 |         93.55% | 1 survivor, 5 timeouts; Stryker 98.92%                   |
+| Core index / environment |             18/18 each |           100% | none                                                     |
+| Core failures            |                  19/20 |            95% | equivalent initial-stage survivor                        |
+| Core session             |                  59/62 |         95.16% | 1 survivor / 2 uncovered defensive branches              |
+| Middleware               |                  92/96 |         95.83% | 4 survivors; Ubuntu 90 killed / 5 survived / 1 uncovered |
+| Events                   |                  15/15 |           100% | none                                                     |
+| Manifest                 |                183/193 |         94.82% | 8 survived / 2 uncovered; Ubuntu 180/193                 |
+| Ownership                |                  39/39 |           100% | none                                                     |
+| Journal                  |                115/117 |         98.29% | 2 survivors                                              |
+| Recovery validation      |                  48/48 |           100% | none                                                     |
 
-The first baseline mutation attempt hit sandbox-denied Windows taskkill; an
-unchanged elevated rerun completed (79 seconds), and relocated Core completed in
-64 seconds. Existing Stryker node_modules junction warnings remain nonfatal; valid
-reports contain zero infrastructure errors. No dependency/security changes.
+Lifecycle: 385/397, 96.98%, zero timeouts/errors, 267s under load. Core counts match
+starting main exactly; latest run 78s versus baseline 63s. Config took 45s.
+The hosted quality job ran all four pilots in 151s and the job in 200s.
+Existing 15-minute budget and three-platform workflows are unchanged.
 
-## Core gates and remaining debt
+## Debt disposition and enforcement
 
-Core facade, environment and failure policy remain 100% lines/branches; session
-98.21%/91.66%. The combined scope remains 98.75% lines / 96.29% branches. Mutation:
-facade 18/18, environment 18/18, failures 19/20, session 59/62 assertion kills.
-Session survivors/uncovered cases remain redundant terminal-result guarding and
-defensive finalize-hook infrastructure rejection. Failure collector initial-stage
-label is overwritten on the first failure. No moved source was dropped from gates.
+FIX NOW: journal JSON now enters as unknown with structural/payload narrowing;
+129 old/new outcomes matched metadata/order, errors and diagnostics. Historical
+acceptance was not strengthened. Two inspection/removal assertions use named recorded
+bytes; staging index conversion preserves bytes; wizard close uses an explicit void
+block. TTY coercions were redundant in a truthiness-only predicate; noninteractive
+undefined remains falsey. Renderer location/import.meta.url and recovery ordering remain.
 
-Config >=90%, Middleware >=85%, Events >=95% and each Core file >=85% assertion-only
-gates are unchanged. Ordinary observer failures remain isolated. Terminal publication
-infrastructure failure still takes precedence while disposing the bus. Core's two
-stateful objects remain execution-local; process/middleware/event implementations
-and public contracts were not changed.
+Additional fixture fixes: explicit UTF-8 Buffer decoding, runtime-copy tuple typing,
+numeric diagnostic conversion and validated partial-stage journal payloads. Empty
+MISE_BIN/SystemRoot still select their existing fallbacks; intentional no-op test
+handlers remain explicit debt rather than receiving filler code to satisfy metrics.
 
-CLI/commands remain 0% under ordinary worker V8 coverage despite real subprocess
-tests. Prior autoAttachSubprocess experiments could not collect isolated environments;
-no runtime environment injection or artificial private-helper tests were added.
-Global targets remain debt outside the measured enforced scopes. Process native
-resolution/cancellation and commands/wizard remain separately authorized future
-refactoring candidates. Initialization/removal and routing effect mutation can expand
-after its cost and isolation are measured; do not replace real interruption tests.
+Promoted globally: prefer-optional-chain, no-confusing-void-expression,
+no-unnecessary-type-conversion and restrict-template-expressions. Test plus operands
+are also errors now. Production no-unnecessary-condition and
+Core/lifecycle/process no-non-null-assertion now block. Ratchet only pruned.
+87 remaining warnings: 32 non-null, 24 unsafe member, 9 unsafe assignment,
+7 unsafe argument, 7 unnecessary condition, 2 each unsafe return/nullish, and
+4 intentional empty functions. Only two wizard non-null findings remain
+in production; the rest are test-boundary debt. Identical-context fingerprint limits remain.
 
-The warning ratchet still tracks file/rule/message/context and multiplicity rather
-than numeric line shifts; identical contexts remain indistinguishable. No new
-dependency or override. Existing dev-only Stryker -> typed-rest-client -> qs moderate
-advisories remain unresolved from the security baseline; no new clean-audit claim.
+DEFER: wizard desiredRoutes/status typing; cohesive subprocess JSON boundary validation;
+correlated event generic assertions; Core defensive infrastructure survivors;
+lifecycle effect/planning/init/removal mutation; CLI subprocess instrumentation;
+setup renderer relocation/B2. Commands/wizard workflow complexity is next.
+REJECT: broad disables, impossible mutant-specific states, arbitrary thresholds,
+generic process frameworks, renderer URL moves or weakened recovery.
 
-## Cross-platform evidence
+Security audit (2026-10-30): two moderate vulnerable dev dependency entries through
+Stryker 10.1.1 -> typed-rest-client 2.3.1 -> qs 6.15.1. Registry inspection found no
+newer compatible typed-rest-client 2.x; it pins qs. No forced major update, override
+or audit disabling. TLS succeeded using Node's system CA store. This is not a clean
+audit. Native production execution does not import Stryker.
 
-Starting main at 86eeb4c has inspected successful
-[regression](https://github.com/Nickshajtan/hcc-harness/actions/runs/40966026432),
-[wizard](https://github.com/Nickshajtan/hcc-harness/actions/runs/40966026579) and
-[runtime portability](https://github.com/Nickshajtan/hcc-harness/actions/runs/40966026457)
-workflow conclusions and individual jobs. At code/tooling commit
-`a65a38cd701a7da9bcdceb28e4c78538cb8737ee`, all refactor PR jobs were inspected PASS:
-[regression](https://github.com/Nickshajtan/hcc-harness/actions/runs/40971163613),
-[wizard](https://github.com/Nickshajtan/hcc-harness/actions/runs/40971163581),
-[runtime and required aggregate](https://github.com/Nickshajtan/hcc-harness/actions/runs/40971163598),
-[quality measurements](https://github.com/Nickshajtan/hcc-harness/actions/runs/40971163599).
-Downloaded quality JSON reports lint/dependency/coverage/mutation PASS, 116 legacy
-warnings, 49 metric findings and Ubuntu coverage 77.71% lines / 70.16% branches
-(253 passed / 32 existing platform skips). Ubuntu manifest mutation is 180 killed,
-10 survived, 3 uncovered (93.26%); ownership/recovery validation remain 100%, journal
-97.83%. Core counts match Windows; Middleware is 90 killed / 5 survived / 1 uncovered
-(93.75%). Platform reachability differences remain visible; no exclusions or errors.
-The required aggregate name and branch protection remain unchanged. Windows ARM64,
-every terminal emulator, power-loss durability, hostile filesystem races and full
-repository mutation remain NOT TESTED. B2 and process refactoring are outside scope.
+## Executed evidence and limits
+
+PASS: check, lint/ratchet/report, dependency rules/report, gated coverage, all four
+mutation pilots/checker, acceptance, wizard (14 unit / 13 real terminal scenarios),
+public exports, journal differential check and frozen M1 hash.
+Frozen blob: `2748032203bc587d465543e1e2d1317d13a8a4f4`.
+Core/middleware/events/config/setup/vendor/frozen fixtures/lockfile are unchanged.
+
+At implementation `e4a087e`, inspected hosted jobs/artifacts passed:
+[regression](https://github.com/Nickshajtan/hcc-harness/actions/runs/41036503296),
+[wizard](https://github.com/Nickshajtan/hcc-harness/actions/runs/41036503173),
+[runtime and required aggregate](https://github.com/Nickshajtan/hcc-harness/actions/runs/41036503097),
+[quality](https://github.com/Nickshajtan/hcc-harness/actions/runs/41036503277).
+Windows artifact: 290 unit / 42 integration / 1 acceptance passed; real npm
+PATH/adjacent selection, arguments/exit, Ctrl+C/Ctrl+Break and recovery passed.
+Ubuntu quality: 329 passed / 33 explicit platform/opt-in skips, coverage 83.06% /
+76.71%, all areas PASS. Later revisions need their own checks; final results are in
+the PR. Required status name and protection remain unchanged.
+
+One local full run returned uninstall code 1 immediately after a native fixture ran;
+its stderr was not retained by the old assertion. The assertion now reports stderr.
+Targeted tests, 30 immediate init/run/uninstall sequences without retries, and the
+full 334-test run passed afterward. The original intermittent cause remains
+unconfirmed; no production retries, sleeps or weaker assertions were introduced.
+This remains diagnostic debt rather than a claimed filesystem-sharing diagnosis.
+
+Known limits: sandbox taskkill required unchanged elevated mutation reruns; existing
+.tools junction warnings are nonfatal with valid reports and zero mutation errors.
+Windows ARM64, every terminal emulator, hostile filesystem races, power-loss durability
+and full-repository mutation remain NOT TESTED. B1 stays feasibility; B2 and CLI/Wizard
+refactoring remain separately gated.

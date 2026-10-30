@@ -29,7 +29,8 @@ it('bootstrap is idempotent, preserves existing user files, and supports arbitra
   expect(await fixture.init(fixture.B, ['arbitrary'])).toMatchObject({ code: 0 });
   expect((await fixture.invoke(fixture.B, 'arbitrary')).code).toBe(0);
   expect(await readFile(join(fixture.B, 'mise.toml'), 'utf8')).toContain('# user settings');
-  expect(await run(process.execPath, [cli, 'uninstall'], fixture.B, fixture.env)).toMatchObject({
+  const removed = await run(process.execPath, [cli, 'uninstall'], fixture.B, fixture.env);
+  expect(removed, removed.stderr).toMatchObject({
     code: 0,
   });
   expect(await readFile(join(fixture.B, '.arch/harness.toml'), 'utf8')).toBe(customHarness);
@@ -238,7 +239,7 @@ it('mise activates the project-local launchers and leaves unconfigured projects 
       fixture.native,
       dirname(process.execPath),
       ...('mise' !== mise ? [dirname(mise)] : []),
-      process.env.PATH || '',
+      process.env.PATH ?? '',
     ].join(delimiter),
   };
   const active = await run(mise, ['exec', '--', 'claude', 'via-mise'], fixture.A, env);

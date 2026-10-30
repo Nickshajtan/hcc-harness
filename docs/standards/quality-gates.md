@@ -6,18 +6,18 @@ no deterministic context-delivery guarantee or context injector is implemented.
 
 ## Current enforcement
 
-| Control              | Command                                                                                                                 | CI behavior                                                                                                                     |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Format               | `npm run format:check`                                                                                                  | Blocking in existing Ubuntu/macOS/Windows checks                                                                                |
-| Type safety          | `npm run typecheck`                                                                                                     | Blocking strict TypeScript, noUncheckedIndexedAccess, exactOptionalPropertyTypes                                                |
-| Typed lint           | `npm run lint`, `npm run lint:baseline`                                                                                 | Errors and new warning fingerprints block on all three platforms; legacy warnings remain visible                                |
-| Dependencies         | `npm run check:dependencies`                                                                                            | Blocking no-cycles and presentation-boundary rules                                                                              |
-| Build and regression | `npm run build`, unit/integration/acceptance/experiment scripts                                                         | Existing three-platform jobs retained                                                                                           |
-| Wizard               | `npm run test:wizard`                                                                                                   | Existing path-filtered/manual three-platform workflow retained                                                                  |
-| Runtime portability  | Existing shared subprocess and Windows console/TTY suites                                                               | Required aggregate remains exactly `M2.2 runtime portability required`                                                          |
-| Coverage             | `npm run test:coverage`                                                                                                 | Core/config/events/middleware plus manifest/ownership/journal/recovery-validation >=95% lines / >=90% branches; others measured |
-| Mutation pilots      | `npm run test:mutation`, `npm run test:mutation:core`, `npm run test:mutation:lifecycle`, `npm run test:mutation:check` | Relevant PRs/weekly/manual; existing assertion-only gates plus manifest/journal 85%, ownership/recovery validation 90%          |
-| Debt report          | `npm run lint:report`, `npm run report:dependencies`                                                                    | JSON artifacts in quality measurement job                                                                                       |
+| Control              | Command                                                                                                                                                  | CI behavior                                                                                                                               |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Format               | `npm run format:check`                                                                                                                                   | Blocking in existing Ubuntu/macOS/Windows checks                                                                                          |
+| Type safety          | `npm run typecheck`                                                                                                                                      | Blocking strict TypeScript, noUncheckedIndexedAccess, exactOptionalPropertyTypes                                                          |
+| Typed lint           | `npm run lint`, `npm run lint:baseline`                                                                                                                  | Errors and new warning fingerprints block on all three platforms; legacy warnings remain visible                                          |
+| Dependencies         | `npm run check:dependencies`                                                                                                                             | Blocking no-cycles and presentation-boundary rules                                                                                        |
+| Build and regression | `npm run build`, unit/integration/acceptance/experiment scripts                                                                                          | Existing three-platform jobs retained                                                                                                     |
+| Wizard               | `npm run test:wizard`                                                                                                                                    | Existing path-filtered/manual three-platform workflow retained                                                                            |
+| Runtime portability  | Existing shared subprocess and Windows console/TTY suites                                                                                                | Required aggregate remains exactly `M2.2 runtime portability required`                                                                    |
+| Coverage             | `npm run test:coverage`                                                                                                                                  | Core/config/events/middleware, four lifecycle decision modules and all five process modules >=95% lines / >=90% branches; others measured |
+| Mutation pilots      | `npm run test:mutation`, `npm run test:mutation:core`, `npm run test:mutation:lifecycle`, `npm run test:mutation:process`, `npm run test:mutation:check` | Relevant PRs/weekly/manual; per-file assertion-only gates below                                                                           |
+| Debt report          | `npm run lint:report`, `npm run report:dependencies`                                                                                                     | JSON artifacts in quality measurement job                                                                                                 |
 
 `npm run check` combines format, typecheck, lint, warning regression protection,
 quality-tooling tests, dependency rules, build and the
@@ -46,11 +46,11 @@ Type-only import annotations remain allowed for vi.importActual module shapes.
 are deliberately applied afterwards. Prettier is the sole layout authority.
 
 The configuration names specific legacy rules at warning severity with rationale.
-These warnings are **deferred debt, not compliance**: no-non-null-assertion,
-no-unnecessary-condition, prefer-optional-chain, prefer-nullish-coalescing,
-no-dynamic-delete, restrict-template-expressions, no-confusing-void-expression,
-no-unnecessary-type-conversion; tests additionally retain
-unsafe boundary/assertion/plus-operand and empty-function warnings.
+These warnings are **deferred debt, not compliance**: no-non-null-assertion
+outside the clean Core/lifecycle/process directories, test no-unnecessary-condition,
+prefer-nullish-coalescing, no-dynamic-delete;
+tests additionally retain
+unsafe boundary/assertion and intentional empty-function warnings.
 They remain reported and reviewable, not hidden by eslint-disable blocks.
 
 Before promoting one of these rules, characterize the affected behavior, remediate
@@ -60,6 +60,11 @@ and require-await now block. A small source-context fingerprint ratchet rejects 
 ordinary warnings and requires pruning resolved debt. The measured baseline explains
 its limits: identical contexts remain indistinguishable. Snapshot additions need review
 and MUST NOT conceal new debt. Do not create a generic lint framework.
+Prefer-optional-chain, no-confusing-void-expression, no-unnecessary-type-conversion
+and restrict-template-expressions now block globally; test plus operands also block.
+No-unnecessary-condition blocks production; no-non-null-assertion
+blocks the clean Core/lifecycle/process directories. Remaining test and wizard findings
+stay visible in the ratchet. This does not claim that every type assertion is safe.
 Strict-boolean-expressions remains unadopted pending review of intentional length,
 optional-state and environment truthiness conventions; existing constant/unnecessary
 condition diagnostics are not evidence of complete misleading-boolean detection.
@@ -81,14 +86,23 @@ CI-only scripts require reference checks. No automatic dead-code deletion.
 
 Coverage includes all executable production files. Numeric targets in
 [testing](testing.md) remain nonblocking outside the achieved Core/execution/config/events/middleware
-scopes; uncovered branches
+and measured lifecycle/process scopes; uncovered branches
 must be explained rather than excluded. Mutation remains a focused pilot, not a
 repository-wide PR suite. Relevant-change selection avoids duplicating its cost on unrelated PRs.
-The latest measured config, execution and lifecycle pilots took 37, 64 and 115 seconds locally,
-with other checks running; these are not isolated performance benchmarks.
+Process mutation covers all five implementation modules, using deterministic child
+events, explicit platform-policy tests, real filesystem fixtures and supplemental
+fault injection. Real Windows npm, console, terminal and runtime contracts remain
+separate required regression/portability evidence. No production branch is excluded.
+The Windows process pilot took 257 seconds under concurrent load; the initial
+pilot took 380 seconds. See the baseline for final hosted cost. These are observations,
+not isolated performance benchmarks. Keep focused mutation in the existing measurement
+job, not every platform regression job; its existing 15-minute budget is unchanged.
 Timeouts do not count toward assertion-only thresholds. Missing/erroneous reports fail;
 Each Core responsibility file retains its 85% assertion-only gate. The lifecycle
-pilot gates only the four complete measured decision modules, not effect coordinators. Full-repository scheduled/release
+pilot gates only the four complete measured decision modules, not effect coordinators.
+Process gates require environment/shim/child lifecycle 90% and resolver/launch 85%
+assertion kills, adopted after executed measurements. Missing files, empty reports,
+errors, exclusions and timeout-only evidence fail. Full-repository scheduled/release
 mutation remains a proposal.
 
 Each gate expansion MUST state expected defect detection, measured minutes,

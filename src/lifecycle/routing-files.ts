@@ -7,7 +7,7 @@ export async function readAt(root: string, path: string) {
   return readOptional(join(root, path));
 }
 export function staging(journal: RoutingJournal, index: number | 'manifest') {
-  return `.arch/.routing-${journal.id}-${index}.stage`;
+  return `.arch/.routing-${journal.id}-${String(index)}.stage`;
 }
 export async function verifyStage(root: string, path: string, bytes: Buffer) {
   const existing = await readAt(root, path);

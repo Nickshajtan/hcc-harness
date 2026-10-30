@@ -133,7 +133,7 @@ export async function world(temporary = resolve('.test-state/fixtures')) {
       native,
       dirname(process.execPath),
       ...('mise' !== mise ? [dirname(mise)] : []),
-      process.env.PATH || '',
+      process.env.PATH ?? '',
     ].join(delimiter),
     ARCH_TRACE: '1',
   });

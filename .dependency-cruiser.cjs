@@ -5,9 +5,21 @@ module.exports = {
       name: 'no-presentation-in-execution-contracts',
       severity: 'error',
       from: {
-        path: '^src/((config|core|events|middleware|process|setup|lifecycle|discovery)\\.ts$|core/|lifecycle/)',
+        path: '^src/((config|core|events|middleware|process|setup|lifecycle|discovery)\\.ts$|core/|lifecycle/|process/)',
       },
       to: { path: '^src/(cli|commands|wizard)\\.ts$' },
+    },
+    {
+      name: 'no-application-coordinators-in-process',
+      severity: 'error',
+      from: { path: '^src/process/' },
+      to: { path: '^src/(core|lifecycle)(\\.ts$|/)|^src/setup\\.ts$' },
+    },
+    {
+      name: 'no-windows-shim-in-core',
+      severity: 'error',
+      from: { path: '^src/core/' },
+      to: { path: '^src/process/windows-npm-shim\\.ts$' },
     },
     {
       name: 'no-lifecycle-coordinator-in-ownership',
