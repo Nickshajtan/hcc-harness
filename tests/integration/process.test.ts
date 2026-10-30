@@ -29,7 +29,8 @@ it('bootstrap is idempotent, preserves existing user files, and supports arbitra
   expect(await fixture.init(fixture.B, ['arbitrary'])).toMatchObject({ code: 0 });
   expect((await fixture.invoke(fixture.B, 'arbitrary')).code).toBe(0);
   expect(await readFile(join(fixture.B, 'mise.toml'), 'utf8')).toContain('# user settings');
-  expect(await run(process.execPath, [cli, 'uninstall'], fixture.B, fixture.env)).toMatchObject({
+  const removed = await run(process.execPath, [cli, 'uninstall'], fixture.B, fixture.env);
+  expect(removed, removed.stderr).toMatchObject({
     code: 0,
   });
   expect(await readFile(join(fixture.B, '.arch/harness.toml'), 'utf8')).toBe(customHarness);

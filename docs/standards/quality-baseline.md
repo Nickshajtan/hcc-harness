@@ -24,19 +24,19 @@ Machine-readable reports live under coverage/ and reports/mutation*.
 | Ordinary lint errors / warnings               |                       0 / 116 |                        0 / 87 |
 | Analysis warnings including metrics           |                           165 |                           124 |
 | Complexity / depth / params / length findings |              11 / 18 / 3 / 17 |               8 / 11 / 3 / 15 |
-| Global V8 lines                               |              78.06% (669/857) |              83.04% (730/879) |
+| Global V8 lines                               |              78.06% (669/857) |              83.06% (731/880) |
 | Global V8 branches                            |              70.67% (417/590) |              76.21% (455/597) |
-| Process V8 lines                              |               68.29% (84/123) |                100% (140/140) |
+| Process V8 lines                              |               68.29% (84/123) |                100% (141/141) |
 | Process V8 branches                           |                62.06% (54/87) |                97.82% (90/92) |
 | Dependency graph                              |  39 modules / 98 dependencies | 44 modules / 114 dependencies |
 | Cycles / violations                           |                         0 / 0 |                         0 / 0 |
 | Process maximum complexity / nesting          |                        16 / 5 |                         8 / 3 |
 | Process maximum function length               | 132 nonblank/noncomment lines |                            37 |
 | Process maximum parameters                    |                             5 |      5 (unchanged public API) |
-| Process functions / classes / physical lines  |                  15 / 0 / 218 |                  24 / 1 / 312 |
+| Process functions / classes / physical lines  |                  15 / 0 / 218 |                  24 / 1 / 317 |
 
-Full check: 332 passed / 31 explicit skips, 60.70s; an earlier gated coverage run
-passed the same tests. Starting main:
+Full check: 334 passed / 31 explicit skips, 53.53s; gated coverage passed the same
+tests in 62.37s. Starting main:
 258 / 30 skips, 98.15s; coverage 105.63s. Windows skips include a new POSIX permission
 case; POSIX skips the new actual-Windows PATHEXT case. Mandatory shared runtime tests
 permit no skips. Times reflect concurrent load, not performance benchmarks.
@@ -73,13 +73,13 @@ Counts below are assertion kills; timeouts earn no credit.
 | Process scope   | Total | Windows killed / survived / uncovered | Ubuntu killed / survived / uncovered | Gate |
 | --------------- | ----: | ------------------------------------: | -----------------------------------: | ---: |
 | Child lifecycle |   101 |                  100 / 1 / 0 (99.01%) |                 100 / 1 / 0 (99.01%) |  90% |
-| Resolver        |    84 |                   76 / 8 / 0 (90.48%) |                  75 / 9 / 0 (89.29%) |  85% |
-| Launch          |    17 |                   16 / 1 / 0 (94.12%) |                  16 / 1 / 0 (94.12%) |  85% |
+| Resolver        |    84 |                   76 / 8 / 0 (90.48%) |                  80 / 4 / 0 (95.24%) |  85% |
+| Launch          |    18 |                   17 / 1 / 0 (94.44%) |                  17 / 1 / 0 (94.44%) |  85% |
 | Environment     |    38 |                   37 / 1 / 0 (97.37%) |                  37 / 1 / 0 (97.37%) |  90% |
-| Windows shim    |    79 |                   77 / 1 / 1 (97.47%) |                  76 / 2 / 1 (96.20%) |  90% |
+| Windows shim    |    79 |                   77 / 1 / 1 (97.47%) |                  77 / 1 / 1 (97.47%) |  90% |
 
-Windows: 306/319, 95.92%, zero timeouts/errors, 282s. Earlier Ubuntu: 304/319, 95.30%,
-zero timeouts/errors, before final casing/handle assertions. Initial pilot: 249 killed / 47 survived /
+Windows: 307/320, 95.94%, and Ubuntu: 311/320, 97.19%; zero timeouts/errors.
+The Windows pilot took 257s. Initial pilot: 249 killed / 47 survived /
 6 uncovered / 8 timeouts, 310 total, 80.32% assertion-only versus 82.90% Stryker, 380s.
 Second: 293/319, 91.85%, zero timeouts/errors, 283s. Real disposal/cancellation/lookup
 gaps were closed; scope did not shrink. Gates followed executed measurements.
@@ -107,8 +107,8 @@ mutant-specific fixtures.
 | Recovery validation      |                  48/48 |           100% | none                                                     |
 
 Lifecycle: 385/397, 96.98%, zero timeouts/errors, 267s under load. Core counts match
-starting main exactly; latest run 173s versus baseline 63s. Config took 45s.
-The hosted quality job ran all four pilots in 132s and the job in 170s.
+starting main exactly; latest run 78s versus baseline 63s. Config took 45s.
+The hosted quality job ran all four pilots in 151s and the job in 200s.
 Existing 15-minute budget and three-platform workflows are unchanged.
 
 ## Debt disposition and enforcement
@@ -155,16 +155,23 @@ public exports, journal differential check and frozen M1 hash.
 Frozen blob: `2748032203bc587d465543e1e2d1317d13a8a4f4`.
 Core/middleware/events/config/setup/vendor/frozen fixtures/lockfile are unchanged.
 
-At implementation `e50e00e`, inspected hosted jobs/artifacts passed:
-[regression](https://github.com/Nickshajtan/hcc-harness/actions/runs/40983010383),
-[wizard](https://github.com/Nickshajtan/hcc-harness/actions/runs/40983010328),
-[runtime and required aggregate](https://github.com/Nickshajtan/hcc-harness/actions/runs/40983010438),
-[quality](https://github.com/Nickshajtan/hcc-harness/actions/runs/40983010385).
-Windows artifact: 287 unit / 42 integration / 1 acceptance passed; real npm
+At implementation `e4a087e`, inspected hosted jobs/artifacts passed:
+[regression](https://github.com/Nickshajtan/hcc-harness/actions/runs/41036503296),
+[wizard](https://github.com/Nickshajtan/hcc-harness/actions/runs/41036503173),
+[runtime and required aggregate](https://github.com/Nickshajtan/hcc-harness/actions/runs/41036503097),
+[quality](https://github.com/Nickshajtan/hcc-harness/actions/runs/41036503277).
+Windows artifact: 290 unit / 42 integration / 1 acceptance passed; real npm
 PATH/adjacent selection, arguments/exit, Ctrl+C/Ctrl+Break and recovery passed.
-Ubuntu quality: 326 passed / 33 explicit platform/opt-in skips, coverage 83.04% /
+Ubuntu quality: 329 passed / 33 explicit platform/opt-in skips, coverage 83.06% /
 76.71%, all areas PASS. Later revisions need their own checks; final results are in
 the PR. Required status name and protection remain unchanged.
+
+One local full run returned uninstall code 1 immediately after a native fixture ran;
+its stderr was not retained by the old assertion. The assertion now reports stderr.
+Targeted tests, 30 immediate init/run/uninstall sequences without retries, and the
+full 334-test run passed afterward. The original intermittent cause remains
+unconfirmed; no production retries, sleeps or weaker assertions were introduced.
+This remains diagnostic debt rather than a claimed filesystem-sharing diagnosis.
 
 Known limits: sandbox taskkill required unchanged elevated mutation reruns; existing
 .tools junction warnings are nonfatal with valid reports and zero mutation errors.

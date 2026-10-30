@@ -93,7 +93,7 @@ Process mutation covers all five implementation modules, using deterministic chi
 events, explicit platform-policy tests, real filesystem fixtures and supplemental
 fault injection. Real Windows npm, console, terminal and runtime contracts remain
 separate required regression/portability evidence. No production branch is excluded.
-The Windows process pilot took 282 seconds under concurrent load; the initial
+The Windows process pilot took 257 seconds under concurrent load; the initial
 pilot took 380 seconds. See the baseline for final hosted cost. These are observations,
 not isolated performance benchmarks. Keep focused mutation in the existing measurement
 job, not every platform regression job; its existing 15-minute budget is unchanged.
