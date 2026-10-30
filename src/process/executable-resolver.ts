@@ -1,7 +1,7 @@
 import { access, stat, realpath } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { delimiter, extname, resolve, dirname } from 'node:path';
-import { isRouter } from './native-environment.js';
+import { isRouter, pathKey } from './native-environment.js';
 
 export async function resolveExecutable(
   command: string,
@@ -11,8 +11,7 @@ export async function resolveExecutable(
   if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(command)) {
     throw new Error('Expected an executable name without paths');
   }
-  const pathKey = Object.keys(env).find((k) => 'PATH' === k.toUpperCase());
-  const dirs = (env[pathKey ?? 'PATH'] ?? '').split(delimiter).filter(Boolean);
+  const dirs = (env[pathKey(env)] ?? '').split(delimiter).filter(Boolean);
   const extensions = executableExtensions(command, env, process.platform);
   for (const dir of dirs) {
     for (const extension of extensions) {

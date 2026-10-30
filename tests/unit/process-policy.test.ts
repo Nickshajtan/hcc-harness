@@ -1,6 +1,16 @@
 import { expect, it } from 'vitest';
 import { cancellationSignal } from '../../src/process/child-lifecycle.js';
 import { executableExtensions } from '../../src/process/executable-resolver.js';
+import { pathKey } from '../../src/process/native-environment.js';
+
+it('uses the first case-insensitive PATH key without changing caller-owned entries', () => {
+  const env = Object.freeze({ Path: 'first', PATH: 'second', pAtH: 'third', PATHEXT: '.EXE' });
+  expect(pathKey(env)).toBe('Path');
+  expect(pathKey({ PATH: 'first', Path: 'second' })).toBe('PATH');
+  expect(pathKey({ pAtH: '' })).toBe('pAtH');
+  expect(pathKey({ PATHEXT: '.EXE' })).toBe('PATH');
+  expect(env).toEqual({ Path: 'first', PATH: 'second', pAtH: 'third', PATHEXT: '.EXE' });
+});
 
 it.each(['win32', 'linux', 'darwin'] as const)(
   'preserves cancellation policy on %s',
