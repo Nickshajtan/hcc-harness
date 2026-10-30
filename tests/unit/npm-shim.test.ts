@@ -100,6 +100,40 @@ it('preserves native exe/com shim targets without selecting Node', async () => {
     );
   }
 });
+it('captures native executable shim arguments before asynchronous preparation', async () => {
+  const target = join(root, 'tool.exe');
+  await writeFile(target, 'native');
+  await writeFile(shim, '@echo off\r\n"%~dp0\\tool.exe" %*\r\n');
+  const args = ['original'];
+  const result = launch(shim, args, root, {}, new AbortController().signal);
+  args[0] = 'changed during preparation';
+  await result;
+  expect(spawn).toHaveBeenCalledExactlyOnceWith(await realpath(target), ['original'], {
+    cwd: root,
+    env: {},
+    stdio: 'inherit',
+    shell: false,
+  });
+});
+it('retains historical Node-script argument composition after preparation', async () => {
+  await script();
+  const node = join(native, 'node.exe');
+  await writeFile(node, 'native runtime');
+  const args = ['original'];
+  const result = launch(shim, args, root, { PATH: native }, new AbortController().signal);
+  args[0] = 'changed during preparation';
+  await result;
+  expect(spawn).toHaveBeenCalledExactlyOnceWith(
+    await realpath(node),
+    [join(root, 'tool.cjs'), 'changed during preparation'],
+    {
+      cwd: root,
+      env: { PATH: native },
+      stdio: 'inherit',
+      shell: false,
+    },
+  );
+});
 it('rejects arbitrary batch files before invoking a shell', async () => {
   await expect(
     launch(join(root, 'tool.bat'), [], root, {}, new AbortController().signal),

@@ -12,11 +12,13 @@ export async function launch(
 ): Promise<LaunchResult> {
   signal.throwIfAborted();
   let target = executable;
-  let nativeArgs = [...args];
+  let nativeArgs: string[];
   if ('win32' === process.platform && /\.(cmd|bat)$/i.test(extname(executable))) {
     const adapted = await windowsNpmShim(executable, args, cwd, env);
     target = adapted.target;
     nativeArgs = adapted.args;
+  } else {
+    nativeArgs = [...args];
   }
   signal.throwIfAborted();
   return new Promise((resolveResult, reject) => {

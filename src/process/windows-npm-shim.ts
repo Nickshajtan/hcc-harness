@@ -11,6 +11,9 @@ export async function windowsNpmShim(
   cwd: string,
   env: NodeJS.ProcessEnv,
 ): Promise<{ target: string; args: string[] }> {
+  // Native targets keep the pre-preparation snapshot. Node script arguments are
+  // composed after runtime selection, preserving the historical launch timing.
+  const nativeArgs = [...args];
   if ('.cmd' !== extname(executable).toLowerCase()) {
     throw new Error('Arbitrary batch scripts require a shell and are unsupported');
   }
@@ -19,7 +22,7 @@ export async function windowsNpmShim(
     throw new Error('Recursive npm shim target refused');
   }
   if (/\.(exe|com)$/i.test(destination)) {
-    return { target: destination, args: [...args] };
+    return { target: destination, args: nativeArgs };
   }
   await requireNodeShebang(destination);
   const target = await nativeNodeForShim(executable, cwd, env);
