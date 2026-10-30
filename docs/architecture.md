@@ -110,6 +110,25 @@ environment values, or raw exception payloads. Optional trace output stays local
 
 ## Processes and platforms
 
+`process.ts` is an export-only compatibility facade. The internal `process/` modules
+have these responsibilities:
+
+- `native-environment.ts`: exact router-marker detection and fresh native PATH filtering.
+- `executable-resolver.ts`: ordered PATH/PATHEXT candidates and filesystem/realpath validation.
+- `windows-npm-shim.ts`: supported shim interpretation, Node shebang validation and
+  native adjacent/PATH Node selection. It never selects Arch's runtime.
+- `launch.ts`: abort checks around asynchronous preparation and shell-free spawn.
+- `child-lifecycle.ts`: one `ChildExecution` owns a child's cancellation subscription,
+  settlement callbacks and escalation timer. Stateless lookup/adaptation remain functions.
+
+Child state moves from running to cancellation requested or directly to settled.
+Only the first error/close settles and removes listeners/timer. An observed exit
+suppresses cancellation while close is pending. Synchronous kill events are checked
+before installing escalation; a false kill result remains pending rather than
+claiming completion. Escalation still targets only the direct child after three seconds.
+These modules do not import Core, lifecycle or CLI coordinators. Core calls the facade;
+platform-specific shim policy does not belong in execution orchestration.
+
 Node `spawn` uses `shell: false` and inherited stdin/stdout/stderr. Arch preserves
 cwd and argument strings, avoids output buffering, and waits for the native child.
 Native resolution checks PATH entries and actual files, avoiding only directories

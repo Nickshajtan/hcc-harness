@@ -44,7 +44,8 @@ environment isolation, cwd, inherited streams/TTY, exit status and cancellation.
 
 Coverage and a focused mutation pilot are measured in the [baseline](quality-baseline.md).
 These are adoption targets. Config, events and middleware enforce the achieved
-95% line / 90% branch scopes, as do Core and the measured manifest/ownership/journal/recovery-validation modules; other coverage scopes remain nonblocking:
+95% line / 90% branch scopes, as do Core, the measured manifest/ownership/journal/recovery-validation
+modules and all five process implementation modules; other coverage scopes remain nonblocking:
 
 | Metric          | Critical modules | Other production |
 | --------------- | ---------------: | ---------------: |
@@ -95,10 +96,15 @@ files to improve the average. Cross-platform results are not interchangeable.
 `npm run test:mutation:core` measures the Core facade, every extracted execution module, middleware and events separately.
 `npm run test:mutation:lifecycle` measures complete manifest, ownership, journal and
 recovery-validation modules using focused decision and real filesystem tests.
+`npm run test:mutation:process` measures all five process implementation modules,
+with controlled child races, real filesystem decisions and explicit platform policies.
+Simulated Windows adapter tests supplement actual Windows npm/console integration;
+they do not replace it.
 Stryker's timeout-inclusive break remains zero; `npm run test:mutation:check` instead
 enforces reviewed assertion-only thresholds (config 90%, middleware 85%, events 95%, each Core responsibility file 85%)
 and expected nonempty scopes. Lifecycle gates require manifest/journal 85% and
 ownership/recovery validation 90% assertion kills. Tooling errors and failing tests remain fatal.
+Process requires environment/shim/child lifecycle 90% and resolver/launch 85% assertion kills.
 Report Stryker's timeout-inclusive score alongside assertion-only kills and the
 full status counts. Relevant PRs (configuration, its tests, dependencies or pilot tooling) and
 weekly/manual CI run the pilot; unrelated PRs collect coverage/lint reports. Full-repository mutation is

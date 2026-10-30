@@ -1,6 +1,6 @@
 # Development and testing
 
-## Local checks
+## Ordinary production development
 
 Use Node >=24.15.0 <25 (pinned 24.19.0), installed development dependencies and
 mise 2026.10.11 on PATH, or set `MISE_BIN` to an absolute executable. Windows native
@@ -91,7 +91,10 @@ For current changes inspect that PR's actual jobs/artifacts. Local JSON lives un
 ignored `.test-state/`; hosted artifact retention is finite, so keep reproducible
 tests and run links rather than committing generated evidence files.
 
-## Runtime feasibility reproduction
+## Specialized B1 feasibility reproduction (opt-in)
+
+This section provisions extra runtimes and exercises prototypes. It is separate
+from ordinary production checks above and does not install or integrate a B2 bootstrap.
 
 Build with real Node 24.19.0 and independently provision Node 22.12.0. Set:
 `ARCH_RUNTIME_CONTRACT=1`, `ARCH_B1_NODE22=<absolute executable>`,
