@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
+import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import { join, resolve, delimiter } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -21,7 +22,7 @@ afterAll(async () => {
 });
 let sequence = 0;
 async function project() {
-  const root = join(fixture.root, `project-${sequence++}`);
+  const root = join(fixture.root, `project-${String(sequence++)}`);
   await mkdir(root);
   expect((await fixture.init(root)).code).toBe(0);
   return root;
@@ -67,8 +68,9 @@ it.each(checkpoints)(
       { cwd: root, env: fixture.env, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] },
     );
     let stderr = '';
-    child.stderr!.on('data', (data) => {
-      stderr += data;
+    assert(child.stderr, 'Worker stderr must be piped');
+    child.stderr.on('data', (data: Buffer) => {
+      stderr += data.toString('utf8');
     });
     const closed = new Promise<void>((done) =>
       child.once('close', () => {
@@ -87,7 +89,7 @@ it.each(checkpoints)(
         });
         child.once('exit', (code) => {
           clearTimeout(timeout);
-          reject(new Error(`Worker exited before checkpoint (${code}): ${stderr}`));
+          reject(new Error(`Worker exited before checkpoint (${String(code)}): ${stderr}`));
         });
         child.once('message', (message) => {
           clearTimeout(timeout);
@@ -243,7 +245,7 @@ it('deinit resumes a pending routing journal and preserves edited configuration'
       });
       child.once('exit', (code) => {
         clearTimeout(timeout);
-        reject(new Error(`Worker exited early: ${code}`));
+        reject(new Error(`Worker exited early: ${String(code)}`));
       });
     });
     child.kill('SIGKILL');
@@ -263,7 +265,7 @@ it('deinit resumes a pending routing journal and preserves edited configuration'
 }, 30000);
 
 it('installs without mise or activation and distinguishes both from installation health', async () => {
-  const root = join(fixture.root, `inactive-${sequence++}`);
+  const root = join(fixture.root, `inactive-${String(sequence++)}`);
   await mkdir(root);
   const env = { ...fixture.env, PATH: '' };
   const initialized = await run(process.execPath, [cli, 'init', 'custom'], root, env);

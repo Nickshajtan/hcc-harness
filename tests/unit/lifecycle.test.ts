@@ -13,6 +13,7 @@ import {
 } from 'node:fs/promises';
 import { join } from 'node:path';
 import { setup, stateFrom, validateCommands, digest } from '../../src/setup.js';
+import { journalFrom } from '../../src/lifecycle/routing-journal.js';
 import {
   addRoutes,
   removeRoutes,
@@ -210,14 +211,19 @@ it('preserves a partial staging write and identifies it instead of deleting ambi
       },
     }),
   ).rejects.toThrow();
-  const journal = JSON.parse(await readFile(join(root, '.arch/routing.json'), 'utf8'));
+  const journal = journalFrom(await readFile(join(root, '.arch/routing.json')));
   const stage = join(root, `.arch/.routing-${journal.id}-0.stage`);
   await writeFile(stage, 'partial');
   await expect(reconcileRoutes(root, ['tool', 'newtool'])).rejects.toThrow(
     'staging file changed or incomplete',
   );
   expect(await readFile(stage, 'utf8')).toBe('partial');
-  await writeFile(stage, Buffer.from(Object.values(journal.additions)[0] as string, 'base64'));
+  const addition = Object.values(journal.additions)[0];
+  expect(addition).toBeTypeOf('string');
+  if (addition === undefined) {
+    throw new Error('Expected a recorded addition to restore the partial stage');
+  }
+  await writeFile(stage, Buffer.from(addition, 'base64'));
   await reconcileRoutes(root, ['tool', 'newtool']);
 });
 it('rejects malformed/conflicting journals, paths, pairs and payload hashes', async () => {

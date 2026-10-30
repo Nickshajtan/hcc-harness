@@ -238,7 +238,7 @@ it('mise activates the project-local launchers and leaves unconfigured projects 
       fixture.native,
       dirname(process.execPath),
       ...('mise' !== mise ? [dirname(mise)] : []),
-      process.env.PATH || '',
+      process.env.PATH ?? '',
     ].join(delimiter),
   };
   const active = await run(mise, ['exec', '--', 'claude', 'via-mise'], fixture.A, env);

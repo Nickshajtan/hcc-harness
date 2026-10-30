@@ -424,7 +424,7 @@ it('keeps concurrent contexts, mutable launch changes, events and cleanup isolat
   const sets: ArchEvent[][] = [[], []];
   await Promise.all(
     sets.map(async (received, index) => {
-      const file = join(root, `${index}.json`);
+      const file = join(root, `${String(index)}.json`);
       await execute({
         ...launchOptions(),
         registry,

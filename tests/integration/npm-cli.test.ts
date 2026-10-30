@@ -63,11 +63,11 @@ async function arch(
     });
     let stdout = '',
       stderr = '';
-    child.stdout.on('data', (data) => {
-      stdout += data;
+    child.stdout.on('data', (data: Buffer) => {
+      stdout += data.toString('utf8');
     });
-    child.stderr.on('data', (data) => {
-      stderr += data;
+    child.stderr.on('data', (data: Buffer) => {
+      stderr += data.toString('utf8');
     });
     child.once('error', reject);
     child.once('close', (code, signal) => {
