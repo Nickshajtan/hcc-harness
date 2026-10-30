@@ -24,24 +24,32 @@ export async function resolveExecutable(
   for (const dir of dirs) {
     for (const extension of extensions) {
       const candidate = resolve(cwd, dir, command + extension);
-      try {
-        await access(candidate, 'win32' === process.platform ? constants.F_OK : constants.X_OK);
-        if (!(await stat(candidate)).isFile()) {
-          continue;
-        }
-        const native = await realpath(candidate);
-        if (await isRouter(dirname(native))) {
-          continue;
-        }
+      const native = await readExecutableCandidate(candidate);
+      if (native !== undefined) {
         return native;
-      } catch (error) {
-        if (
-          !['ENOENT', 'EACCES', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')
-        ) {
-          throw error;
-        }
       }
     }
   }
   throw new Error(`Native executable not found: ${command}`);
+}
+
+// Resolve identity before router checks so aliases cannot re-enter Arch. Only
+// the established lookup-miss errors permit trying the next PATH candidate.
+async function readExecutableCandidate(candidate: string): Promise<string | undefined> {
+  try {
+    await access(candidate, 'win32' === process.platform ? constants.F_OK : constants.X_OK);
+    if (!(await stat(candidate)).isFile()) {
+      return undefined;
+    }
+    const native = await realpath(candidate);
+    if (await isRouter(dirname(native))) {
+      return undefined;
+    }
+    return native;
+  } catch (error) {
+    if (!['ENOENT', 'EACCES', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) {
+      throw error;
+    }
+    return undefined;
+  }
 }
