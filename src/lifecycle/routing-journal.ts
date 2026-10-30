@@ -34,23 +34,46 @@ export function journalFrom(text: Buffer): RoutingJournal {
   return { ...value, before, after };
 }
 
-function readJournalHeader(text: Buffer): RoutingJournal {
-  const value = JSON.parse(text.toString()) as RoutingJournal;
-  if (
-    !value ||
-    1 !== value.schema ||
-    'string' !== typeof value.id ||
-    !/^[a-f0-9-]{36}$/.test(value.id) ||
-    !value.additions ||
-    'object' !== typeof value.additions ||
-    Array.isArray(value.additions)
-  ) {
+interface JournalHeader {
+  schema: 1;
+  id: string;
+  before?: unknown;
+  after?: unknown;
+  additions: Record<string, unknown>;
+}
+
+function readJournalHeader(text: Buffer): JournalHeader {
+  const value: unknown = JSON.parse(text.toString());
+  if (!isJournalHeader(value)) {
     throw new Error('Invalid routing journal');
   }
   return value;
 }
 
-function validateJournalFiles(value: RoutingJournal, before: State, after: State): void {
+function isJournalHeader(value: unknown): value is JournalHeader {
+  if (
+    null === value ||
+    'object' !== typeof value ||
+    !('schema' in value) ||
+    1 !== value.schema ||
+    !('id' in value) ||
+    'string' !== typeof value.id ||
+    !/^[a-f0-9-]{36}$/.test(value.id) ||
+    !('additions' in value) ||
+    !value.additions ||
+    'object' !== typeof value.additions ||
+    Array.isArray(value.additions)
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function validateJournalFiles(
+  value: JournalHeader,
+  before: State,
+  after: State,
+): asserts value is JournalHeader & { additions: Record<string, string> } {
   for (const [path, hash] of Object.entries(after.files)) {
     if (before.files[path]) {
       if (hash !== before.files[path] || path in value.additions) {

@@ -31,11 +31,11 @@ export default ts.config(
       // assertions and conditions. Visible debt, not blocking compliance; see baseline.
       '@typescript-eslint/no-non-null-assertion': 'warn',
       '@typescript-eslint/no-unnecessary-condition': 'warn',
-      '@typescript-eslint/prefer-optional-chain': 'warn',
+      '@typescript-eslint/prefer-optional-chain': 'error',
       '@typescript-eslint/prefer-nullish-coalescing': 'warn',
       '@typescript-eslint/no-dynamic-delete': 'warn',
       '@typescript-eslint/restrict-template-expressions': 'warn',
-      '@typescript-eslint/no-confusing-void-expression': 'warn',
+      '@typescript-eslint/no-confusing-void-expression': 'error',
       '@typescript-eslint/no-unnecessary-type-conversion': 'warn',
     },
   },

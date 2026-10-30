@@ -13,13 +13,14 @@ export async function uninstall(root: string): Promise<void> {
   const stateFile = join(root, statePath),
     journalFile = join(root, uninstallPath);
   const [text, recovery] = await Promise.all([readOptional(stateFile), readOptional(journalFile)]);
-  if (text === undefined && recovery === undefined) {
+  const recorded = recovery ?? text;
+  if (recorded === undefined) {
     return;
   }
   if (text !== undefined && recovery !== undefined) {
     throw new Error('Conflicting bootstrap and uninstall state; refusing to remove files');
   }
-  const state = stateFrom((recovery ?? text)!);
+  const state = stateFrom(recorded);
   await checkFiles(root, state.files, recovery !== undefined);
   if (recovery === undefined) {
     // Atomic rename retains the complete ownership manifest before the first deletion.
