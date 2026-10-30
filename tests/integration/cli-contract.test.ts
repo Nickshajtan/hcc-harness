@@ -6,7 +6,7 @@ beforeAll(async () => {
   fixture = await world();
 });
 afterAll(async () => {
-  await fixture?.dispose();
+  await fixture.dispose();
 });
 
 it.each([

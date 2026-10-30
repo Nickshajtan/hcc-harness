@@ -1,6 +1,4 @@
 [
-  "{\"file\":\"src/wizard.ts\",\"rule\":\"@typescript-eslint/no-non-null-assertion\",\"diagnostic\":\"noNonNull\",\"source\":\"await reconcileRoutes(root, status.desiredRoutes!);\"}",
-  "{\"file\":\"src/wizard.ts\",\"rule\":\"@typescript-eslint/no-non-null-assertion\",\"diagnostic\":\"noNonNull\",\"source\":\"ui.write(`Interrupted routing update. Desired routes: ${status.desiredRoutes!.join(', ')}`);\"}",
   "{\"file\":\"tests/acceptance/routing.test.ts\",\"rule\":\"@typescript-eslint/no-non-null-assertion\",\"diagnostic\":\"noNonNull\",\"source\":\"return observed[0]!.executionId;\"}",
   "{\"file\":\"tests/acceptance/routing.test.ts\",\"rule\":\"@typescript-eslint/no-unnecessary-condition\",\"diagnostic\":\"neverOptionalChain\",\"source\":\"await fixture?.dispose();\"}",
   "{\"file\":\"tests/feasibility/runtime-bootstrap.test.ts\",\"rule\":\"@typescript-eslint/no-non-null-assertion\",\"diagnostic\":\"noNonNull\",\"source\":\"['20', node20!],\"}",
