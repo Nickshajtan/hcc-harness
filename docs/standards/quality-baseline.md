@@ -77,8 +77,8 @@ imports/lines expose responsibilities; no claim of lower raw coupling is made.
 Process consolidation removes duplicate PATH decision mutants/branches, not scope.
 
 Starting check: 334 passed / 31 explicit skips, ordinary test phase 88.57s;
-starting coverage: same counts, 86.76s. Final coverage: 455 passed / 31 explicit
-skips, 106.97s; final check: 455 / 31, 96.58s test phase. Wizard: 75 unit cases and
+starting coverage: same counts, 86.76s. Final coverage: 456 passed / 31 explicit
+skips, 127.73s; final check: 456 / 31, 126.09s test phase. Wizard: 76 unit cases and
 15 real terminal scenarios, including partial-input interruption and an unowned
 collision failure. Timings reflect load and are not performance benchmarks.
 Analysis findings: 124 to 92 total; metric review triggers remain 37 (complexity /
@@ -124,21 +124,26 @@ evidence fail. Gates never give timeout-as-assertion credit.
 | CLI status presentation    |          23/23 |                      0 / 0 / 0 |           100% |
 | CLI native-run mapping     |          42/42 |                      0 / 0 / 0 |           100% |
 | Wizard input decisions     |          34/35 |                      0 / 0 / 1 |         97.14% |
-| Wizard workflow            |        129/146 |                     11 / 2 / 4 |         88.36% |
+| Wizard workflow            |        133/146 |                      7 / 2 / 4 |         91.10% |
 | Config                     |          87/93 |                      1 / 0 / 5 |         93.55% |
 | Core + middleware/events   |        221/229 |                      6 / 2 / 0 |         96.51% |
 | Lifecycle decision modules |        385/397 |                     10 / 2 / 0 |         96.98% |
 | Process modules            |        301/313 |                     11 / 1 / 0 |         96.17% |
 
-CLI/Wizard: 440/458, 96.07% assertion-only versus 97.16% Stryker, 114s.
+CLI/Wizard: 444/458, 96.94% assertion-only versus 98.03% Stryker, 279s under
+concurrent full-suite load (earlier pilot: 114s).
 Initial five-file pilot: 400 mutants, weaker workflow assertions and five timeouts;
 later native-run extraction adds a complete scope, not an exclusion. The current
 six-file scope is fixed. Config took 16s, Core 62s, lifecycle 71s, process 234s
 under load. Hosted timing/evidence belongs in the PR; do not extrapolate platforms.
 
-Survivors include defensive missing-desired-routes status (inspection cannot emit
-that valid state), harmless delimiter variants, equivalent status predicates and
-non-Error validation reporting. Workflow loop-removal mutants time out; they are
+Final survivor review added a real invalid-state/pending-routing regression: a
+changed owned file must block a resume offer before any prompt, preserving bytes
+and journal. It also checks exact recorded resource lists and multi-route display.
+These kill valid behavior gaps even where V8 percentages do not change.
+Remaining survivors are defensive missing-desired-routes status (inspection cannot
+emit that valid state), warning-delimiter variants and internal unchanged-result
+strings that still map to the same public false result. Workflow loop-removal mutants time out; they are
 visible, not assertion kills. Remaining process platform/access, code-less errno,
 SIGTERM fallback and unreachable shebang fallback mutants retain their prior review.
 Core/config/lifecycle decisions preserve their prior gates and known survivors.

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { mkdir, mkdtemp, readFile, rm, writeFile, rename } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import assert from 'node:assert/strict';
 import { confirmRemoval, setupWizard, type Interaction } from '../../src/wizard.js';
 import { inspectInstallation, reconcileRoutes } from '../../src/lifecycle.js';
 import { stateFrom } from '../../src/lifecycle/manifest.js';
@@ -159,6 +160,16 @@ it.each(['', 'no', null])('defaults deinitialization to No (%s)', async (answer)
   const { ui, output } = interaction([answer]);
   expect(await confirmRemoval(root, ui)).toBe(false);
   expect(output.join('\n')).toContain('[y/N]');
+  const summary = output[0];
+  assert(summary !== undefined);
+  const lines = summary.split('\n');
+  const firstResource = lines.indexOf('Managed resources:') + 1;
+  const preserved = lines.findIndex((line) => line.startsWith('Preserved:'));
+  assert(0 < firstResource && preserved > firstResource);
+  expect(lines.slice(firstResource, preserved).map((line) => line.trim())).toEqual([
+    ...(await inspectInstallation(root)).managedPaths,
+    '.arch/bootstrap.json',
+  ]);
   expect(await readFile(join(root, '.arch/bootstrap.json'))).toEqual(original);
 });
 it('can deinitialize from the configuration menu after confirmation', async () => {
@@ -183,7 +194,7 @@ it.each([null, '', 'no', '1'])(
   async (answer) => {
     await setup(root, ['tool']);
     await expect(
-      reconcileRoutes(root, ['other'], {
+      reconcileRoutes(root, ['other', 'third'], {
         checkpoint: (name) => {
           if ('journal' === name) {
             throw new Error('interrupt');
@@ -194,7 +205,7 @@ it.each([null, '', 'no', '1'])(
     const journal = await readFile(join(root, '.arch/routing.json'));
     const { ui, output } = interaction([answer]);
     expect(await setupWizard(root, ui, true)).toBe(false);
-    expect(output.join('\n')).toContain('Interrupted routing update. Desired routes: other');
+    expect(output.join('\n')).toContain('Interrupted routing update. Desired routes: other, third');
     expect(await readFile(join(root, '.arch/routing.json'))).toEqual(journal);
     expect(output).toContain('Resume this update? [y/N] ');
   },
@@ -216,6 +227,35 @@ it('resumes the recorded desired routes without rediscovery or a replacement pla
   expect(output.join('\n')).toContain('Arch installed for this project:');
   expect((await inspectInstallation(root)).routes).toEqual(['other']);
   expect(discoverClis).not.toHaveBeenCalled();
+});
+
+it('refuses invalid routing recovery before offering a resume prompt or modifying resources', async () => {
+  await setup(root, ['tool']);
+  await expect(
+    reconcileRoutes(root, ['other'], {
+      checkpoint: (name) => {
+        if ('journal' === name) {
+          throw new Error('interrupt');
+        }
+      },
+    }),
+  ).rejects.toThrow('interrupt');
+  const managed = join(root, '.config/mise/conf.d/arch.toml');
+  const changed = Buffer.concat([await readFile(managed), Buffer.from('# external edit\n')]);
+  await writeFile(managed, changed);
+  expect(await inspectInstallation(root)).toMatchObject({
+    state: 'invalid_state',
+    pendingOperation: 'routing',
+    desiredRoutes: ['other'],
+  });
+  const journal = await readFile(join(root, '.arch/routing.json'));
+  const ask = vi.fn(() => Promise.resolve('yes'));
+  const { ui } = interaction([]);
+  ui.ask = ask;
+  await expect(setupWizard(root, ui, true)).rejects.toThrow('Cannot configure: invalid_state.');
+  expect(ask).not.toHaveBeenCalled();
+  expect(await readFile(join(root, '.arch/routing.json'))).toEqual(journal);
+  expect(await readFile(managed)).toEqual(changed);
 });
 
 it('propagates discovery and input errors without mutating installation state', async () => {

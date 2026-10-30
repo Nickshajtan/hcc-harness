@@ -115,7 +115,8 @@ status presentation, CLI signal/exit mapping, input decisions and workflow modul
 Reviewed assertion-only gates are 85% per file, with 90% for input decisions.
 Readline and static installation messages remain covered by real terminal and
 regression tests, outside this focused mutation scope. No mutation range is excluded.
-The final pilot took 114 seconds on Windows; hosted cost is recorded in the baseline.
+Observed pilot times are 114–279 seconds on Windows depending on concurrent load;
+hosted cost is recorded in the PR.
 The existing quality job runs it for relevant changes; its 15-minute budget is
 unchanged. No pilot is duplicated across platform matrices.
 
