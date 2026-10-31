@@ -42,6 +42,13 @@ and quality artifacts retain these records. Expected refusal/usage tests generat
 records too; correlate them with the test and expected status rather than treating
 every record as an incident. No environment values or manifest contents are dumped.
 
+The npm-link help contract records its phase, child PID/exit/signal, partial output
+and completed help results on failure under `reports/npm-help-diagnostics/`.
+Regression artifacts include this data. It does not change subprocess settlement,
+kill pending children, retry a failure or raise the existing timeout. The observed
+Windows help hang remains unresolved; see the maintained baseline before treating
+any later green run as stability acceptance.
+
 Register trusted middleware using [the architecture contract](architecture.md).
 Tests/build configuration and dependency pins are the executable source of truth;
 do not change assertions merely to accommodate a platform failure.

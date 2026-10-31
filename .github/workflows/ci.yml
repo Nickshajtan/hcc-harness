@@ -61,4 +61,5 @@ jobs:
             .test-state/mise-*.json
             .test-state/m2-*.json
             reports/removal-diagnostics/
+            reports/npm-help-diagnostics/
           include-hidden-files: true

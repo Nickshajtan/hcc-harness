@@ -49,6 +49,18 @@ No production retry, sleep, increased timeout or speculative repair was introduc
 The investigation remains open pending a captured recurrence or independent causal
 evidence. This unresolved P0 blocks stability acceptance even with passing CI.
 
+An additional Windows CI blocker is **UNRESOLVED**: the
+[262040d push run](https://github.com/Nickshajtan/hcc-harness/actions/runs/41147708309)
+timed out after 120 seconds in npm-cli.test.ts's initial linked/direct/PowerShell
+help test; cleanup then failed with EBUSY on project C. Its same-head PR job passed.
+The failed report does not identify which help await or PID remained pending; no
+causal link to the uninstall incident is established. Product repair is held for
+review under the milestone's unexplained-platform-failure stop condition.
+Test-only diagnostics now snapshot help phase, PID/exit/signal, partial streams and
+completed results, without environment dumps or cancellation changes. Ten fresh
+prefix repetitions passed; that does not resolve the hang. A missing-ComSpec fault
+verified diagnostic capture, not the historical cause. No retry or timeout increase.
+
 ## Tools and measurements
 
 Pins unchanged: TypeScript 6.0.3, ESLint 10.12.0, typescript-eslint 8.71.2,
@@ -81,8 +93,8 @@ starting coverage: same counts, 86.76s. Final coverage: 456 passed / 31 explicit
 skips, 127.73s; final check: 456 / 31, 126.09s test phase. Wizard: 76 unit cases and
 15 real terminal scenarios, including partial-input interruption and an unowned
 collision failure. Timings reflect load and are not performance benchmarks.
-Analysis findings: 124 to 92 total; metric review triggers remain 37 (complexity /
-nesting / parameters / length: 8/11/3/15 to 9/10/3/15). New test/diagnostic lengths
+Analysis findings: 124 to 93 total; metric review triggers are 37 to 38 (complexity /
+nesting / parameters / length: 8/11/3/15 to 9/10/3/16). New test/diagnostic lengths
 remain visible; source readability is not inferred from warning totals.
 Thin cli.ts and wizard/terminal.ts still show 0% in worker V8 despite real CLI and
 PTY tests. All production sources remain included. Numeric scopes add only
@@ -195,7 +207,8 @@ are in the dedicated PR; local results alone are not platform verification.
 
 Windows ARM64, every terminal emulator, real AI TUIs, real nvm/fnm, hostile filesystem
 races and power-loss durability remain NOT TESTED. M2.2 B2 is not implemented.
-Next priority is evidence for the unresolved uninstall incident, not metrics-driven
+Next priority is evidence for the unresolved uninstall incident and Windows npm
+help lifetime, not metrics-driven
 architecture work. Apply the [determinism standard](determinism.md); stability and
 B2 readiness remain blocked until the incident is explained or specifically
 characterized as external with causal evidence.

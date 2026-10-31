@@ -1,8 +1,9 @@
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { afterAll, beforeAll, expect, it, onTestFailed } from 'vitest';
 import { mkdir, readFile, readdir, realpath, writeFile, access } from 'node:fs/promises';
 import { delimiter, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { cli, records, run, start, world, type Result } from '../support.js';
 
 let fixture: Awaited<ReturnType<typeof world>>;
@@ -37,14 +38,16 @@ afterAll(async () => {
   await fixture?.dispose();
 });
 
-async function arch(
+function startArch(
   args: string[],
   cwd = fixture.A,
   overrides: NodeJS.ProcessEnv = {},
   stdin = '',
-) {
+): ReturnType<typeof start> {
   if ('win32' !== process.platform) {
-    return run(executable, args, cwd, { ...env, ...overrides }, stdin);
+    const invocation = start(executable, args, cwd, { ...env, ...overrides });
+    invocation.child.stdin.end(stdin);
+    return invocation;
   }
   // These fixtures use cmd-safe values; literal metacharacter forwarding remains
   // covered by the direct-Node execution tests. Pass cmd's raw command line so
@@ -54,58 +57,113 @@ async function arch(
     expect(value).not.toMatch(/["%&|<>^!\r\n]/);
   }
   const command = `"${values.map((value) => `"${value}"`).join(' ')}"`;
-  return new Promise<Result>((done, reject) => {
-    const child = spawn(process.env.ComSpec!, ['/d', '/s', '/c', command], {
-      cwd,
-      env: { ...env, ...overrides },
-      windowsVerbatimArguments: true,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-    let stdout = '',
-      stderr = '';
-    child.stdout.on('data', (data: Buffer) => {
-      stdout += data.toString('utf8');
-    });
-    child.stderr.on('data', (data: Buffer) => {
-      stderr += data.toString('utf8');
-    });
+  const child = spawn(process.env.ComSpec!, ['/d', '/s', '/c', command], {
+    cwd,
+    env: { ...env, ...overrides },
+    windowsVerbatimArguments: true,
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  let stdout = '',
+    stderr = '';
+  child.stdout.on('data', (data: Buffer) => {
+    stdout += data.toString('utf8');
+  });
+  child.stderr.on('data', (data: Buffer) => {
+    stderr += data.toString('utf8');
+  });
+  const result = new Promise<Result>((done, reject) => {
     child.once('error', reject);
     child.once('close', (code, signal) => {
       done({ code, signal, stdout, stderr });
     });
-    child.stdin.end(stdin);
   });
+  child.stdin.end(stdin);
+  return { child, result, output: () => ({ stdout, stderr }) };
+}
+
+async function arch(
+  args: string[],
+  cwd = fixture.A,
+  overrides: NodeJS.ProcessEnv = {},
+  stdin = '',
+) {
+  return startArch(args, cwd, overrides, stdin).result;
 }
 
 it('links the existing CLI, dispatches help, and leaves the target project untouched', async () => {
+  // This test owns its diagnostic state. Keep settlement/timeout behavior intact
+  // while retaining help-only streams before fixture teardown can discard them.
+  let phase = 'read npm executable';
+  let invocation: ReturnType<typeof start> | undefined;
+  const completed: Record<string, Result> = {};
+  onTestFailed(async () => {
+    const observation = {
+      phase,
+      cwd: fixture.C,
+      executable,
+      process: invocation
+        ? {
+            executable: invocation.child.spawnfile,
+            arguments: [...invocation.child.spawnargs],
+            pid: invocation.child.pid ?? null,
+            exitCode: invocation.child.exitCode,
+            signal: invocation.child.signalCode,
+            killed: invocation.child.killed,
+            partial: invocation.output(),
+          }
+        : null,
+      completed: { ...completed },
+    };
+    console.error('[arch:test] npm help failure:', JSON.stringify(observation));
+    const directory = join(repository, 'reports/npm-help-diagnostics');
+    await mkdir(directory, { recursive: true });
+    await writeFile(join(directory, `${randomUUID()}.json`), JSON.stringify(observation, null, 2));
+  });
+  async function help(label: string, create: () => ReturnType<typeof start>): Promise<Result> {
+    phase = label;
+    invocation = undefined;
+    invocation = create();
+    const result = await invocation.result;
+    completed[label] = result;
+    return result;
+  }
   expect(await readFile(executable, 'utf8')).toContain(
     'win32' === process.platform ? 'cli.js' : '#!/usr/bin/env node',
   );
   if ('win32' !== process.platform) {
     expect(await realpath(executable)).toBe(await realpath(cli));
   }
-  const linked = await arch(['--help'], fixture.C);
-  const direct = await run(process.execPath, [cli, '--help'], fixture.C, env);
+  const linked = await help('npm-linked help', () => startArch(['--help'], fixture.C));
+  const direct = await help('direct Node help', () => {
+    const current = start(process.execPath, [cli, '--help'], fixture.C, env);
+    current.child.stdin.end();
+    return current;
+  });
   expect(linked.code, linked.stderr).toBe(0);
   expect(linked.stdout).toBe(direct.stdout);
   if ('win32' === process.platform) {
-    const powershell = await run(
-      join(process.env.SystemRoot!, 'System32/WindowsPowerShell/v1.0/powershell.exe'),
-      [
-        '-NoProfile',
-        '-NonInteractive',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-File',
-        executable,
-        '--help',
-      ],
-      fixture.C,
-      env,
-    );
+    const powershell = await help('PowerShell npm shim help', () => {
+      const current = start(
+        join(process.env.SystemRoot!, 'System32/WindowsPowerShell/v1.0/powershell.exe'),
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-ExecutionPolicy',
+          'Bypass',
+          '-File',
+          executable,
+          '--help',
+        ],
+        fixture.C,
+        env,
+      );
+      current.child.stdin.end();
+      return current;
+    });
     expect(powershell.code, powershell.stderr).toBe(0);
     expect(powershell.stdout).toBe(direct.stdout);
   }
+  phase = 'verify untouched project';
   expect(await readdir(fixture.C)).toEqual(['sentinel.txt']);
 });
 
