@@ -6,6 +6,23 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
+test('effect pilot reporting rejects missing evidence instead of creating a PASS', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'arch-effect-evidence-'));
+  try {
+    const child = spawnSync(
+      process.execPath,
+      [fileURLToPath(new URL('./report-effects-mutation.mjs', import.meta.url))],
+      { cwd: root, encoding: 'utf8' },
+    );
+    assert.notEqual(child.status, 0);
+    await assert.rejects(readFile(join(root, 'reports/effects-mutation-results.json')), {
+      code: 'ENOENT',
+    });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('a successful step with missing artifacts is FAIL, never PASS', async () => {
   const root = await mkdtemp(join(tmpdir(), 'arch-quality-evidence-'));
   try {
