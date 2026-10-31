@@ -1,4 +1,4 @@
-﻿# Quality gates and adoption
+# Quality gates and adoption
 
 A documented standard is not automatically enforced. See [policy levels](README.md)
 and the [measured baseline](quality-baseline.md). Reading references is procedural;
@@ -6,18 +6,18 @@ no deterministic context-delivery guarantee or context injector is implemented.
 
 ## Current enforcement
 
-| Control              | Command                                                                                                                                                  | CI behavior                                                                                                                               |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Format               | `npm run format:check`                                                                                                                                   | Blocking in existing Ubuntu/macOS/Windows checks                                                                                          |
-| Type safety          | `npm run typecheck`                                                                                                                                      | Blocking strict TypeScript, noUncheckedIndexedAccess, exactOptionalPropertyTypes                                                          |
-| Typed lint           | `npm run lint`, `npm run lint:baseline`                                                                                                                  | Errors and new warning fingerprints block on all three platforms; legacy warnings remain visible                                          |
-| Dependencies         | `npm run check:dependencies`                                                                                                                             | Blocking no-cycles and presentation-boundary rules                                                                                        |
-| Build and regression | `npm run build`, unit/integration/acceptance/experiment scripts                                                                                          | Existing three-platform jobs retained                                                                                                     |
-| Wizard               | `npm run test:wizard`                                                                                                                                    | Existing path-filtered/manual three-platform workflow retained                                                                            |
-| Runtime portability  | Existing shared subprocess and Windows console/TTY suites                                                                                                | Required aggregate remains exactly `M2.2 runtime portability required`                                                                    |
-| Coverage             | `npm run test:coverage`                                                                                                                                  | Core/config/events/middleware, four lifecycle decision modules and all five process modules >=95% lines / >=90% branches; others measured |
-| Mutation pilots      | `npm run test:mutation`, `npm run test:mutation:core`, `npm run test:mutation:lifecycle`, `npm run test:mutation:process`, `npm run test:mutation:check` | Relevant PRs/weekly/manual; per-file assertion-only gates below                                                                           |
-| Debt report          | `npm run lint:report`, `npm run report:dependencies`                                                                                                     | JSON artifacts in quality measurement job                                                                                                 |
+| Control              | Command                                                                                                                                                                               | CI behavior                                                                                                                   |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Format               | `npm run format:check`                                                                                                                                                                | Blocking in existing Ubuntu/macOS/Windows checks                                                                              |
+| Type safety          | `npm run typecheck`                                                                                                                                                                   | Blocking strict TypeScript, noUncheckedIndexedAccess, exactOptionalPropertyTypes                                              |
+| Typed lint           | `npm run lint`, `npm run lint:baseline`                                                                                                                                               | Errors and new warning fingerprints block on all three platforms; legacy warnings remain visible                              |
+| Dependencies         | `npm run check:dependencies`                                                                                                                                                          | Blocking no-cycles and presentation-boundary rules                                                                            |
+| Build and regression | `npm run build`, unit/integration/acceptance/experiment scripts                                                                                                                       | Existing three-platform jobs retained                                                                                         |
+| Wizard               | `npm run test:wizard`                                                                                                                                                                 | Existing path-filtered/manual three-platform workflow retained                                                                |
+| Runtime portability  | Existing shared subprocess and Windows console/TTY suites                                                                                                                             | Required aggregate remains exactly `M2.2 runtime portability required`                                                        |
+| Coverage             | `npm run test:coverage`                                                                                                                                                               | Core/config/events/middleware, lifecycle/process and measured CLI/Wizard scopes >=95% lines / >=90% branches; others measured |
+| Mutation pilots      | `npm run test:mutation`, `npm run test:mutation:core`, `npm run test:mutation:lifecycle`, `npm run test:mutation:process`, `npm run test:mutation:cli`, `npm run test:mutation:check` | Relevant PRs/weekly/manual; per-file assertion-only gates below                                                               |
+| Debt report          | `npm run lint:report`, `npm run report:dependencies`                                                                                                                                  | JSON artifacts in quality measurement job                                                                                     |
 
 `npm run check` combines format, typecheck, lint, warning regression protection,
 quality-tooling tests, dependency rules, build and the
@@ -46,11 +46,10 @@ Type-only import annotations remain allowed for vi.importActual module shapes.
 are deliberately applied afterwards. Prettier is the sole layout authority.
 
 The configuration names specific legacy rules at warning severity with rationale.
-These warnings are **deferred debt, not compliance**: no-non-null-assertion
-outside the clean Core/lifecycle/process directories, test no-unnecessary-condition,
-prefer-nullish-coalescing, no-dynamic-delete;
-tests additionally retain
-unsafe boundary/assertion and intentional empty-function warnings.
+These warnings are **deferred debt, not compliance**: test non-null assertions,
+test no-unnecessary-condition, prefer-nullish-coalescing and test unsafe
+boundary/assertion findings. Production non-null assertions, dynamic deletion
+and test empty functions now block after their measured categories were cleaned.
 They remain reported and reviewable, not hidden by eslint-disable blocks.
 
 Before promoting one of these rules, characterize the affected behavior, remediate
@@ -63,7 +62,7 @@ and MUST NOT conceal new debt. Do not create a generic lint framework.
 Prefer-optional-chain, no-confusing-void-expression, no-unnecessary-type-conversion
 and restrict-template-expressions now block globally; test plus operands also block.
 No-unnecessary-condition blocks production; no-non-null-assertion
-blocks the clean Core/lifecycle/process directories. Remaining test and wizard findings
+blocks all production source. Remaining test findings
 stay visible in the ratchet. This does not claim that every type assertion is safe.
 Strict-boolean-expressions remains unadopted pending review of intentional length,
 optional-state and environment truthiness conventions; existing constant/unnecessary
@@ -108,6 +107,24 @@ mutation remains a proposal.
 Each gate expansion MUST state expected defect detection, measured minutes,
 platforms, maintenance cost and adoption/rollback path. Preserve regression suites;
 no assertion failures converted into warnings, no silent mandatory-platform skips.
+
+## CLI and Wizard adoption
+
+The CLI/Wizard pilot (`npm run test:mutation:cli`) covers complete parsing, dispatch,
+status presentation, CLI signal/exit mapping, input decisions and workflow modules.
+Reviewed assertion-only gates are 85% per file, with 90% for input decisions.
+Readline and static installation messages remain covered by real terminal and
+regression tests, outside this focused mutation scope. No mutation range is excluded.
+Observed pilot times are 114–279 seconds on Windows depending on concurrent load;
+hosted cost is recorded in the PR.
+The existing quality job runs it for relevant changes; its 15-minute budget is
+unchanged. No pilot is duplicated across platform matrices.
+
+All six CLI/Wizard decision/workflow modules and Wizard presentation enforce
+95% line / 90% branch coverage after measurement. Thin executable and readline V8
+gaps remain reported; subprocess/PTY contracts are retained. Existing scoped gates
+and required runtime aggregate are unchanged. The [determinism standard](determinism.md)
+is a review requirement, not proof of deterministic OS scheduling or incident resolution.
 
 ## Completion evidence
 

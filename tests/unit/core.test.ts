@@ -311,7 +311,7 @@ it('denial prevents launch and observer failures cannot reverse it; all finalize
       ...launchOptions(),
       args: ['-e', `require('fs').writeFileSync(${JSON.stringify(file)}, '')`],
       registry,
-      reportObserverError: () => {},
+      reportObserverError: () => undefined,
       observe(bus) {
         bus.subscribe('execution.started', () => {
           throw new Error('observer failed');
@@ -356,7 +356,7 @@ it('cleans partially registered middleware and rejects unknown/mismatched module
   await expect(
     execute({
       ...launchOptions(),
-      registry: new Map([['broken', () => ({ id: 'different', register() {} })]]),
+      registry: new Map([['broken', () => ({ id: 'different', register: () => undefined })]]),
     }),
   ).rejects.toMatchObject({ cause: new Error('Middleware registration id mismatch: broken') });
 });
@@ -380,7 +380,7 @@ it('validates launch changes and conflicts without allowing late hook registrati
           api.setEnv('VALUE', '\0');
         }).toThrow();
         expect(() => {
-          api.on('preflight', () => {});
+          api.on('preflight', () => undefined);
         }).toThrow();
         api.setEnv('FOO', 'one');
       });
@@ -548,7 +548,7 @@ it('contains observer diagnostic errors while preserving middleware denial and l
       registry,
       observe(value) {
         bus = value;
-        value.subscribe('execution.started', () => {});
+        value.subscribe('execution.started', () => undefined);
         throw error;
       },
       reportObserverError(value) {

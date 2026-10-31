@@ -253,7 +253,7 @@ it('rejects malformed/conflicting journals, paths, pairs and payload hashes', as
     }),
   ).rejects.toThrow();
   const journalPath = join(root, '.arch/routing.json');
-  const journal = JSON.parse(await readFile(journalPath, 'utf8'));
+  const journal = journalFrom(await readFile(journalPath));
   journal.additions[route('newtool')] = Buffer.from('tampered').toString('base64');
   await writeFile(journalPath, JSON.stringify(journal));
   expect((await inspectInstallation(root)).state).toBe('invalid_state');

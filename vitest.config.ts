@@ -16,6 +16,13 @@ export default defineConfig({
       // Only these measured scopes have reached the critical targets.
       // Other production files remain included without a numeric gate.
       thresholds: {
+        'src/cli/parsing.ts': { lines: 95, branches: 90 },
+        'src/cli/dispatch.ts': { lines: 95, branches: 90 },
+        'src/cli/presentation.ts': { lines: 95, branches: 90 },
+        'src/cli/native-run.ts': { lines: 95, branches: 90 },
+        'src/wizard/decisions.ts': { lines: 95, branches: 90 },
+        'src/wizard/presentation.ts': { lines: 95, branches: 90 },
+        'src/wizard/workflow.ts': { lines: 95, branches: 90 },
         'src/config.ts': { lines: 95, branches: 90 },
         'src/core/index.ts': { lines: 95, branches: 90 },
         'src/core/execution-session.ts': { lines: 95, branches: 90 },

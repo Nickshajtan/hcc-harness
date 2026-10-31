@@ -63,7 +63,8 @@ it.skipIf(!windows)('uses PATH when a real standard npm shim has no adjacent Nod
   );
   const result = await run(process.execPath, [cli, 'run', 'standard', '--'], fixture.C, env());
   expect(result, result.stderr).toMatchObject({ code: 0 });
-  expect(JSON.parse(result.stdout.trim()).node).toBe(pathNode);
+  const output: unknown = JSON.parse(result.stdout.trim());
+  expect(output).toMatchObject({ node: pathNode });
 });
 it.skipIf(!windows)('honors a real npm shim adjacent Node without changing PATH', async () => {
   await copyFile(process.execPath, adjacentNode);
@@ -88,7 +89,8 @@ it.skipIf(!windows)('honors a real npm shim adjacent Node without changing PATH'
       environment,
     );
     expect(simple.code).toBe(0);
-    expect(JSON.parse(simple.stdout.trim()).node).toBe(pathNode);
+    const output: unknown = JSON.parse(simple.stdout.trim());
+    expect(output).toMatchObject({ node: pathNode });
   } finally {
     const { unlink } = await import('node:fs/promises');
     await unlink(adjacentNode);

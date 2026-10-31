@@ -1,4 +1,15 @@
-import { mkdtemp, mkdir, copyFile, chmod, readFile, rm, writeFile } from 'node:fs/promises';
+import {
+  mkdtemp,
+  mkdir,
+  copyFile,
+  chmod,
+  readFile,
+  rm,
+  writeFile,
+  lstat,
+  readdir,
+} from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { resolve, join, dirname, delimiter } from 'node:path';
 import { spawn, type ChildProcess } from 'node:child_process';
@@ -40,7 +51,52 @@ export async function run(
 ): Promise<Result> {
   const invocation = start(command, args, cwd, env);
   invocation.child.stdin.end(stdin);
-  return invocation.result;
+  const result = await invocation.result;
+  const operation = args[1];
+  if (
+    cli === args[0] &&
+    ('uninstall' === operation || 'deinit' === operation) &&
+    0 !== result.code
+  ) {
+    await recordRemovalFailure(cwd, result, { operation });
+  }
+  return result;
+}
+
+// Persist before assertions or fixture disposal can discard an unexpected
+// removal result. Expected refusal tests also produce evidence; no retry occurs.
+export async function recordRemovalFailure(
+  project: string,
+  result: Result,
+  options: { directory?: string; operation?: 'uninstall' | 'deinit' } = {},
+): Promise<string> {
+  const directory = options.directory ?? resolve('reports/removal-diagnostics');
+  let resources: string[] | { inspectionError: string };
+  try {
+    const arch = join(project, '.arch');
+    resources = (await lstat(arch)).isSymbolicLink()
+      ? ['.arch is a symlink; not traversed']
+      : (await readdir(arch)).sort();
+  } catch (error) {
+    // Preserve a failed observation alongside the original process result.
+    resources = { inspectionError: String(error) };
+  }
+  const observation = {
+    operation: options.operation ?? 'uninstall',
+    stage: 'after child close, before fixture cleanup',
+    project,
+    platform: process.platform,
+    node: process.version,
+    workerPid: process.pid,
+    ...result,
+    resources,
+  };
+  // Logs retain the process result even if persisting the artifact itself fails.
+  console.error('[arch:test] nonzero removal:', JSON.stringify(observation));
+  await mkdir(directory, { recursive: true });
+  const file = join(directory, `${randomUUID()}.json`);
+  await writeFile(file, JSON.stringify(observation, null, 2));
+  return file;
 }
 export function stop(child: ChildProcess) {
   child.kill('SIGTERM');

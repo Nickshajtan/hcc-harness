@@ -3,6 +3,17 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 export const pilots = {
+  cli: {
+    report: 'reports/mutation-cli/mutation.json',
+    files: [
+      'src/cli/parsing.ts',
+      'src/cli/dispatch.ts',
+      'src/cli/presentation.ts',
+      'src/cli/native-run.ts',
+      'src/wizard/decisions.ts',
+      'src/wizard/workflow.ts',
+    ],
+  },
   config: { report: 'reports/mutation/mutation.json', files: ['src/config.ts'] },
   core: {
     report: 'reports/mutation-core/mutation.json',
@@ -86,6 +97,12 @@ export function enforceMutation(scopes, expectedFiles = []) {
   }
   // Reviewed scopes have reached these assertion-only targets; timeout kills earn no credit.
   const minimum = {
+    'src/cli/parsing.ts': 85,
+    'src/cli/dispatch.ts': 85,
+    'src/cli/presentation.ts': 85,
+    'src/cli/native-run.ts': 85,
+    'src/wizard/decisions.ts': 90,
+    'src/wizard/workflow.ts': 85,
     'src/config.ts': 90,
     'src/events.ts': 95,
     'src/middleware.ts': 85,

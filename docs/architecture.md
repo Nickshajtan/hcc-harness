@@ -108,6 +108,32 @@ can delay execution; they should finish promptly. Listener sets are per executio
 and cleared after its terminal event. Events contain no original argument list,
 environment values, or raw exception payloads. Optional trace output stays local.
 
+## CLI and Wizard boundaries
+
+`cli.ts` retains the executable/shebang, historical run syntax and top-level
+error/exit mapping. `cli/native-run.ts` owns signal subscriptions, trace registration
+and native result mapping; it still delegates execution to Core and removes
+subscriptions before reflecting a native signal. No process policy moved into CLI.
+
+`commands.ts` forwards its existing exports. `cli/parsing.ts` returns a discriminated
+management request without filesystem effects; terminal availability is an input.
+`cli/dispatch.ts` directly selects lifecycle operations and owns confirmation-resource
+cleanup. `cli/presentation.ts` formats status without authorizing mutation. Management
+syntax errors remain exit 2; malformed run syntax remains exit 1. Explicit requests
+do not load readline, legacy uninstall never prompts, and deinit defaults to confirmation.
+
+`wizard.ts` is a compatibility facade. `wizard/terminal.ts` owns readline and its
+EOF/SIGINT behavior; dispatch closes it in finally. `wizard/workflow.ts` inspects,
+navigates configuration, selects commands, confirms and invokes the same lifecycle
+operations. Configuration returns select/changed/unchanged; input cancellation
+returns before mutation. Stateless decisions preserve distinct setup-Yes/removal-No
+defaults; presentation retains the existing installation/activation wording.
+There is no parallel ownership engine, command framework or shared mutable session.
+
+The uninstall incident remains UNRESOLVED; the controlled Windows sharing refusal
+is a verified failure contract, not an established explanation of that incident.
+See the [stability evidence and readiness assessment](standards/quality-baseline.md).
+
 ## Processes and platforms
 
 `process.ts` is an export-only compatibility facade. The internal `process/` modules

@@ -277,6 +277,7 @@ try {
     ['selection-cancel', 'cancel', 0],
     ['selection-eof', '\x04', 0],
     ['selection-interrupt', '\x03', 130],
+    ['partial-selection-interrupt', 'unconfirmed-tool\x03', 130],
   ]) {
     await check(`${label} leaves project unchanged`, async () => {
       const before = await snapshot(),
@@ -291,6 +292,26 @@ try {
       assert.deepEqual(await snapshot(), before);
     });
   }
+  await check(
+    'initialization failure closes the terminal and preserves an unowned collision',
+    async () => {
+      const directory = join(project, '.arch/bin');
+      await mkdir(directory, { recursive: true });
+      await writeFile(
+        join(directory, 'collision-tool' + ('win32' === process.platform ? '.exe' : '')),
+        'user-owned bytes',
+      );
+      const before = await snapshot();
+      const session = wizard('init-collision', 'init');
+      await session.expect('Routed commands:');
+      session.answer('collision-tool');
+      await session.expect('Proceed?');
+      session.answer('yes');
+      await session.expect('Refusing to overwrite');
+      await session.finish(1);
+      assert.deepEqual(await snapshot(), before);
+    },
+  );
   await check('installed defaults and final-summary cancellation', async () => {
     const before = await snapshot(),
       session = wizard('summary-cancel', 'init');

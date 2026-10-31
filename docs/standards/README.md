@@ -11,13 +11,14 @@ existing code already conforms. Current enforcement and remaining debt are recor
 
 ## Read by task
 
-| Document                                 | Read when                                                                           |
-| ---------------------------------------- | ----------------------------------------------------------------------------------- |
-| [Measured baseline](quality-baseline.md) | Reviewing current debt, measurement limits and refactoring priorities               |
-| [Code style](code-style.md)              | Writing or reviewing code, names, control flow or formatting                        |
-| [Architecture](architecture.md)          | Changing responsibilities, dependencies, state or public contracts; inspecting debt |
-| [Testing](testing.md)                    | Planning validation, changing behavior or structurally refactoring                  |
-| [Quality gates](quality-gates.md)        | Selecting checks, proposing tooling or reporting enforcement                        |
+| Document                                 | Read when                                                                             |
+| ---------------------------------------- | ------------------------------------------------------------------------------------- |
+| [Measured baseline](quality-baseline.md) | Reviewing current debt, measurement limits and refactoring priorities                 |
+| [Code style](code-style.md)              | Writing or reviewing code, names, control flow or formatting                          |
+| [Architecture](architecture.md)          | Changing responsibilities, dependencies, state or public contracts; inspecting debt   |
+| [Testing](testing.md)                    | Planning validation, changing behavior or structurally refactoring                    |
+| [Quality gates](quality-gates.md)        | Selecting checks, proposing tooling or reporting enforcement                          |
+| [Determinism](determinism.md)            | Critical state, concurrency, cleanup, failure diagnostics and incident classification |
 
 Code changes normally require all four. Documentation-only work requires the
 relevant policy and link/consistency checks; it does not require inventing tests.

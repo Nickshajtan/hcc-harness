@@ -1,5 +1,11 @@
 module.exports = {
   forbidden: [
+    {
+      name: 'no-application-effects-in-input-decisions',
+      severity: 'error',
+      from: { path: '^src/(cli/parsing|wizard/decisions)\\.ts$' },
+      to: { path: '^src/(core|lifecycle|setup|process|wizard/workflow|cli/dispatch)(\\.ts$|/)' },
+    },
     { name: 'no-circular-imports', severity: 'error', from: {}, to: { circular: true } },
     {
       name: 'no-presentation-in-execution-contracts',
@@ -7,7 +13,7 @@ module.exports = {
       from: {
         path: '^src/((config|core|events|middleware|process|setup|lifecycle|discovery)\\.ts$|core/|lifecycle/|process/)',
       },
-      to: { path: '^src/(cli|commands|wizard)\\.ts$' },
+      to: { path: '^src/(cli|commands|wizard)(\\.ts$|/)' },
     },
     {
       name: 'no-application-coordinators-in-process',

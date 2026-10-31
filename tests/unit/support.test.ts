@@ -1,10 +1,31 @@
 import { afterEach, expect, it } from 'vitest';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile, mkdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { events, records } from '../support.js';
+import { events, records, recordRemovalFailure } from '../support.js';
 
 const directories: string[] = [];
+
+it('persists nonzero removal status, streams and checkpoint presence before cleanup', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'arch-removal-evidence-'));
+  directories.push(root);
+  await mkdir(join(root, '.arch'));
+  await writeFile(join(root, '.arch/uninstall.json'), 'fixture checkpoint');
+  const result = {
+    code: 1,
+    signal: null,
+    stdout: '',
+    stderr: 'EPERM: unable to unlink owned file',
+  };
+  const file = await recordRemovalFailure(root, result, { directory: join(root, 'evidence') });
+  const evidence: unknown = JSON.parse(await readFile(file, 'utf8'));
+  expect(evidence).toMatchObject({
+    project: root,
+    ...result,
+    resources: ['uninstall.json'],
+    stage: 'after child close, before fixture cleanup',
+  });
+});
 afterEach(async () => {
   await Promise.all(
     directories.splice(0).map((path) => rm(path, { recursive: true, force: true })),

@@ -42,9 +42,8 @@ it('discovers native candidates without executing them and filters marked router
     { command: 'missing', label: 'Missing', available: false },
   ]);
   expect(
-    (await discoverClis(root, { PATH: router }, [{ command: 'custom', label: 'Custom' }]))[0]!
-      .available,
-  ).toBe(false);
+    await discoverClis(root, { PATH: router }, [{ command: 'custom', label: 'Custom' }]),
+  ).toEqual([{ command: 'custom', label: 'Custom', available: false }]);
 });
 it('defaults to installed claude/codex and retains existing custom selections', () => {
   const candidates = [
