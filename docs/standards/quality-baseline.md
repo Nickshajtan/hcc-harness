@@ -74,6 +74,11 @@ runs failed with EPERM and remain retained.
 | Production dependency modules / edges |         52 / 130 |                         54 / 138 |
 | Dependency violations / cycles        |            0 / 0 |                            0 / 0 |
 
+Complete Windows suite: 488 passed / 31 explicit skips; baseline 456 / 31.
+Complexity analysis retains 38 review findings; ordinary warnings fall by three,
+with no new fingerprints. The larger test matrix does not change production
+setup's complexity or move it out of measurement.
+
 Setup's coordinator complexity was not hidden or reduced: rendering now has a
 separate resource responsibility, and planning no longer imports installation
 coordination. No classes, containers, transaction framework or global execution
@@ -100,10 +105,10 @@ mutators or difficult branches were excluded. Existing five pilot gates remain.
 | Process                            |        301/313 |                     11 / 1 / 0 |
 | CLI/Wizard                         |        444/458 |                      7 / 2 / 5 |
 | Effect pilot, first measurement    |        198/265 |                   34 / 17 / 16 |
-| Effect pilot, hardened measurement |        233/265 |                     30 / 2 / 0 |
+| Effect pilot, hardened measurement |        237/265 |                     26 / 2 / 0 |
 
-The hardened effect measurement is 87.92% overall: recovery 97.44%, removal 96.61%,
-planning 93.75%, staging/publication 81.82%, setup 76%. Later assertions also cover
+The hardened effect measurement is 89.43% overall: recovery 97.44%, removal 96.61%,
+planning 97.92%, staging/publication 81.82%, setup 78.67%. Assertions also cover
 case-preserving plans, equal-size route mismatches, exact resources beside
 preexisting middleware and POSIX executable/metadata modes. Latest remeasurement
 is reported by platform in the PR rather than inferred.
@@ -116,7 +121,7 @@ path guards include platform-equivalent/redundant variants. None are ignored.
 Full reports retain every survivor, uncovered mutant, timeout and error count.
 
 The first effect pilot cost 16m45s under concurrent Windows load; the later pilot
-took 8m14s. Its separate relevant-change/scheduled/manual CI job preserves the
+took 7m52s. Its separate relevant-change/scheduled/manual CI job preserves the
 established job's 15-minute budget. New per-file 85% targets remain advisory:
 setup/staging have not earned numeric gates. Reporting requires all five complete
 scopes and rejects missing/error/ignored evidence. Measurement success explicitly
