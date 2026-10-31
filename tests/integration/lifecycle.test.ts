@@ -156,7 +156,7 @@ it.each(checkpoints)(
       expect(
         (await run(process.execPath, [cli, 'configure', 'claude', 'gemini'], root, env)).code,
       ).toBe(0);
-      const finalStatus = JSON.parse(
+      const finalStatus: unknown = JSON.parse(
         (await run(process.execPath, [cli, 'status', '--json'], root, env)).stdout,
       );
       expect(finalStatus).toMatchObject({
@@ -253,10 +253,10 @@ it('deinit resumes a pending routing journal and preserves edited configuration'
     child.kill('SIGKILL');
     await closed;
     expect((await run(process.execPath, [cli, 'deinit', '--yes'], root, fixture.env)).code).toBe(0);
-    expect(
-      JSON.parse((await run(process.execPath, [cli, 'status', '--json'], root, fixture.env)).stdout)
-        .state,
-    ).toBe('uninitialized');
+    const status: unknown = JSON.parse(
+      (await run(process.execPath, [cli, 'status', '--json'], root, fixture.env)).stdout,
+    );
+    expect(status).toMatchObject({ state: 'uninitialized' });
     expect(await readFile(join(root, '.arch/harness.toml'), 'utf8')).toContain('# keep this');
   } finally {
     if (null === child.exitCode && null === child.signalCode) {
@@ -273,7 +273,7 @@ it('installs without mise or activation and distinguishes both from installation
   const initialized = await run(process.execPath, [cli, 'init', 'custom'], root, env);
   expect(initialized.code).toBe(0);
   expect(initialized.stdout).toContain('Shell activation has not been verified');
-  const status = JSON.parse(
+  const status: unknown = JSON.parse(
     (await run(process.execPath, [cli, 'status', '--json'], root, env)).stdout,
   );
   expect(status).toMatchObject({
