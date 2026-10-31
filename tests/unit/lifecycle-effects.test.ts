@@ -13,7 +13,7 @@ import {
   stat,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import { setup, stateFrom, digest, uninstall } from '../../src/setup.js';
 import {
   reconcileRoutes,
@@ -207,6 +207,9 @@ it.each(['.arch/routing.json', '.arch/uninstall.json'])(
 it('initialization rejects different route sets and collisions while accepting reordered recorded paths', async () => {
   const bytes = await readFile(file('.arch/bootstrap.json'));
   await expect(setup(root, ['different'])).rejects.toThrow('Arch setup differs; use configure');
+  await expect(setup(root, ['replacement', 'retained'])).rejects.toThrow(
+    'Arch setup differs; use configure',
+  );
   expect(await readFile(file('.arch/bootstrap.json'))).toEqual(bytes);
   await setup(root, ['removed', 'retained']);
   expect(await readFile(file('.arch/bootstrap.json'))).toEqual(bytes);
@@ -277,6 +280,10 @@ it('uses the exact manifest stage name and publishes executable POSIX launchers'
       expect(await readdir(file('.arch'))).toContain(`.routing-${journal.id}-manifest.stage`);
       if ('win32' !== process.platform) {
         expect((await stat(file(route('added')))).mode & 0o111).toBe(0o111);
+        expect((await stat(file(`.arch/.routing-${journal.id}-manifest.stage`))).mode & 0o111).toBe(
+          0,
+        );
+        expect((await stat(file('.arch/routing.stage'))).mode & 0o111).toBe(0);
       }
     },
   });
@@ -358,4 +365,36 @@ it('preserves initial exclusive creation against a late destination collision', 
     code: 'ENOENT',
   });
   await expect(setup(root, ['../unsafe'])).rejects.toThrow('Supply unique executable names');
+});
+
+it('preserves recorded route spelling and platform-specific command identity in a plan', async () => {
+  const plan = await planRoutes(root, ['RETAINED', 'added']);
+  const retainedPath = route('win32' === process.platform ? 'retained' : 'RETAINED');
+  expect(plan.after.files[retainedPath]).toBeTypeOf('string');
+  expect(Object.keys(plan.after.files)).not.toContain(route('undefined'));
+  if ('win32' === process.platform) {
+    expect(Object.keys(plan.additions)).not.toContain(route('RETAINED'));
+    expect(plan.after.files[retainedPath]).toBe(plan.before.files[retainedPath]);
+  }
+});
+
+it('creates only recorded resources beside preexisting middleware configuration', async () => {
+  await uninstall(root);
+  const custom = 'schema=1\n# user configuration\nmiddleware=[]\n';
+  await actual.writeFile(file('.arch/harness.toml'), custom);
+  await setup(root, ['tool']);
+  const state = stateFrom(await readFile(file('.arch/bootstrap.json')));
+  expect(state.createdHarness).toBe(false);
+  expect(await readFile(file('.arch/harness.toml'), 'utf8')).toBe(custom);
+  const files = (await readdir(root, { recursive: true, withFileTypes: true }))
+    .filter((entry) => entry.isFile())
+    .map((entry) => relative(root, join(entry.parentPath, entry.name)).split(sep).join('/'));
+  expect(files.sort()).toEqual(
+    [...Object.keys(state.files), '.arch/bootstrap.json', '.arch/harness.toml', 'user.txt'].sort(),
+  );
+  if ('win32' !== process.platform) {
+    for (const path of Object.keys(state.files)) {
+      expect((await stat(file(path))).mode & 0o111).toBe(path.startsWith('.arch/bin/') ? 0o111 : 0);
+    }
+  }
 });

@@ -16,6 +16,12 @@ export default defineConfig({
       // Only these measured scopes have reached the critical targets.
       // Other production files remain included without a numeric gate.
       thresholds: {
+        'src/installation/renderer.ts': { lines: 95, branches: 90 },
+        'src/installation/setup.ts': { lines: 95, branches: 90 },
+        'src/lifecycle/routing-plan.ts': { lines: 95, branches: 90 },
+        'src/lifecycle/routing-files.ts': { lines: 95, branches: 90 },
+        'src/lifecycle/recovery.ts': { lines: 95, branches: 90 },
+        'src/lifecycle/removal.ts': { lines: 95, branches: 90 },
         'src/cli/parsing.ts': { lines: 95, branches: 90 },
         'src/cli/dispatch.ts': { lines: 95, branches: 90 },
         'src/cli/presentation.ts': { lines: 95, branches: 90 },
