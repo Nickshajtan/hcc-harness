@@ -145,7 +145,7 @@ it('preserves cwd, stdio, stdin and native nonzero exit codes', async () => {
     'input with spaces\nand another line\n',
   );
   expect(result, result.stderr).toMatchObject({ code: 23 });
-  expect(JSON.parse(result.stdout.split(/\r?\n/)[0]!)).toMatchObject({
+  expect(JSON.parse(result.stdout.split(/\r?\n/)[0] ?? '')).toMatchObject({
     cwd: sub,
     args: ['--flag'],
   });
@@ -379,7 +379,11 @@ it.skipIf('win32' !== process.platform)(
       expect(result.stderr).toContain('[arch:demo] cleanup');
       const native = await records(log);
       expect(native).toHaveLength(1);
-      expect(() => process.kill(native[0]!.pid, 0)).toThrow();
+      const child = native[0];
+      if (!child) {
+        throw new Error('Missing native process record');
+      }
+      expect(() => process.kill(child.pid, 0)).toThrow();
     }
   },
 );

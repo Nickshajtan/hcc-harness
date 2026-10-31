@@ -11,6 +11,7 @@ import {
   symlink,
   readdir,
   stat,
+  chmod,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative, sep } from 'node:path';
@@ -32,6 +33,7 @@ vi.mock('node:fs/promises', async (original) => {
     unlink: vi.fn(actual.unlink),
     rename: vi.fn(actual.rename),
     link: vi.fn(actual.link),
+    chmod: vi.fn(actual.chmod),
   };
 });
 const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises');
@@ -44,6 +46,7 @@ beforeEach(async () => {
   vi.mocked(unlink).mockImplementation(actual.unlink);
   vi.mocked(rename).mockImplementation(actual.rename);
   vi.mocked(link).mockImplementation(actual.link);
+  vi.mocked(chmod).mockImplementation(actual.chmod);
   root = await mkdtemp(join(tmpdir(), 'arch-effect-contract-'));
   await setup(root, ['retained', 'removed']);
   await actual.writeFile(file('user.txt'), 'unrelated');
@@ -326,9 +329,38 @@ it('accepts an already complete private stage without attempting exclusive recre
   const path = '.arch/complete.stage';
   const bytes = Buffer.from('complete');
   await actual.writeFile(file(path), bytes, { flag: 'wx' });
+  vi.mocked(writeFile).mockClear();
   await stage(root, path, bytes);
+  expect(writeFile).not.toHaveBeenCalled();
   expect(await readFile(file(path))).toEqual(bytes);
 });
+
+it('does not remove an unrelated resource when optional removal finds no file', async () => {
+  await removeOptional(root, '.arch/absent.stage');
+  expect(unlink).toHaveBeenCalledExactlyOnceWith(file('.arch/absent.stage'));
+  expect(await readFile(file('user.txt'), 'utf8')).toBe('unrelated');
+});
+
+it('does not grant execution permission to non-executable private stages', async () => {
+  const path = '.arch/data.stage';
+  vi.mocked(chmod).mockClear();
+  await stage(root, path, Buffer.from('metadata'));
+  expect(chmod).not.toHaveBeenCalled();
+  expect(await readFile(file(path), 'utf8')).toBe('metadata');
+});
+
+it.skipIf('win32' === process.platform)(
+  'preserves a complete private stage and the exact permission failure before publication',
+  async () => {
+    const failure = Object.assign(new Error('chmod denied'), { code: 'EPERM' });
+    vi.mocked(chmod).mockRejectedValue(failure);
+    await expect(stage(root, '.arch/permission.stage', Buffer.from('complete'), true)).rejects.toBe(
+      failure,
+    );
+    expect(await readFile(file('.arch/permission.stage'), 'utf8')).toBe('complete');
+    expect(link).not.toHaveBeenCalled();
+  },
+);
 
 it('preserves routing removal diagnostics and code-less publication causes', async () => {
   const failure = new Error('external failure without an errno');

@@ -5,12 +5,13 @@ import { tmpdir } from 'node:os';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { capture, cli, records, run, start, world, type Result } from '../support.js';
+import { requiredEnvironment } from '../support.js';
 
 let fixture: Awaited<ReturnType<typeof world>>;
 let prefix: string, executable: string, env: NodeJS.ProcessEnv;
 const repository = process.cwd();
 // Invoke npm's own JS entry to avoid shell quoting and host-global configuration.
-const npm = process.env.npm_execpath!;
+const npm = requiredEnvironment('npm_execpath');
 beforeAll(async () => {
   fixture = await world(tmpdir());
   prefix = join(fixture.root, 'npm-prefix');
@@ -57,7 +58,7 @@ function startArch(
     expect(value).not.toMatch(/["%&|<>^!\r\n]/);
   }
   const command = `"${values.map((value) => `"${value}"`).join(' ')}"`;
-  const child = spawn(process.env.ComSpec!, ['/d', '/s', '/c', command], {
+  const child = spawn(requiredEnvironment('ComSpec'), ['/d', '/s', '/c', command], {
     cwd,
     env: { ...env, ...overrides },
     windowsVerbatimArguments: true,
@@ -106,6 +107,9 @@ it('links the existing CLI, dispatches help, and leaves the target project untou
     const directory = join(repository, 'reports/npm-help-diagnostics');
     await mkdir(directory, { recursive: true });
     await writeFile(join(directory, `${randomUUID()}.json`), JSON.stringify(observation, null, 2));
+    // Capture first, then bound direct-child teardown. A failed teardown remains
+    // a failure; neither successful termination nor a rerun closes the incident.
+    await invocation?.dispose();
   });
   async function help(label: string, create: () => ReturnType<typeof start>): Promise<Result> {
     phase = label;
@@ -132,7 +136,7 @@ it('links the existing CLI, dispatches help, and leaves the target project untou
   if ('win32' === process.platform) {
     const powershell = await help('PowerShell npm shim help', () => {
       const current = start(
-        join(process.env.SystemRoot!, 'System32/WindowsPowerShell/v1.0/powershell.exe'),
+        join(requiredEnvironment('SystemRoot'), 'System32/WindowsPowerShell/v1.0/powershell.exe'),
         [
           '-NoProfile',
           '-NonInteractive',

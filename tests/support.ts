@@ -18,6 +18,21 @@ import { inspectInstallation } from '../src/lifecycle/inspection.js';
 export const cli = resolve('dist/cli.js');
 const localMise = resolve('.tools/mise/bin/mise.exe');
 export const mise = process.env.MISE_BIN || (existsSync(localMise) ? localMise : 'mise');
+export function requiredEnvironment(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Missing test prerequisite: ${name}`);
+  }
+  return value;
+}
+
+export function runtimeOutput(stdout: string): { node: string; exec: string } {
+  const value: unknown = JSON.parse(stdout.split(/\r?\n/)[0] ?? '');
+  if (!isObject(value) || 'string' !== typeof value.node || 'string' !== typeof value.exec) {
+    throw new Error('Malformed runtime fixture output');
+  }
+  return { node: value.node, exec: value.exec };
+}
 export interface Result {
   code: number | null;
   signal: NodeJS.Signals | null;
@@ -33,6 +48,13 @@ export function start(command: string, args: string[], cwd: string, env: NodeJS.
 // Shared by direct processes and npm's explicit cmd invocation. Observe exit and
 // close separately; recording a parent exit must never settle inherited streams.
 export function capture(child: ChildProcessWithoutNullStreams) {
+  let closed = false;
+  const closure = new Promise<void>((done) => {
+    child.once('close', () => {
+      closed = true;
+      done();
+    });
+  });
   const observations: { event: string; code?: number | null; signal?: NodeJS.Signals | null }[] =
     [];
   child.once('spawn', () => {
@@ -70,6 +92,29 @@ export function capture(child: ChildProcessWithoutNullStreams) {
     result,
     output: () => ({ stdout, stderr }),
     observations: () => observations.map((entry) => ({ ...entry })),
+    async dispose() {
+      if (closed) {
+        return;
+      }
+      // Test-owned direct child only. A parent exit with open inherited pipes is
+      // not completion; do not pretend this can contain unknown descendants.
+      if (null === child.exitCode && null === child.signalCode && !child.kill('SIGKILL')) {
+        throw new Error(`Unable to terminate test child ${String(child.pid)}`);
+      }
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await Promise.race([
+          closure,
+          new Promise<never>((_done, reject) => {
+            timer = setTimeout(() => {
+              reject(new Error(`Test child ${String(child.pid)} did not close during teardown`));
+            }, 3000);
+          }),
+        ]);
+      } finally {
+        clearTimeout(timer);
+      }
+    },
   };
 }
 export async function run(
@@ -146,114 +191,132 @@ export function stop(child: ChildProcess) {
 export async function world(temporary = resolve('.test-state/fixtures')) {
   await mkdir(temporary, { recursive: true });
   const root = await mkdtemp(join(temporary, 'arch-fixture-'));
-  const paths = {
-    home: join(root, 'home'),
-    data: join(root, 'data'),
-    cache: join(root, 'cache'),
-    config: join(root, 'config'),
-    native: join(root, 'native'),
-    A: join(root, 'A'),
-    B: join(root, 'B'),
-    C: join(root, 'C'),
-  };
-  await Promise.all(Object.values(paths).map((path) => mkdir(path, { recursive: true })));
-  const native = paths.native;
-  // Extensionless Node fixtures must not inherit the repository's ESM package scope.
-  await writeFile(join(root, 'package.json'), '{"type":"commonjs"}\n');
-  if ('win32' === process.platform) {
-    const csc = join(
-      process.env.SystemRoot || 'C:/Windows',
-      'Microsoft.NET/Framework64/v4.0.30319/csc.exe',
+  try {
+    const paths = {
+      home: join(root, 'home'),
+      data: join(root, 'data'),
+      cache: join(root, 'cache'),
+      config: join(root, 'config'),
+      native: join(root, 'native'),
+      A: join(root, 'A'),
+      B: join(root, 'B'),
+      C: join(root, 'C'),
+    };
+    // Let every owned setup operation settle before cleanup can remove their root.
+    const directories = await Promise.allSettled(
+      Object.values(paths).map((path) => mkdir(path, { recursive: true })),
     );
-    const built = await run(
-      csc,
-      ['/nologo', `/out:${join(native, 'claude.exe')}`, resolve('tests/fixtures/native.cs')],
+    const failure = directories.find((result) => 'rejected' === result.status);
+    if (failure) {
+      throw failure.reason;
+    }
+    const native = paths.native;
+    // Extensionless Node fixtures must not inherit the repository's ESM package scope.
+    await writeFile(join(root, 'package.json'), '{"type":"commonjs"}\n');
+    if ('win32' === process.platform) {
+      const csc = join(
+        process.env.SystemRoot || 'C:/Windows',
+        'Microsoft.NET/Framework64/v4.0.30319/csc.exe',
+      );
+      const built = await run(
+        csc,
+        ['/nologo', `/out:${join(native, 'claude.exe')}`, resolve('tests/fixtures/native.cs')],
+        root,
+        process.env,
+      );
+      if (0 !== built.code) {
+        throw new Error(`Fake executable compile failed: ${built.stdout} ${built.stderr}`);
+      }
+      await copyFile(join(native, 'claude.exe'), join(native, 'codex.exe'));
+      const driver = await run(
+        csc,
+        [
+          '/nologo',
+          `/out:${join(root, 'console-driver.exe')}`,
+          resolve('tests/fixtures/console-driver.cs'),
+        ],
+        root,
+        process.env,
+      );
+      if (0 !== driver.code) {
+        throw new Error(`Console driver compile failed: ${driver.stdout} ${driver.stderr}`);
+      }
+    } else {
+      for (const name of ['claude', 'codex']) {
+        await copyFile(resolve('tests/fixtures/native.cjs'), join(native, name));
+        await chmod(join(native, name), 0o755);
+      }
+    }
+    const env: NodeJS.ProcessEnv = {};
+    for (const key of [
+      'SystemRoot',
+      'WINDIR',
+      'ComSpec',
+      'PATHEXT',
+      'TEMP',
+      'TMP',
+      'TMPDIR',
+      'LANG',
+    ]) {
+      if (process.env[key]) {
+        env[key] = process.env[key];
+      }
+    }
+    Object.assign(env, {
+      HOME: paths.home,
+      USERPROFILE: paths.home,
+      XDG_CONFIG_HOME: paths.config,
+      MISE_DATA_DIR: paths.data,
+      MISE_CACHE_DIR: paths.cache,
+      MISE_CONFIG_DIR: paths.config,
+      MISE_GLOBAL_CONFIG_FILE: join(paths.config, 'config.toml'),
+      MISE_SYSTEM_CONFIG_DIR: join(root, 'system'),
+      MISE_CEILING_PATHS: root,
+      MISE_TRUSTED_CONFIG_PATHS: root,
+      MISE_OFFLINE: '1',
+      MISE_NOT_FOUND_AUTO_INSTALL: 'false',
+      MISE_NOT_FOUND_SYSTEM_FALLBACK: 'true',
+      MISE_BIN: mise,
+      PATH: [
+        join(paths.A, '.arch/bin'),
+        join(paths.B, '.arch/bin'),
+        native,
+        dirname(process.execPath),
+        ...('mise' !== mise ? [dirname(mise)] : []),
+        process.env.PATH ?? '',
+      ].join(delimiter),
+      ARCH_TRACE: '1',
+    });
+    return {
       root,
-      process.env,
-    );
-    if (0 !== built.code) {
-      throw new Error(`Fake executable compile failed: ${built.stdout} ${built.stderr}`);
-    }
-    await copyFile(join(native, 'claude.exe'), join(native, 'codex.exe'));
-    const driver = await run(
-      csc,
-      [
-        '/nologo',
-        `/out:${join(root, 'console-driver.exe')}`,
-        resolve('tests/fixtures/console-driver.cs'),
-      ],
-      root,
-      process.env,
-    );
-    if (0 !== driver.code) {
-      throw new Error(`Console driver compile failed: ${driver.stdout} ${driver.stderr}`);
-    }
-  } else {
-    for (const name of ['claude', 'codex']) {
-      await copyFile(resolve('tests/fixtures/native.cjs'), join(native, name));
-      await chmod(join(native, name), 0o755);
-    }
-  }
-  const env: NodeJS.ProcessEnv = {};
-  for (const key of [
-    'SystemRoot',
-    'WINDIR',
-    'ComSpec',
-    'PATHEXT',
-    'TEMP',
-    'TMP',
-    'TMPDIR',
-    'LANG',
-  ]) {
-    if (process.env[key]) {
-      env[key] = process.env[key];
-    }
-  }
-  Object.assign(env, {
-    HOME: paths.home,
-    USERPROFILE: paths.home,
-    XDG_CONFIG_HOME: paths.config,
-    MISE_DATA_DIR: paths.data,
-    MISE_CACHE_DIR: paths.cache,
-    MISE_CONFIG_DIR: paths.config,
-    MISE_GLOBAL_CONFIG_FILE: join(paths.config, 'config.toml'),
-    MISE_SYSTEM_CONFIG_DIR: join(root, 'system'),
-    MISE_CEILING_PATHS: root,
-    MISE_TRUSTED_CONFIG_PATHS: root,
-    MISE_OFFLINE: '1',
-    MISE_NOT_FOUND_AUTO_INSTALL: 'false',
-    MISE_NOT_FOUND_SYSTEM_FALLBACK: 'true',
-    MISE_BIN: mise,
-    PATH: [
-      join(paths.A, '.arch/bin'),
-      join(paths.B, '.arch/bin'),
+      A: paths.A,
+      B: paths.B,
+      C: paths.C,
       native,
-      dirname(process.execPath),
-      ...('mise' !== mise ? [dirname(mise)] : []),
-      process.env.PATH ?? '',
-    ].join(delimiter),
-    ARCH_TRACE: '1',
-  });
-  return {
-    root,
-    A: paths.A,
-    B: paths.B,
-    C: paths.C,
-    native,
-    env,
-    init: (cwd: string, commands = ['claude', 'codex']) =>
-      run(process.execPath, [cli, 'init', ...commands], cwd, env),
-    invoke: (
-      cwd: string,
-      command = 'claude',
-      args: string[] = [],
-      overrides: NodeJS.ProcessEnv = {},
-      stdin = '',
-    ) => run(command, args, cwd, { ...env, ...overrides }, stdin),
-    // Windows may retain an executable's file handle briefly after process exit.
-    // Bounded retries tolerate that release delay; persistent locks still fail.
-    dispose: () => rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }),
-  };
+      env,
+      init: (cwd: string, commands = ['claude', 'codex']) =>
+        run(process.execPath, [cli, 'init', ...commands], cwd, env),
+      invoke: (
+        cwd: string,
+        command = 'claude',
+        args: string[] = [],
+        overrides: NodeJS.ProcessEnv = {},
+        stdin = '',
+      ) => run(command, args, cwd, { ...env, ...overrides }, stdin),
+      // Windows may retain an executable's file handle briefly after process exit.
+      // Bounded retries tolerate that release delay; persistent locks still fail.
+      dispose: () => rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }),
+    };
+  } catch (error) {
+    try {
+      await rm(root, { recursive: true, force: true });
+    } catch (cleanupError) {
+      throw new AggregateError([error, cleanupError], 'Fixture preparation and cleanup failed', {
+        cause: error,
+      });
+    }
+    throw error;
+  }
 }
 
 export function events(result: Result): {

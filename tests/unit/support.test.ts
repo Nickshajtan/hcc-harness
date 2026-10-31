@@ -2,9 +2,30 @@ import { afterEach, expect, it } from 'vitest';
 import { mkdtemp, rm, writeFile, mkdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { events, records, recordRemovalFailure, start } from '../support.js';
+import {
+  events,
+  records,
+  recordRemovalFailure,
+  start,
+  runtimeOutput,
+  requiredEnvironment,
+} from '../support.js';
 
 const directories: string[] = [];
+
+it('validates native runtime protocol fields before using executable paths', () => {
+  expect(runtimeOutput('{"node":"v22.0.0","exec":"native-node"}\nextra')).toEqual({
+    node: 'v22.0.0',
+    exec: 'native-node',
+  });
+  for (const value of [null, [], {}, { node: 'v22', exec: 3 }, { node: false, exec: 'node' }]) {
+    expect(() => runtimeOutput(JSON.stringify(value))).toThrow('Malformed runtime fixture output');
+  }
+  expect(() => runtimeOutput('{')).toThrow(SyntaxError);
+  expect(() => requiredEnvironment('ARCH_TEST_DELIBERATELY_MISSING_PREREQUISITE')).toThrow(
+    'Missing test prerequisite',
+  );
+});
 
 it('persists nonzero removal status, streams and checkpoint presence before cleanup', async () => {
   const root = await mkdtemp(join(tmpdir(), 'arch-removal-evidence-'));
@@ -45,6 +66,25 @@ it('captures both complete pipes and process events through close', async () => 
   expect(observations).toContainEqual({ event: 'stderr-end' });
   observations.splice(0);
   expect(invocation.observations()).not.toEqual([]);
+  await invocation.dispose();
+});
+
+it('settles and closes an explicitly owned waiting child during bounded teardown', async () => {
+  const invocation = start(
+    process.execPath,
+    ['-e', 'setInterval(() => {}, 1000)'],
+    process.cwd(),
+    process.env,
+  );
+  invocation.child.stdin.end();
+  try {
+    await invocation.dispose();
+    await invocation.result;
+    expect(invocation.observations().at(-1)?.event).toBe('close');
+    await invocation.dispose();
+  } finally {
+    await invocation.dispose();
+  }
 });
 afterEach(async () => {
   await Promise.all(

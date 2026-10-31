@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join, delimiter, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { world, run, cli } from '../support.js';
+import { requiredEnvironment } from '../support.js';
 
 const windows = 'win32' === process.platform;
 let fixture: Awaited<ReturnType<typeof world>>;
@@ -24,7 +25,7 @@ beforeAll(async () => {
     '#!/usr/bin/env node\nconsole.log(JSON.stringify({node:process.execPath,args:process.argv.slice(2),path:process.env.PATH,override:process.env.ARCH_NODE}));\n',
   );
   // Exercise the real cmd-shim implementation bundled with the npm invoking tests.
-  const require = createRequire(process.env.npm_execpath!);
+  const require = createRequire(requiredEnvironment('npm_execpath'));
   const binLinks = createRequire(require.resolve('bin-links'));
   const cmdShim = binLinks('cmd-shim') as (from: string, to: string) => Promise<void>;
   await cmdShim(script, join(fixture.native, 'standard'));
