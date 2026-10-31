@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-import { renderFiles } from '../setup.js';
+import { renderFiles } from '../installation/renderer.js';
 import {
   stateFrom,
   statePath,

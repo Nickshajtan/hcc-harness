@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { setup, uninstall } from '../setup.js';
+import { setup } from '../installation/setup.js';
+import { uninstall } from './removal.js';
 import {
   statePath,
   uninstallPath,
