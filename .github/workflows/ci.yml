@@ -62,4 +62,5 @@ jobs:
             .test-state/m2-*.json
             reports/removal-diagnostics/
             reports/npm-help-diagnostics/
+            reports/uninstall-stress/
           include-hidden-files: true
