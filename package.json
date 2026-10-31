@@ -36,7 +36,8 @@
     "test:mutation:check": "node scripts/check-mutation.mjs config core lifecycle process cli",
     "test:mutation:lifecycle": "stryker run stryker.lifecycle.config.json",
     "test:mutation:process": "stryker run stryker.process.config.json",
-    "test:mutation:cli": "stryker run stryker.cli.config.json"
+    "test:mutation:cli": "stryker run stryker.cli.config.json",
+    "test:mutation:effects": "stryker run stryker.effects.config.json"
   },
   "dependencies": {
     "emittery": "2.1.0",
