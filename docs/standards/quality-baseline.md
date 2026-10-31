@@ -47,6 +47,13 @@ Local loaded runs also retained recovery checkpoint timeouts. These failed resul
 are not erased by later green runs. No production retries, sleeps or speculative
 operational repair were introduced.
 
+A new case-identity test also had a confirmed portability defect:
+[macOS failure](https://github.com/Nickshajtan/hcc-harness/actions/runs/41226036970).
+It assumed every POSIX volume was case-sensitive. The unchanged planner correctly
+refused an uppercase alias on the runner's case-insensitive filesystem. The test
+now observes that capability and asserts the corresponding existing no-clobber
+behavior, including unchanged manifest bytes. No platform skip or product change.
+
 ## Reproduced quality
 
 Pins unchanged: Node 24.19.0, TypeScript 6.0.3, ESLint 10.12.0,

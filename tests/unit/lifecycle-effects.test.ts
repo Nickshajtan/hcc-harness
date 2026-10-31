@@ -14,7 +14,7 @@ import {
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative, sep } from 'node:path';
-import { setup, stateFrom, digest, uninstall } from '../../src/setup.js';
+import { setup, stateFrom, digest, uninstall, readOptional } from '../../src/setup.js';
 import {
   reconcileRoutes,
   inspectInstallation,
@@ -367,7 +367,17 @@ it('preserves initial exclusive creation against a late destination collision', 
   await expect(setup(root, ['../unsafe'])).rejects.toThrow('Supply unique executable names');
 });
 
-it('preserves recorded route spelling and platform-specific command identity in a plan', async () => {
+it('preserves recorded spelling and refuses filesystem case aliases outside Windows identity', async () => {
+  const before = await readFile(file('.arch/bootstrap.json'));
+  // POSIX route identity is case-sensitive, but a POSIX volume need not be.
+  // Observe this fixture's capability rather than infer it from the OS name.
+  if ('win32' !== process.platform && (await readOptional(file(route('RETAINED')))) !== undefined) {
+    await expect(planRoutes(root, ['RETAINED', 'added'])).rejects.toThrow(
+      `Refusing to overwrite ${route('RETAINED')}`,
+    );
+    expect(await readFile(file('.arch/bootstrap.json'))).toEqual(before);
+    return;
+  }
   const plan = await planRoutes(root, ['RETAINED', 'added']);
   const retainedPath = route('win32' === process.platform ? 'retained' : 'RETAINED');
   expect(plan.after.files[retainedPath]).toBeTypeOf('string');
@@ -376,6 +386,7 @@ it('preserves recorded route spelling and platform-specific command identity in 
     expect(Object.keys(plan.additions)).not.toContain(route('RETAINED'));
     expect(plan.after.files[retainedPath]).toBe(plan.before.files[retainedPath]);
   }
+  expect(await readFile(file('.arch/bootstrap.json'))).toEqual(before);
 });
 
 it('creates only recorded resources beside preexisting middleware configuration', async () => {

@@ -126,7 +126,7 @@ gaps remain reported; subprocess/PTY contracts are retained. Existing scoped gat
 and required runtime aggregate are unchanged. The [determinism standard](determinism.md)
 is a review requirement, not proof of deterministic OS scheduling or incident resolution.
 
-## Completion evidence
+## Installation and effect adoption
 
 Installation rendering/setup and lifecycle planning/publication/recovery/removal
 now enforce the measured 95% line / 90% branch scopes. These gates complement
@@ -138,6 +138,8 @@ complete five-module pilot has advisory 85% assertion-only targets, not new nume
 gates. `node scripts/report-effects-mutation.mjs` rejects missing scopes, errors,
 ignored mutants and missing reports, and marks unmet targets explicitly. Existing
 five blocking pilots and all thresholds remain unchanged.
+
+## Completion evidence
 
 Report PASS / FAIL / NOT TESTED, exact commands, counts/skips, inspected CI links,
 contract compatibility, remaining warnings and measurement limitations. A green
