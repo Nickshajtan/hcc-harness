@@ -2,7 +2,7 @@ import { afterEach, expect, it } from 'vitest';
 import { mkdtemp, rm, writeFile, mkdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { events, records, recordRemovalFailure } from '../support.js';
+import { events, records, recordRemovalFailure, start } from '../support.js';
 
 const directories: string[] = [];
 
@@ -24,7 +24,27 @@ it('persists nonzero removal status, streams and checkpoint presence before clea
     ...result,
     resources: ['uninstall.json'],
     stage: 'after child close, before fixture cleanup',
+    ownership: { state: 'invalid_state', recoveryPending: true },
   });
+});
+
+it('captures both complete pipes and process events through close', async () => {
+  const invocation = start(
+    process.execPath,
+    ['-e', "process.stdout.write('out'); process.stderr.write('err'); process.exitCode=7"],
+    process.cwd(),
+    process.env,
+  );
+  invocation.child.stdin.end();
+  expect(await invocation.result).toEqual({ code: 7, signal: null, stdout: 'out', stderr: 'err' });
+  const observations = invocation.observations();
+  expect(observations[0]).toEqual({ event: 'spawn' });
+  expect(observations.at(-1)).toEqual({ event: 'close', code: 7, signal: null });
+  expect(observations).toContainEqual({ event: 'exit', code: 7, signal: null });
+  expect(observations).toContainEqual({ event: 'stdout-end' });
+  expect(observations).toContainEqual({ event: 'stderr-end' });
+  observations.splice(0);
+  expect(invocation.observations()).not.toEqual([]);
 });
 afterEach(async () => {
   await Promise.all(

@@ -1,13 +1,19 @@
 import { expect, it } from 'vitest';
 import { copyFile, mkdir, readFile, readdir, writeFile, rename, unlink } from 'node:fs/promises';
 import { join, delimiter } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { cli, run, start, world, events } from '../support.js';
 
 // Bounded concurrent pressure, not a retry policy: every operation must pass on
 // its first attempt. Each lane owns a different project and awaits child close.
-it.each([false, true])(
-  'preserves user configuration through concurrent immediate run/uninstall (interrupted=%s)',
-  async (interrupted) => {
+it.each([
+  { interrupted: false, lanes: 1 },
+  { interrupted: true, lanes: 1 },
+  { interrupted: false, lanes: 3 },
+  { interrupted: true, lanes: 3 },
+])(
+  'preserves user configuration through immediate run/uninstall (interrupted=$interrupted, lanes=$lanes)',
+  async ({ interrupted, lanes }) => {
     const fixture = await world();
     const custom = 'schema=1\nmiddleware=[]\n';
     const evidence: unknown[] = [];
@@ -19,7 +25,7 @@ it.each([false, true])(
         join(fixture.native, `arbitrary${extension}`),
       );
       const outcomes = await Promise.allSettled(
-        Array.from({ length: 3 }, async (_, lane) => {
+        Array.from({ length: lanes }, async (_, lane) => {
           const project = join(fixture.root, `lane-${String(lane)}`);
           await mkdir(join(project, '.arch'), { recursive: true });
           await writeFile(join(project, '.arch/harness.toml'), custom);
@@ -62,15 +68,41 @@ it.each([false, true])(
       const failures = outcomes.filter((outcome) => 'rejected' === outcome.status);
       failed ||= 0 !== failures.length;
       expect(failures, JSON.stringify(evidence)).toEqual([]);
+    } catch (error) {
+      // Preparation errors must not leave a misleading successful stress record.
+      failed = true;
+      throw error;
     } finally {
       // A failed fixture is retained for inspection rather than destroying the
       // manifest/journal evidence. No environment values or credentials are saved.
+      const record = {
+        platform: process.platform,
+        lanes,
+        iterations: 4,
+        interrupted,
+        failed,
+        evidence,
+        cleanup: failed ? 'retained' : 'pending',
+      };
+      const directory = 'reports/uninstall-stress';
+      await mkdir(directory, { recursive: true });
+      const report = join(directory, `${randomUUID()}.json`);
+      await writeFile(report, JSON.stringify(record, null, 2));
       await writeFile(
         join(fixture.root, 'uninstall-evidence.json'),
-        JSON.stringify({ failed, evidence, cleanup: failed ? 'retained' : 'requested' }, null, 2),
+        JSON.stringify(record, null, 2),
       );
       if (!failed) {
-        await fixture.dispose();
+        try {
+          await fixture.dispose();
+          record.cleanup = 'completed';
+        } catch (error) {
+          record.failed = true;
+          record.cleanup = `failed: ${String(error)}`;
+          throw error;
+        } finally {
+          await writeFile(report, JSON.stringify(record, null, 2));
+        }
       }
     }
   },

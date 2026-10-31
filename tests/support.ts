@@ -12,7 +12,8 @@ import {
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { resolve, join, dirname, delimiter } from 'node:path';
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn, type ChildProcess, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { inspectInstallation } from '../src/lifecycle/inspection.js';
 
 export const cli = resolve('dist/cli.js');
 const localMise = resolve('.tools/mise/bin/mise.exe');
@@ -26,6 +27,26 @@ export interface Result {
 
 export function start(command: string, args: string[], cwd: string, env: NodeJS.ProcessEnv) {
   const child = spawn(command, args, { cwd, env, shell: false, stdio: ['pipe', 'pipe', 'pipe'] });
+  return capture(child);
+}
+
+// Shared by direct processes and npm's explicit cmd invocation. Observe exit and
+// close separately; recording a parent exit must never settle inherited streams.
+export function capture(child: ChildProcessWithoutNullStreams) {
+  const observations: { event: string; code?: number | null; signal?: NodeJS.Signals | null }[] =
+    [];
+  child.once('spawn', () => {
+    observations.push({ event: 'spawn' });
+  });
+  child.once('exit', (code, signal) => {
+    observations.push({ event: 'exit', code, signal });
+  });
+  child.stdout.once('end', () => {
+    observations.push({ event: 'stdout-end' });
+  });
+  child.stderr.once('end', () => {
+    observations.push({ event: 'stderr-end' });
+  });
   let stdout = '',
     stderr = '';
   child.stdout.on('data', (data: Buffer) => {
@@ -35,12 +56,21 @@ export function start(command: string, args: string[], cwd: string, env: NodeJS.
     stderr += data.toString('utf8');
   });
   const result = new Promise<Result>((done, reject) => {
-    child.once('error', reject);
+    child.once('error', (error) => {
+      observations.push({ event: 'error' });
+      reject(error);
+    });
     child.once('close', (code, signal) => {
+      observations.push({ event: 'close', code, signal });
       done({ code, signal, stdout, stderr });
     });
   });
-  return { child, result, output: () => ({ stdout, stderr }) };
+  return {
+    child,
+    result,
+    output: () => ({ stdout, stderr }),
+    observations: () => observations.map((entry) => ({ ...entry })),
+  };
 }
 export async function run(
   command: string,
@@ -58,7 +88,10 @@ export async function run(
     ('uninstall' === operation || 'deinit' === operation) &&
     0 !== result.code
   ) {
-    await recordRemovalFailure(cwd, result, { operation });
+    await recordRemovalFailure(cwd, result, {
+      operation,
+      child: { pid: invocation.child.pid ?? null, events: invocation.observations() },
+    });
   }
   return result;
 }
@@ -68,7 +101,11 @@ export async function run(
 export async function recordRemovalFailure(
   project: string,
   result: Result,
-  options: { directory?: string; operation?: 'uninstall' | 'deinit' } = {},
+  options: {
+    directory?: string;
+    operation?: 'uninstall' | 'deinit';
+    child?: { pid: number | null; events: unknown };
+  } = {},
 ): Promise<string> {
   const directory = options.directory ?? resolve('reports/removal-diagnostics');
   let resources: string[] | { inspectionError: string };
@@ -90,6 +127,10 @@ export async function recordRemovalFailure(
     workerPid: process.pid,
     ...result,
     resources,
+    child: options.child ?? null,
+    ownership: await inspectInstallation(project, { PATH: '' }).catch((error: unknown) => ({
+      inspectionError: String(error),
+    })),
   };
   // Logs retain the process result even if persisting the artifact itself fails.
   console.error('[arch:test] nonzero removal:', JSON.stringify(observation));

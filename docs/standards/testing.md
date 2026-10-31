@@ -105,6 +105,12 @@ they do not replace it.
 CLI signal/exit mapping and Wizard input/workflow decisions, without expensive PTY
 mutation. Per-file assertion gates are 85%, with 90% for input decisions. Real
 terminal evidence remains separate. Missing scopes and timeout-only evidence fail.
+`npm run test:mutation:effects` measures complete installation setup, routing plan,
+staging/publication, recovery and removal modules with real filesystem tests and
+controlled failures. Its numeric targets remain advisory; run
+`node scripts/report-effects-mutation.mjs` to validate complete evidence. It runs
+separately from the five established blocking pilots because its measured cost is
+higher. Retain real interruption tests; this pilot does not replace them.
 Stryker's timeout-inclusive break remains zero; `npm run test:mutation:check` instead
 enforces reviewed assertion-only thresholds (config 90%, middleware 85%, events 95%, each Core responsibility file 85%)
 and expected nonempty scopes. Lifecycle gates require manifest/journal 85% and

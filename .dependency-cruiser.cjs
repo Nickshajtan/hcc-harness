@@ -1,6 +1,12 @@
 module.exports = {
   forbidden: [
     {
+      name: 'no-installation-coordinator-in-rendering-or-planning',
+      severity: 'error',
+      from: { path: '^src/(installation/renderer|lifecycle/routing-plan)\\.ts$' },
+      to: { path: '^src/(setup\\.ts$|installation/setup\\.ts$|lifecycle/index\\.ts$)' },
+    },
+    {
       name: 'no-application-effects-in-input-decisions',
       severity: 'error',
       from: { path: '^src/(cli/parsing|wizard/decisions)\\.ts$' },
@@ -11,7 +17,7 @@ module.exports = {
       name: 'no-presentation-in-execution-contracts',
       severity: 'error',
       from: {
-        path: '^src/((config|core|events|middleware|process|setup|lifecycle|discovery)\\.ts$|core/|lifecycle/|process/)',
+        path: '^src/((config|core|events|middleware|process|setup|lifecycle|discovery)\\.ts$|core/|lifecycle/|process/|installation/)',
       },
       to: { path: '^src/(cli|commands|wizard)(\\.ts$|/)' },
     },

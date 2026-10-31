@@ -187,9 +187,12 @@ a process-tree supervisor: grandchildren are owned by the launched tool.
 
 ### M2 project lifecycle
 
-`setup.ts` retains M1 initialization and launcher rendering at its original location;
-moving the renderer would change its import-relative captured CLI/vendor paths.
-It forwards its historical validation/removal exports. `lifecycle.ts` is an export-only
+`setup.ts` forwards all historical exports. `installation/setup.ts` coordinates
+exclusive initial writes, recorded ownership and rollback; `installation/renderer.ts`
+renders resources without inspecting project state. Its CLI/vendor URLs explicitly
+retain setup's historical anchors in both source and built artifacts. Byte contracts
+cover POSIX quoting and Windows executable/shim payloads; this move does not rebind
+existing resources or implement B2. `lifecycle.ts` is an export-only
 compatibility facade over `lifecycle/index.ts`, which coordinates public route operations.
 The internal responsibilities are:
 
@@ -206,14 +209,17 @@ The internal responsibilities are:
 | inspection.ts           | Read-only state classification, activation observations and middleware diagnostics         |
 
 Manifest/ownership/journal helpers never import lifecycle coordinators or setup.
-Coordinators compose those helpers; route planning calls the existing setup renderer.
+Coordinators compose those helpers; route planning imports the renderer directly,
+not the installation coordinator. Lifecycle imports removal directly, rather than
+through setup's compatibility facade. The renderer uses shared manifest layout
+constants, while recorded ownership remains entirely a lifecycle responsibility.
 No new classes, filesystem repository, generic transaction mechanism or mutable global
 operation state is needed. Ownership checks do not themselves grant permission to delete:
 the caller must select the existing operation/recovery policy. In particular, absent
 files are accepted by uninstall verification only after its removal checkpoint exists.
 
 `discovery.ts` uses native PATH resolution without
-executing candidates. `commands.ts` parses the public CLI and `wizard.ts` adapts
+executing candidates. `commands.ts` forwards CLI dispatch and `wizard.ts` adapts
 terminal selections to the same services. Core, events, middleware and native
 process execution contracts are unchanged. There is no new interaction dependency.
 

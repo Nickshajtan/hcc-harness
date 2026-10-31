@@ -4,7 +4,7 @@ import { delimiter, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { cli, records, run, start, world, type Result } from '../support.js';
+import { capture, cli, records, run, start, world, type Result } from '../support.js';
 
 let fixture: Awaited<ReturnType<typeof world>>;
 let prefix: string, executable: string, env: NodeJS.ProcessEnv;
@@ -63,22 +63,9 @@ function startArch(
     windowsVerbatimArguments: true,
     stdio: ['pipe', 'pipe', 'pipe'],
   });
-  let stdout = '',
-    stderr = '';
-  child.stdout.on('data', (data: Buffer) => {
-    stdout += data.toString('utf8');
-  });
-  child.stderr.on('data', (data: Buffer) => {
-    stderr += data.toString('utf8');
-  });
-  const result = new Promise<Result>((done, reject) => {
-    child.once('error', reject);
-    child.once('close', (code, signal) => {
-      done({ code, signal, stdout, stderr });
-    });
-  });
+  const invocation = capture(child);
   child.stdin.end(stdin);
-  return { child, result, output: () => ({ stdout, stderr }) };
+  return invocation;
 }
 
 async function arch(
@@ -110,6 +97,7 @@ it('links the existing CLI, dispatches help, and leaves the target project untou
             signal: invocation.child.signalCode,
             killed: invocation.child.killed,
             partial: invocation.output(),
+            events: invocation.observations(),
           }
         : null,
       completed: { ...completed },

@@ -27,22 +27,31 @@ Npm link/unlink tests use temporary prefixes/config/cache, never the user's glob
 presentation and Wizard decisions/workflow. It excludes real terminal tests from
 mutation, not from regression. See [quality gates](standards/quality-gates.md).
 
-`tests/integration/uninstall-stability.test.ts` runs three independent project lanes,
+`npm run test:mutation:effects` measures complete installation setup, planning,
+staging/publication, recovery and removal files. Run
+`node scripts/report-effects-mutation.mjs` to validate all expected evidence.
+Its new per-file targets remain advisory and unmet targets are explicit. A separate
+relevant-change/scheduled/manual quality job contains its higher measured cost.
+
+`tests/integration/uninstall-stability.test.ts` runs one and three independent project lanes,
 four init/routed-native/immediate-uninstall cycles each, in both fresh and interrupted
 removal modes, without retries. Launcher PATH precedence and Arch execution events
 are asserted so native passthrough cannot masquerade as routing. Failed lanes retain
-their fixture and operation/stage/path/stderr/status/signal evidence. The Windows-only
+their fixture and operation/stage/path/stderr/status/signal evidence. Reports under
+`reports/uninstall-stress/` survive fixture disposal and record cleanup outcomes.
+The Windows-only
 sharing test holds a managed launcher until an explicit stdin barrier releases it,
 verifies refusal/checkpoint retention, then requests recovery. A passing stress or
 sharing test does not resolve the historical unexplained uninstall failure.
 
 The subprocess helper also logs and saves nonzero direct CLI deinit/uninstall
-results under `reports/removal-diagnostics/` before assertions or cleanup. Regression
+results, process events and read-only ownership status under `reports/removal-diagnostics/`
+before assertions or cleanup. Regression
 and quality artifacts retain these records. Expected refusal/usage tests generate
 records too; correlate them with the test and expected status rather than treating
 every record as an incident. No environment values or manifest contents are dumped.
 
-The npm-link help contract records its phase, child PID/exit/signal, partial output
+The npm-link help contract records its phase, child PID/exit/signal, process/stream events, partial output
 and completed help results on failure under `reports/npm-help-diagnostics/`.
 Regression artifacts include this data. It does not change subprocess settlement,
 kill pending children, retry a failure or raise the existing timeout. The observed
