@@ -12,12 +12,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { resolve, join, dirname, delimiter } from 'node:path';
-import {
-  spawn,
-  spawnSync,
-  type ChildProcess,
-  type ChildProcessWithoutNullStreams,
-} from 'node:child_process';
+import { spawn, type ChildProcess, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { inspectInstallation } from '../src/lifecycle/inspection.js';
 
 export const cli = resolve('dist/cli.js');
@@ -28,28 +23,6 @@ export interface Result {
   signal: NodeJS.Signals | null;
   stdout: string;
   stderr: string;
-}
-
-// Read-only, bounded failure observation. No command lines or environments are
-// queried, and failure to inspect never changes the original process result.
-export function windowsProcessSnapshot(pid: number | undefined) {
-  if ('win32' !== process.platform || undefined === pid) {
-    return { status: 'NOT TESTED', reason: 'No live Windows process identity available' };
-  }
-  const command = `[Console]::OutputEncoding = [Text.UTF8Encoding]::new(); Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -eq ${String(pid)} -or $_.ParentProcessId -eq ${String(pid)} } | Select-Object ProcessId,ParentProcessId,ExecutablePath,CreationDate | ConvertTo-Json -Compress`;
-  const result = spawnSync(
-    join(process.env.SystemRoot ?? 'C:/Windows', 'System32/WindowsPowerShell/v1.0/powershell.exe'),
-    ['-NoProfile', '-NonInteractive', '-Command', command],
-    { encoding: 'utf8', timeout: 5000, windowsHide: true },
-  );
-  return {
-    status: 0 === result.status ? 'PASS' : 'FAIL',
-    code: result.status,
-    signal: result.signal,
-    stdout: result.stdout,
-    stderr: result.stderr,
-    error: result.error ? String(result.error) : null,
-  };
 }
 
 export function start(command: string, args: string[], cwd: string, env: NodeJS.ProcessEnv) {

@@ -4,16 +4,7 @@ import { delimiter, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import {
-  capture,
-  cli,
-  records,
-  run,
-  start,
-  world,
-  windowsProcessSnapshot,
-  type Result,
-} from '../support.js';
+import { capture, cli, records, run, start, world, type Result } from '../support.js';
 
 let fixture: Awaited<ReturnType<typeof world>>;
 let prefix: string, executable: string, env: NodeJS.ProcessEnv;
@@ -107,7 +98,6 @@ it('links the existing CLI, dispatches help, and leaves the target project untou
             killed: invocation.child.killed,
             partial: invocation.output(),
             events: invocation.observations(),
-            family: windowsProcessSnapshot(invocation.child.pid),
           }
         : null,
       completed: { ...completed },

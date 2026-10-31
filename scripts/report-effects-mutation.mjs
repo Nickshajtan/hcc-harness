@@ -3,10 +3,15 @@ import { mutationEvidence, enforceMutation } from './check-mutation.mjs';
 
 // A diagnostic pilot, separate from the five established blocking pilots.
 // Validate complete evidence even while its new numeric targets remain advisory.
-const configuration = JSON.parse(await readFile('stryker.effects.config.json', 'utf8'));
 const report = JSON.parse(await readFile('reports/mutation-effects/mutation.json', 'utf8'));
 const scopes = mutationEvidence(report);
-enforceMutation(scopes, configuration.mutate);
+enforceMutation(scopes, [
+  'src/installation/setup.ts',
+  'src/lifecycle/routing-plan.ts',
+  'src/lifecycle/routing-files.ts',
+  'src/lifecycle/recovery.ts',
+  'src/lifecycle/removal.ts',
+]);
 const evidence = {
   measurement: 'PASS',
   numericTargetsEnforced: false,
