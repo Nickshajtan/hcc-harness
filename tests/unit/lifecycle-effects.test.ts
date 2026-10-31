@@ -1,9 +1,26 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { mkdtemp, readFile, rm, writeFile, unlink, rename, link } from 'node:fs/promises';
+import {
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+  unlink,
+  rename,
+  link,
+  mkdir,
+  symlink,
+  readdir,
+  stat,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { setup, stateFrom, digest } from '../../src/setup.js';
-import { reconcileRoutes, inspectInstallation, deinitialize } from '../../src/lifecycle.js';
+import { setup, stateFrom, digest, uninstall } from '../../src/setup.js';
+import {
+  reconcileRoutes,
+  inspectInstallation,
+  deinitialize,
+  planRoutes,
+} from '../../src/lifecycle.js';
 import { journalFrom } from '../../src/lifecycle/routing-journal.js';
 
 vi.mock('node:fs/promises', async (original) => {
@@ -150,5 +167,135 @@ it('never clobbers a destination appearing after staging', async () => {
   expect(await readFile(file(route('added')), 'utf8')).toBe('user collision');
   expect(await readFile(file(route('removed')))).toBeDefined();
   await expect(deinitialize(root)).rejects.toThrow('Managed file changed');
+  expect(await readFile(file('user.txt'), 'utf8')).toBe('unrelated');
+});
+
+it('plans retained, new and removed resources without mutating disk or accepting invalid requests', async () => {
+  const before = await readFile(file('.arch/bootstrap.json'));
+  const plan = await planRoutes(root, desired);
+  expect(plan.removed).toEqual(
+    'win32' === process.platform
+      ? [route('removed'), '.arch/bin/removed.shim']
+      : [route('removed')],
+  );
+  expect(Object.keys(plan.additions)).toEqual(
+    'win32' === process.platform ? [route('added'), '.arch/bin/added.shim'] : [route('added')],
+  );
+  expect(plan.after.files[route('retained')]).toBe(plan.before.files[route('retained')]);
+  expect(await readFile(file('.arch/bootstrap.json'))).toEqual(before);
+  await expect(planRoutes(root, ['../unsafe'])).rejects.toThrow('Supply unique executable names');
+  await expect(planRoutes(file('missing'), desired)).rejects.toThrow('Arch is not initialized');
+});
+
+it.each(['.arch/routing.json', '.arch/uninstall.json'])(
+  'planning refuses a persisted operation before inspecting new resources: %s',
+  async (path) => {
+    await actual.writeFile(file(path), 'persisted authority');
+    await expect(planRoutes(root, desired)).rejects.toThrow(
+      'Recovery pending; finish the recorded operation first',
+    );
+    expect(await readFile(file(path), 'utf8')).toBe('persisted authority');
+    if ('.arch/routing.json' === path) {
+      await expect(uninstall(root)).rejects.toThrow(
+        'Routing recovery pending; finish configure before uninstall',
+      );
+    }
+  },
+);
+
+it('initialization rejects different route sets and collisions while accepting reordered recorded paths', async () => {
+  const bytes = await readFile(file('.arch/bootstrap.json'));
+  await expect(setup(root, ['different'])).rejects.toThrow('Arch setup differs; use configure');
+  expect(await readFile(file('.arch/bootstrap.json'))).toEqual(bytes);
+  await setup(root, ['removed', 'retained']);
+  expect(await readFile(file('.arch/bootstrap.json'))).toEqual(bytes);
+  await uninstall(root);
+  await actual.writeFile(file(route('retained')), 'unowned');
+  await expect(setup(root, ['retained'])).rejects.toThrow(
+    `Refusing to overwrite ${route('retained')}`,
+  );
+  expect(await readFile(file(route('retained')), 'utf8')).toBe('unowned');
+});
+
+it('refuses a valid foreign-platform manifest before filesystem mutation', async () => {
+  const state = stateFrom(await readFile(file('.arch/bootstrap.json')));
+  const files = Object.fromEntries(
+    Object.entries(state.files).filter(
+      ([path]) => !path.includes('/retained') && !path.includes('/removed'),
+    ),
+  );
+  const paths =
+    'win32' === process.platform
+      ? ['.arch/bin/foreign']
+      : ['.arch/bin/foreign.exe', '.arch/bin/foreign.shim'];
+  for (const path of paths) {
+    files[path] = digest('historical launcher');
+  }
+  const bytes = JSON.stringify({ ...state, files });
+  await actual.writeFile(file('.arch/bootstrap.json'), bytes);
+  await expect(planRoutes(root, ['foreign'])).rejects.toThrow(
+    'Foreign-platform installation; deinitialize on its original platform',
+  );
+  expect(await readFile(file('.arch/bootstrap.json'), 'utf8')).toBe(bytes);
+});
+
+it('direct setup and uninstall refuse a symlinked metadata root without touching its target', async () => {
+  const outside = file('outside');
+  await mkdir(outside);
+  await actual.writeFile(join(outside, 'user.txt'), 'keep');
+  await actual.rename(file('.arch'), file('saved-arch'));
+  await symlink(outside, file('.arch'), 'win32' === process.platform ? 'junction' : 'dir');
+  await expect(setup(root, ['tool'])).rejects.toThrow('Refusing managed symlink');
+  await expect(uninstall(root)).rejects.toThrow('Refusing managed symlink');
+  expect(await readFile(join(outside, 'user.txt'), 'utf8')).toBe('keep');
+});
+
+it('rechecks obsolete bytes after the journal checkpoint and preserves the conflicting resource', async () => {
+  const original = await readFile(file(route('removed')));
+  await expect(
+    reconcileRoutes(root, desired, {
+      async checkpoint(phase) {
+        if ('journal' === phase) {
+          await actual.writeFile(file(route('removed')), 'modified after validation');
+        }
+      },
+    }),
+  ).rejects.toThrow(`Managed file changed: ${route('removed')}`);
+  expect(await readFile(file(route('removed')), 'utf8')).toBe('modified after validation');
+  await actual.writeFile(file(route('removed')), original);
+  await verifyRecovered();
+});
+
+it('uses the exact manifest stage name and publishes executable POSIX launchers', async () => {
+  await reconcileRoutes(root, desired, {
+    async checkpoint(phase) {
+      if ('before-manifest' !== phase) {
+        return;
+      }
+      const journal = journalFrom(await readFile(file('.arch/routing.json')));
+      expect(await readdir(file('.arch'))).toContain(`.routing-${journal.id}-manifest.stage`);
+      if ('win32' !== process.platform) {
+        expect((await stat(file(route('added')))).mode & 0o111).toBe(0o111);
+      }
+    },
+  });
+  await verifyRecovered();
+});
+
+it('retains the removal checkpoint and operation-specific cause if generated configuration removal fails', async () => {
+  const failure = Object.assign(new Error('configuration locked'), { code: 'EBUSY' });
+  vi.mocked(unlink).mockImplementation(async (path) => {
+    if (path === file('.arch/harness.toml')) {
+      throw failure;
+    }
+    await actual.unlink(path);
+  });
+  await expect(uninstall(root)).rejects.toMatchObject({
+    message: `Unable to remove generated configuration: ${file('.arch/harness.toml')}`,
+    cause: failure,
+  });
+  expect(await readFile(file('.arch/uninstall.json'))).toBeDefined();
+  vi.mocked(unlink).mockImplementation(actual.unlink);
+  await uninstall(root);
   expect(await readFile(file('user.txt'), 'utf8')).toBe('unrelated');
 });

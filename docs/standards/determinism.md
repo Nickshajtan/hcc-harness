@@ -24,9 +24,11 @@ paths, checkpoint presence and cleanup outcome where available. Do not dump full
 environments or secrets. Retain failing fixtures when cleanup would destroy the
 evidence; make that retention and its location visible.
 
-Classify incident investigations as **RESOLVED**, **EXTERNAL / ENVIRONMENTAL** or
+Classify incident investigations as **RESOLVED**, **EXTERNAL / CONTAINED** or
 **UNRESOLVED**. Resolution requires an evidenced mechanism, a narrow correction and
 a regression that exercises the original condition. External classification needs
-a specific supported external condition. Passing repetitions or correlation alone
+a specific external cause plus a verified safe containment/recovery strategy.
+An environmental correlation without causal evidence remains UNRESOLVED.
+Passing repetitions or correlation alone
 do not establish either. Unknown causes MUST remain explicit, and unexplained
 critical instability blocks a stability/readiness recommendation.
