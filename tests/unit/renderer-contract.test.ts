@@ -51,3 +51,15 @@ it('rejects unsupported Windows architectures before rendering a launcher', asyn
   vi.stubGlobal('process', { ...process, platform: 'win32', arch: 'ia32' });
   await expect(renderFiles(['tool'])).rejects.toThrow('Windows bootstrap supports x64 and arm64');
 });
+
+it('keeps the supplied ARM64 executable bytes and shim payload without claiming ARM64 execution', async () => {
+  const runtime = 'C:\\Arch Runtime\\node.exe';
+  vi.stubGlobal('process', { ...process, platform: 'win32', arch: 'arm64', execPath: runtime });
+  const resources = await renderFiles(['tool']);
+  expect(resources.get('.arch/bin/tool.exe')).toEqual(
+    await readFile(new URL('../vendor/shim-arm64.exe', anchor)),
+  );
+  expect(resources.get('.arch/bin/tool.shim')).toBe(
+    `path = ${runtime}\nargs = "${fileURLToPath(new URL('./cli.js', anchor))}" run tool --\n`,
+  );
+});

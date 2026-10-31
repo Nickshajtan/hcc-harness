@@ -1,0 +1,30 @@
+import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mutationEvidence, enforceMutation } from './check-mutation.mjs';
+
+// A diagnostic pilot, separate from the five established blocking pilots.
+// Validate complete evidence even while its new numeric targets remain advisory.
+const configuration = JSON.parse(await readFile('stryker.effects.config.json', 'utf8'));
+const report = JSON.parse(await readFile('reports/mutation-effects/mutation.json', 'utf8'));
+const scopes = mutationEvidence(report);
+enforceMutation(scopes, configuration.mutate);
+const evidence = {
+  measurement: 'PASS',
+  numericTargetsEnforced: false,
+  scopes: scopes.map((scope) => ({ ...scope, target: 85, targetMet: 85 <= scope.assertionScore })),
+};
+await mkdir('reports', { recursive: true });
+await writeFile('reports/effects-mutation-results.json', JSON.stringify(evidence, null, 2) + '\n');
+const summary = [
+  '## Effect mutation pilot',
+  '',
+  'Measurement PASS. Numeric targets are advisory, not enforced gates. Timeouts earn no assertion credit.',
+  '',
+  ...evidence.scopes.map(
+    (scope) =>
+      `- ${scope.file}: ${JSON.stringify(scope.counts)}; assertion-only ${scope.assertionScore.toFixed(2)}%; 85% target ${scope.targetMet ? 'met' : 'NOT MET'}.`,
+  ),
+].join('\n');
+console.log(summary);
+if (process.env.GITHUB_STEP_SUMMARY) {
+  await appendFile(process.env.GITHUB_STEP_SUMMARY, summary + '\n');
+}

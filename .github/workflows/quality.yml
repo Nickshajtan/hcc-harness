@@ -13,6 +13,8 @@ jobs:
   measurements:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    outputs:
+      effects: ${{ steps.pilot.outputs.effects }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -39,6 +41,9 @@ jobs:
           if [ -n "$changed" ]; then
             echo 'run=true' >> "$GITHUB_OUTPUT"
           fi
+          if ! git diff --quiet "$BASE_SHA" HEAD -- src/installation src/setup.ts src/lifecycle tests/unit/lifecycle-effects.test.ts tests/unit/lifecycle.test.ts tests/unit/lifecycle-contract.test.ts tests/unit/setup-contract.test.ts tests/unit/uninstall.test.ts stryker.effects.config.json vitest.effects-mutation.config.ts scripts/report-effects-mutation.mjs; then
+            echo 'effects=true' >> "$GITHUB_OUTPUT"
+          fi
       - name: Focused config, execution, ownership, process and CLI mutation pilots
         id: mutation
         if: github.event_name != 'pull_request' || steps.pilot.outputs.run == 'true'
@@ -58,5 +63,31 @@ jobs:
           path: |
             coverage/
             reports/
+          if-no-files-found: error
+          retention-days: 14
+
+  effects:
+    needs: measurements
+    if: always() && (github.event_name != 'pull_request' || needs.measurements.outputs.effects == 'true')
+    runs-on: ubuntu-latest
+    # Separate measured cost from the existing job's unchanged 15-minute budget.
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v4
+        with:
+          version: '2026.10.11'
+          install: true
+      - run: npm ci
+      - run: npm run test:mutation:effects
+      - name: Validate complete effect pilot evidence
+        run: node scripts/report-effects-mutation.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: effect-mutation-evidence
+          path: |
+            reports/mutation-effects/
+            reports/effects-mutation-results.json
           if-no-files-found: error
           retention-days: 14
