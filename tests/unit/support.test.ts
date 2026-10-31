@@ -2,9 +2,31 @@ import { afterEach, expect, it } from 'vitest';
 import { mkdtemp, rm, writeFile, mkdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { events, records, recordRemovalFailure, start } from '../support.js';
+import {
+  events,
+  records,
+  recordRemovalFailure,
+  start,
+  windowsProcessSnapshot,
+} from '../support.js';
 
 const directories: string[] = [];
+
+it.skipIf('win32' !== process.platform)(
+  'observes the Windows worker family without querying command lines or environments',
+  () => {
+    const snapshot = windowsProcessSnapshot(process.pid);
+    expect(snapshot, JSON.stringify(snapshot)).toMatchObject({ status: 'PASS', code: 0 });
+    if (!('stdout' in snapshot)) {
+      throw new Error('Missing Windows process observation');
+    }
+    const value: unknown = JSON.parse(snapshot.stdout);
+    expect(value).toEqual(
+      expect.arrayContaining([expect.objectContaining({ ProcessId: process.pid })]),
+    );
+    expect(snapshot.stdout).not.toContain('CommandLine');
+  },
+);
 
 it('persists nonzero removal status, streams and checkpoint presence before cleanup', async () => {
   const root = await mkdtemp(join(tmpdir(), 'arch-removal-evidence-'));

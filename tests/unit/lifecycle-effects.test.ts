@@ -22,6 +22,7 @@ import {
   planRoutes,
 } from '../../src/lifecycle.js';
 import { journalFrom } from '../../src/lifecycle/routing-journal.js';
+import { stage, removeOptional, publishExclusive } from '../../src/lifecycle/routing-files.js';
 
 vi.mock('node:fs/promises', async (original) => {
   const actual = await original<typeof import('node:fs/promises')>();
@@ -298,4 +299,63 @@ it('retains the removal checkpoint and operation-specific cause if generated con
   vi.mocked(unlink).mockImplementation(actual.unlink);
   await uninstall(root);
   expect(await readFile(file('user.txt'), 'utf8')).toBe('unrelated');
+});
+
+it('keeps staging exclusive against a file appearing between verification and write', async () => {
+  const path = '.arch/collision.stage';
+  vi.mocked(writeFile).mockImplementation(async (target, bytes, options) => {
+    if (target === file(path)) {
+      await actual.writeFile(target, 'unowned stage', { flag: 'wx' });
+    }
+    await actual.writeFile(target, bytes, options);
+  });
+  await expect(stage(root, path, Buffer.from('desired stage'))).rejects.toMatchObject({
+    code: 'EEXIST',
+  });
+  expect(await readFile(file(path), 'utf8')).toBe('unowned stage');
+});
+
+it('accepts an already complete private stage without attempting exclusive recreation', async () => {
+  const path = '.arch/complete.stage';
+  const bytes = Buffer.from('complete');
+  await actual.writeFile(file(path), bytes, { flag: 'wx' });
+  await stage(root, path, bytes);
+  expect(await readFile(file(path))).toEqual(bytes);
+});
+
+it('preserves routing removal diagnostics and code-less publication causes', async () => {
+  const failure = new Error('external failure without an errno');
+  vi.mocked(unlink).mockRejectedValue(failure);
+  await expect(removeOptional(root, 'user.txt')).rejects.toMatchObject({
+    message: 'Unable to remove routing resource: user.txt',
+    cause: failure,
+  });
+  expect(await readFile(file('user.txt'), 'utf8')).toBe('unrelated');
+  vi.mocked(link).mockRejectedValue(failure);
+  const error: unknown = await publishExclusive(root, '.arch/complete.stage', route('added')).catch(
+    (value: unknown) => value,
+  );
+  if (!(error instanceof Error)) {
+    throw new Error('Expected publication refusal');
+  }
+  expect(error.message).toContain('exclusively (unknown error)');
+  expect(error.cause).toBe(failure);
+});
+
+it('preserves initial exclusive creation against a late destination collision', async () => {
+  const fresh = file('fresh');
+  await mkdir(fresh);
+  const collision = join(fresh, '.config/mise/conf.d/arch.toml');
+  vi.mocked(writeFile).mockImplementation(async (target, bytes, options) => {
+    if (target === collision) {
+      await actual.writeFile(target, 'unowned integration', { flag: 'wx' });
+    }
+    await actual.writeFile(target, bytes, options);
+  });
+  await expect(setup(fresh, ['tool'])).rejects.toMatchObject({ code: 'EEXIST' });
+  expect(await readFile(collision, 'utf8')).toBe('unowned integration');
+  await expect(readFile(join(fresh, '.arch/bootstrap.json'))).rejects.toMatchObject({
+    code: 'ENOENT',
+  });
+  await expect(setup(root, ['../unsafe'])).rejects.toThrow('Supply unique executable names');
 });
