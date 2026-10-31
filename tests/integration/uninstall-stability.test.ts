@@ -68,6 +68,10 @@ it.each([
       const failures = outcomes.filter((outcome) => 'rejected' === outcome.status);
       failed ||= 0 !== failures.length;
       expect(failures, JSON.stringify(evidence)).toEqual([]);
+    } catch (error) {
+      // Preparation errors must not leave a misleading successful stress record.
+      failed = true;
+      throw error;
     } finally {
       // A failed fixture is retained for inspection rather than destroying the
       // manifest/journal evidence. No environment values or credentials are saved.
