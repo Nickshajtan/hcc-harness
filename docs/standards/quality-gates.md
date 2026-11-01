@@ -155,6 +155,11 @@ contracts. A reused workspace's stale PASS is replaced by FAIL when validation
 fails; report-write failures fail the process. This is evidence validation, not
 causal incident resolution.
 
+Regression summaries likewise require complete unit, integration and acceptance
+JSON reports. A successful command with a missing/incomplete report fails the job.
+Dependency evidence requires an explicit zero-error summary; module names alone
+cannot certify a clean graph. Negative tooling tests exercise these failure paths.
+
 The dedicated Windows reliability job runs relevant PRs and scheduled/manual
 checks in an isolated ten-minute job budget. It uses the same tests as regression,
 without mutation load or retry-until-green behavior. Existing required check names

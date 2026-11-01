@@ -35,7 +35,8 @@ profile; regression retains all three platforms. Stress uses 32 Arch sequences
 and 16 raw native copy/execute-close/unlink sequences, with one and three lanes.
 Failed fixtures are retained and named in artifacts; inspect before removing them.
 No automatic retention pruning deletes failure evidence; CI artifacts expire after
-14 days and each run has a fixed operation budget. Local retained roots require
+14 days for reliability/quality jobs; other suites retain their existing policies.
+Each run has a fixed operation budget. Local retained roots require
 explicit owner cleanup, so repeated local failures can consume disk space.
 
 `npm run test:mutation:cli` measures parsing, dispatch, CLI signal mapping, status
@@ -59,6 +60,12 @@ The Windows-only
 sharing test holds a managed launcher until an explicit stdin barrier releases it,
 verifies refusal/checkpoint retention, then requests recovery. A passing stress or
 sharing test does not resolve the historical unexplained uninstall failure.
+
+Recovery interruption failures also write `reports/routing-diagnostics/`: the
+pending operation, worker and active subprocess IDs/events, bounded streams, and
+exact checkpoint bytes where within budget. The snapshots survive fixture cleanup.
+Their helper is independently tested against missing files, symlinks and oversized
+payloads; a saved stage is evidence, not proof that Arch owns it.
 
 The subprocess helper also logs and saves nonzero direct CLI deinit/uninstall
 results, process events and read-only ownership status under `reports/removal-diagnostics/`

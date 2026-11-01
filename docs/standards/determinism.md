@@ -44,3 +44,11 @@ Setup's approved compound failure contract is AggregateError([original, cleanup]
 with the original failure as cause. Reverse rollback order and stopping at the
 first failed unlink remain unchanged. This preserves failure evidence, not an
 automatic recovery or retry authorization.
+
+Failure diagnostics MUST NOT prevent owned-child teardown. Test evidence writers
+run before disposal, but disposal is still attempted when writing fails; both
+errors remain distinguishable. Stream excerpts are capped at 64 KiB with explicit
+truncation flags. Recovery-test snapshots read only four named checkpoint files,
+refuse symlinks/non-files, cap each payload at 1 MiB, and use three-second read/write
+abort deadlines. These are cooperative I/O deadlines, not kernel-level cancellation
+guarantees. Raw snapshots never authorize ownership, repair or deletion.

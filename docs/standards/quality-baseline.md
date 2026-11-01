@@ -116,16 +116,16 @@ historical reference, not a fresh successful exact-checkout result.
 
 | Effect module       | Windows before |  Windows after | Hosted Ubuntu after |
 | ------------------- | -------------: | -------------: | ------------------: |
-| Setup               | 78.67% (59/75) | 90.00% (72/80) |      91.25% (73/80) |
+| Setup               | 78.67% (59/75) | 92.50% (74/80) |      91.25% (73/80) |
 | Staging/publication | 81.82% (36/44) | 93.18% (41/44) |      95.45% (42/44) |
 | Recovery            | 97.44% (38/39) | 97.44% (38/39) |        100% (39/39) |
-| Removal             | 96.61% (57/59) | 96.61% (57/59) |      96.61% (57/59) |
+| Removal             | 96.61% (57/59) |   100% (59/59) |      96.61% (57/59) |
 | Planning            | 97.92% (47/48) | 97.92% (47/48) |      91.67% (44/48) |
 
-Windows after: 255/270 assertion kills, 13 survivors, 2 uncovered, zero timeouts,
-errors or exclusions; 6m53s. The approved rollback branch adds five mutants; scopes
-were not shrunk. The new guard characterization protects direct metadata-entry
-symlinks for setup and uninstall; its final mutation results are recorded in the PR.
+Windows after: 259/270 assertion kills, 9 survivors, 2 uncovered, zero timeouts,
+errors or exclusions; 6m44s. The approved rollback branch adds five mutants; scopes
+were not shrunk. Direct metadata-entry symlink characterization killed the four remaining setup/removal
+path-guard mutants; it does not weaken or replace the guards.
 POSIX-only chmod branches remain explicitly uncovered on Windows and are exercised
 on POSIX. ASCII lower/upper identity normalization and platform-constant branches
 have equivalent variants; no mutants are ignored. Remaining phase/case variants
@@ -148,10 +148,13 @@ lanes hit EPERM unlink after close, outside the sandbox. Both outcomes are retai
 This disproves sandbox-only necessity for raw denial too, without establishing a
 handle owner. A later green job cannot erase that first-attempt result.
 
-Ordinary warnings: 52 -> 9, errors 0. Setup review complexity/length: 15/72 -> 16/78;
+Ordinary warnings: 52 -> 9, errors 0. Setup review complexity/length: 15/72 -> 16/81;
 the added catch preserves approved failure precedence rather than hiding complexity.
 Production dependency graph remains 54 modules / 138 edges, no cycles/violations.
 No production modules, dependencies, schemas, launcher bytes or checkpoints moved.
+Recovery failures now retain operation phase, worker and active subprocess identity,
+bounded streams and read-only checkpoint snapshots before fixture cleanup. Reporter
+and teardown errors are both retained, even when evidence persistence fails.
 Four legacy signal fixtures now register awaited bounded child disposal through
 Vitest completion hooks; primary and teardown failures remain separate test errors.
 
