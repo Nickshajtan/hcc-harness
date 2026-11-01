@@ -2,6 +2,10 @@ name: Windows reliability
 on:
   pull_request:
     paths:
+      - 'src/**'
+      - 'package*.json'
+      - 'mise.toml'
+      - 'vitest*.ts'
       - 'tests/support.ts'
       - 'tests/integration/uninstall-stability.test.ts'
       - 'tests/integration/npm-cli.test.ts'
