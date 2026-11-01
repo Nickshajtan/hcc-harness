@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { capture, cli, records, run, start, world, type Result } from '../support.js';
-import { requiredEnvironment } from '../support.js';
+import { requiredEnvironment, diagnosticStreams, recordBeforeDisposal } from '../support.js';
 
 let fixture: Awaited<ReturnType<typeof world>>;
 let prefix: string, executable: string, env: NodeJS.ProcessEnv;
@@ -83,35 +83,52 @@ it('links the existing CLI, dispatches help, and leaves the target project untou
   // while retaining help-only streams before fixture teardown can discard them.
   let phase = 'read npm executable';
   let invocation: ReturnType<typeof start> | undefined;
+  let testFailed = false;
   const completed: Record<string, Result> = {};
-  onTestFailed(async () => {
-    const observation = {
-      phase,
-      cwd: fixture.C,
-      executable,
-      process: invocation
-        ? {
-            executable: invocation.child.spawnfile,
-            arguments: [...invocation.child.spawnargs],
-            pid: invocation.child.pid ?? null,
-            exitCode: invocation.child.exitCode,
-            signal: invocation.child.signalCode,
-            killed: invocation.child.killed,
-            partial: invocation.output(),
-            events: invocation.observations(),
-          }
-        : null,
-      completed: { ...completed },
-    };
-    console.error('[arch:test] npm help failure:', JSON.stringify(observation));
-    const directory = join(repository, 'reports/npm-help-diagnostics');
-    await mkdir(directory, { recursive: true });
-    await writeFile(join(directory, `${randomUUID()}.json`), JSON.stringify(observation, null, 2));
-    // Capture first, then bound direct-child teardown. A failed teardown remains
-    // a failure; neither successful termination nor a rerun closes the incident.
-    await invocation?.dispose();
+  onTestFailed(() => {
+    testFailed = true;
+    return recordBeforeDisposal({
+      record: async () => {
+        const observation = {
+          phase,
+          cwd: fixture.C,
+          executable,
+          process: invocation
+            ? {
+                executable: invocation.child.spawnfile,
+                arguments: [...invocation.child.spawnargs],
+                pid: invocation.child.pid ?? null,
+                exitCode: invocation.child.exitCode,
+                signal: invocation.child.signalCode,
+                killed: invocation.child.killed,
+                partial: diagnosticStreams(invocation.output()),
+                events: invocation.observations(),
+              }
+            : null,
+          completed: Object.fromEntries(
+            Object.entries(completed).map(([label, result]) => [
+              label,
+              { code: result.code, signal: result.signal, ...diagnosticStreams(result) },
+            ]),
+          ),
+        };
+        console.error('[arch:test] npm help failure:', JSON.stringify(observation));
+        const directory = join(repository, 'reports/npm-help-diagnostics');
+        await mkdir(directory, { recursive: true });
+        await writeFile(
+          join(directory, `${randomUUID()}.json`),
+          JSON.stringify(observation, null, 2),
+        );
+        // Capture first, then bound direct-child teardown. A failed teardown remains
+        // a failure; neither successful termination nor a rerun closes the incident.
+      },
+      dispose: () => invocation?.dispose(),
+    });
   });
   async function help(label: string, create: () => ReturnType<typeof start>): Promise<Result> {
+    if (testFailed) {
+      throw new Error('Test already failed; refusing late subprocess creation');
+    }
     phase = label;
     invocation = undefined;
     invocation = create();

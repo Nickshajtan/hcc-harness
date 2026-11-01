@@ -43,6 +43,42 @@ export interface Result {
   stderr: string;
 }
 
+export function diagnosticStreams(output: Pick<Result, 'stdout' | 'stderr'>) {
+  const limit = 64 * 1024;
+  return {
+    stdout: output.stdout.slice(-limit),
+    stderr: output.stderr.slice(-limit),
+    stdoutTruncated: limit < output.stdout.length,
+    stderrTruncated: limit < output.stderr.length,
+  };
+}
+
+export async function recordBeforeDisposal(operations: {
+  record: () => Promise<void>;
+  dispose: () => Promise<void> | undefined;
+}): Promise<void> {
+  let recordingFailure: { error: unknown } | undefined;
+  try {
+    await operations.record();
+  } catch (error) {
+    recordingFailure = { error };
+    throw error;
+  } finally {
+    try {
+      await operations.dispose();
+    } catch (cleanupError) {
+      if (recordingFailure) {
+        throw new AggregateError(
+          [recordingFailure.error, cleanupError],
+          'Test evidence recording and child teardown failed',
+          { cause: recordingFailure.error },
+        );
+      }
+      throw cleanupError;
+    }
+  }
+}
+
 export function start(command: string, args: string[], cwd: string, env: NodeJS.ProcessEnv) {
   const child = spawn(command, args, { cwd, env, shell: false, stdio: ['pipe', 'pipe', 'pipe'] });
   return capture(child);
@@ -179,6 +215,7 @@ export async function recordRemovalFailure(
     node: process.version,
     workerPid: process.pid,
     ...result,
+    ...diagnosticStreams(result),
     resources,
     child: options.child ?? null,
     ownership: await inspectInstallation(project, { PATH: '' }).catch((error: unknown) => ({

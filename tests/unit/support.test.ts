@@ -9,9 +9,61 @@ import {
   start,
   runtimeOutput,
   requiredEnvironment,
+  diagnosticStreams,
+  recordBeforeDisposal,
 } from '../support.js';
 
 const directories: string[] = [];
+
+it('always tears down after recording and preserves compound diagnostic failures', async () => {
+  const sequence: string[] = [];
+  await recordBeforeDisposal({
+    record: () => {
+      sequence.push('record');
+      return Promise.resolve();
+    },
+    dispose: () => {
+      sequence.push('dispose');
+      return Promise.resolve();
+    },
+  });
+  expect(sequence).toEqual(['record', 'dispose']);
+  const primary = new Error('report write denied');
+  const cleanup = new Error('child did not close');
+  const error: unknown = await recordBeforeDisposal({
+    record: () => Promise.reject(primary),
+    dispose: () => Promise.reject(cleanup),
+  }).catch((failure: unknown) => failure);
+  if (!(error instanceof AggregateError)) {
+    throw new Error('Missing compound diagnostic failure');
+  }
+  expect(error.errors[0]).toBe(primary);
+  expect(error.errors[1]).toBe(cleanup);
+  expect(error.cause).toBe(primary);
+  await expect(
+    recordBeforeDisposal({
+      record: () => Promise.reject(primary),
+      dispose: () => Promise.resolve(),
+    }),
+  ).rejects.toBe(primary);
+  await expect(
+    recordBeforeDisposal({
+      record: () => Promise.resolve(),
+      dispose: () => Promise.reject(cleanup),
+    }),
+  ).rejects.toBe(cleanup);
+});
+
+it('bounds diagnostic streams without mutating complete assertion output', () => {
+  const output = { stdout: 'x'.repeat(70_000) + 'tail', stderr: 'short' };
+  const bounded = diagnosticStreams(output);
+  expect(bounded.stdout).toHaveLength(64 * 1024);
+  expect(bounded.stdout.endsWith('tail')).toBe(true);
+  expect(bounded.stdoutTruncated).toBe(true);
+  expect(bounded.stderr).toBe('short');
+  expect(bounded.stderrTruncated).toBe(false);
+  expect(output.stdout).toHaveLength(70_004);
+});
 
 it('validates native runtime protocol fields before using executable paths', () => {
   expect(runtimeOutput('{"node":"v22.0.0","exec":"native-node"}\nextra')).toEqual({

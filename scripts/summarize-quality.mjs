@@ -44,7 +44,7 @@ await area('lint', process.env.LINT_OUTCOME, async () => {
 });
 await area('dependencies', process.env.DEPENDENCY_OUTCOME, async () => {
   const graph = await read('reports/dependencies.json');
-  if (!graph.modules?.length || graph.summary?.error) {
+  if (!Array.isArray(graph.modules) || !graph.modules.length || 0 !== graph.summary?.error) {
     throw new Error('Missing or failing dependency evidence');
   }
 });

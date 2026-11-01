@@ -41,8 +41,19 @@ jobs:
           import { existsSync, readFileSync } from 'node:fs';
           for (const suite of ['unit', 'integration', 'acceptance']) {
             const path = `.test-state/m2-${suite}.json`;
-            if (!existsSync(path)) continue;
+            if (!existsSync(path)) {
+              console.error(`Missing required M2 ${suite} evidence: ${path}`);
+              process.exitCode = 1;
+              continue;
+            }
             const report = JSON.parse(readFileSync(path, 'utf8'));
+            const assertions = (report.testResults ?? []).flatMap(file => file.assertionResults ?? []);
+            if (true !== report.success || 0 !== report.numFailedTests || !report.numPassedTests ||
+                report.numTotalTests !== assertions.length ||
+                report.numPassedTests !== assertions.filter(test => 'passed' === test.status).length) {
+              console.error(`Incomplete or failing M2 ${suite} evidence`);
+              process.exitCode = 1;
+            }
             console.log(`::notice title=M2 ${suite}::${report.numPassedTests} passed; ${report.numFailedTests} failed; ${report.numPendingTests} pending`);
             for (const file of report.testResults ?? []) {
               if (file.message) {
@@ -67,6 +78,7 @@ jobs:
             .test-state/mise-*.json
             .test-state/m2-*.json
             reports/removal-diagnostics/
+            reports/routing-diagnostics/
             reports/npm-help-diagnostics/
             reports/uninstall-stress/
             reports/native-lifetime/
