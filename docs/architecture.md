@@ -274,7 +274,10 @@ Unsupported links fail without an alternate algorithm. See
 
 Setup writes only owned files with exclusive creation. It records SHA-256 hashes,
 validates repeated setups, refuses collisions, and rolls back files created by a
-failed setup. Uninstall checks all hashes before removing any managed file, then
+failed setup. If rollback also fails, AggregateError preserves the original setup
+failure first and as cause, then the cleanup failure. Rollback still stops at its
+first failed unlink and leaves remaining evidence intact.
+Uninstall checks all hashes before removing any managed file, then
 atomically renames the unchanged ownership manifest from `.arch/bootstrap.json` to
 `.arch/uninstall.json` before the first deletion. Retrying from this checkpoint
 allows already-absent managed files while verifying every remaining file. A fresh

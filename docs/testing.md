@@ -23,6 +23,21 @@ integration/terminal tests. Dependencies/tools need network for provisioning; te
 run mise offline and make no AI/provider calls. No CLI credentials are needed.
 Npm link/unlink tests use temporary prefixes/config/cache, never the user's globals.
 
+`npm run test:reliability` builds and runs focused fixture/close, npm help,
+raw native executable lifetime, uninstall/recovery and sharing contracts.
+Use a fresh `ARCH_RELIABILITY_DIRECTORY` per run (for example a directory under
+`reports/uninstall-stress/`) and then `npm run check:reliability`. The validator
+requires all four profiles; it intentionally refuses mixed or incomplete runs.
+Set `ARCH_RELIABILITY_TEST_REPORT` to the Vitest JSON report to additionally verify
+help/native/sharing assertions, as CI does. Every first attempt counts.
+The Windows reliability workflow provides a ten-minute isolated PR/scheduled/manual
+profile; regression retains all three platforms. Stress uses 32 Arch sequences
+and 16 raw native copy/execute-close/unlink sequences, with one and three lanes.
+Failed fixtures are retained and named in artifacts; inspect before removing them.
+No automatic retention pruning deletes failure evidence; CI artifacts expire after
+14 days and each run has a fixed operation budget. Local retained roots require
+explicit owner cleanup, so repeated local failures can consume disk space.
+
 `npm run test:mutation:cli` measures parsing, dispatch, CLI signal mapping, status
 presentation and Wizard decisions/workflow. It excludes real terminal tests from
 mutation, not from regression. See [quality gates](standards/quality-gates.md).

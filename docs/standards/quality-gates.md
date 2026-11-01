@@ -46,10 +46,11 @@ Type-only import annotations remain allowed for vi.importActual module shapes.
 are deliberately applied afterwards. Prettier is the sole layout authority.
 
 The configuration names specific legacy rules at warning severity with rationale.
-These warnings are **deferred debt, not compliance**: test non-null assertions,
-test no-unnecessary-condition, prefer-nullish-coalescing and test unsafe
-boundary/assertion findings. Production non-null assertions, dynamic deletion
-and test empty functions now block after their measured categories were cleaned.
+Remaining warnings are **reviewed debt, not compliance**: guarded teardown after
+failed beforeAll and intentional empty-string environment fallbacks. Non-null
+assertions and unsafe assignment/member/argument/return/type-assertion checks now
+block tests as well as production after boundary validation and prerequisite
+checks removed the findings. Dynamic deletion and test empty functions also block.
 They remain reported and reviewable, not hidden by eslint-disable blocks.
 
 Before promoting one of these rules, characterize the affected behavior, remediate
@@ -62,7 +63,7 @@ and MUST NOT conceal new debt. Do not create a generic lint framework.
 Prefer-optional-chain, no-confusing-void-expression, no-unnecessary-type-conversion
 and restrict-template-expressions now block globally; test plus operands also block.
 No-unnecessary-condition blocks production; no-non-null-assertion
-blocks all production source. Remaining test findings
+blocks all maintained typed code. Remaining test condition findings
 stay visible in the ratchet. This does not claim that every type assertion is safe.
 Strict-boolean-expressions remains unadopted pending review of intentional length,
 optional-state and environment truthiness conventions; existing constant/unnecessary
@@ -140,6 +141,20 @@ ignored mutants and missing reports, and marks unmet targets explicitly. Existin
 five blocking pilots and all thresholds remain unchanged.
 
 ## Completion evidence
+
+`npm run check:reliability` rejects missing, malformed, truncated, duplicate or
+failing first-attempt uninstall evidence. Four profiles must contain all 96
+operations and completed teardown. CI also requires the integration JSON report
+and passing npm help, raw executable lifetime and platform-applicable sharing
+contracts. A reused workspace's stale PASS is replaced by FAIL when validation
+fails; report-write failures fail the process. This is evidence validation, not
+causal incident resolution.
+
+The dedicated Windows reliability job runs relevant PRs and scheduled/manual
+checks in an isolated ten-minute job budget. It uses the same tests as regression,
+without mutation load or retry-until-green behavior. Existing required check names
+and branch protection remain unchanged. Raw executable faults remain failures,
+even when a separate unsandboxed comparison passes.
 
 Report PASS / FAIL / NOT TESTED, exact commands, counts/skips, inspected CI links,
 contract compatibility, remaining warnings and measurement limitations. A green

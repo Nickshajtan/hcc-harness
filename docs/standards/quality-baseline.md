@@ -1,7 +1,8 @@
 # Quality baseline
 
-Starting commit: `e875ddc18eea553d7356f39bae5023cfab1d25c7`, main after PR #14.
-Current measurements and exact-head CI: [PR #15](https://github.com/Nickshajtan/hcc-harness/pull/15).
+Starting commit: `b1313eee0ce9dfe5103505650eac706c28fc0db5`, main after PR #15.
+Current hardening and exact-head CI: [PR #16](https://github.com/Nickshajtan/hcc-harness/pull/16).
+Previous measurements below remain explicitly identified until remeasured.
 Human Comprehensibility First remains the review criterion; metrics do not establish stability.
 M2.2 B2 is not implemented or authorized.
 
@@ -54,7 +55,46 @@ refused an uppercase alias on the runner's case-insensitive filesystem. The test
 now observes that capability and asserts the corresponding existing no-clobber
 behavior, including unchanged manifest bytes. No platform skip or product change.
 
-## Reproduced quality
+## Reliability investigation and current enforcement
+
+| Hypothesis                                          | Distinguishing evidence / remaining uncertainty                                                                                                        |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Arch removal is necessary for executable denial     | Rejected as a necessary condition: raw copy/execute-close/unlink reproduced EPERM without Arch setup, routing or removal.                              |
+| Waiting for direct-child close prevents denial      | Rejected as sufficient: the failed raw attempt recorded exit 0, both stream ends and close before unlink failed.                                       |
+| Sandbox restrictions explain the denial             | One sandboxed concurrent raw run failed and a separate unsandboxed 16-cycle run passed. Correlation only; denying owner remains unknown.               |
+| External antivirus/indexer or Windows image sharing | Plausible alternatives, without owner/handle evidence; not established causes.                                                                         |
+| Inherited pipes/descendants explain npm help        | No original lifetime trace proves this; explicit direct-child disposal now has a three-second failure budget, without claiming descendant containment. |
+| Slow CIM is a useful critical-path diagnostic       | Rejected: the earlier five-second diagnostic itself timed out; no system-wide enumeration was added.                                                   |
+
+A confirmed, separate fixture-preparation defect is fixed: a rejected Promise.all
+could precede completion of sibling directory effects, allowing early root cleanup.
+An explicit barrier test keeps one sibling pending, proves cleanup waits, then
+verifies removal and exact primary error identity. Failed cleanup aggregates
+primary and secondary errors in order. This does not causally explain either P0.
+
+The approved setup compound-failure correction preserves both errors through
+AggregateError([original, cleanup]), original cause, and unchanged reverse removal
+order/stop-on-first-failure. Its regression fails against the old implementation.
+No other production behavior, source subsystem, launcher, format or checkpoint changed.
+
+Ordinary warnings are reduced from 52 to 9: unsafe assignment 3 -> 0, unsafe member
+access 9 -> 0, unsafe return 2 -> 0, unsafe argument 1 -> 0, non-null assertion
+28 -> 0. Seven condition warnings and two nullish-preference warnings remain.
+The seven are intentionally accepted teardown guards: beforeAll can fail before a
+fixture is assigned despite its declared TypeScript type (including POSIX early
+return in the Windows runtime fixture). The two intentionally preserve empty-string
+fallback semantics for MISE_BIN/SystemRoot. Replacing them with ?? would change
+behavior. No suppression or warning-baseline expansion; newly clean unsafe,
+non-null and unnecessary assertion categories now block.
+
+Reliability validation requires all four first-attempt uninstall profiles and 96
+complete operations, completed cleanup, and passing help/raw-lifetime/Windows-sharing
+assertions in CI's test report. Missing/invalid/truncated/duplicate evidence, failed
+children, signals, pending cleanup, pre-iteration failure and report-write failures
+fail. Stale PASS output is replaced by FAIL. A scheduled/manual/relevant-PR Windows
+job has a ten-minute budget; existing regression and required runtime names remain.
+
+## Previous measured quality (PR #15)
 
 Pins unchanged: Node 24.19.0, TypeScript 6.0.3, ESLint 10.12.0,
 typescript-eslint 8.71.2, Prettier 3.9.10, Vitest/V8 5.0.5, Stryker core/runner
@@ -150,8 +190,8 @@ recovery. Real forced-interruption tests and frozen M1 fixtures remain intact.
 
 Limits: one mutator per project; no hostile-race lock, atomic route-set switch or
 power-loss durability claim. Ambiguous stages and pre-journal orphans are preserved,
-requiring deliberate operator action. Initial rollback cleanup failure retains its
-characterized precedence over the original write error; changing it needs review.
+requiring deliberate operator action. The explicitly approved setup rollback change now retains the original failure
+first and as AggregateError cause, followed by cleanup failure; removal order is unchanged.
 exFAT reconciliation remains unsupported. No alternate publication, automatic
 repair or migration was introduced.
 
@@ -162,11 +202,10 @@ to unknown; warning fingerprints pruned; shared process capture distinguishes ex
 from close; external stress evidence survives cleanup; effect reports require every
 scope. Source behavior remains unchanged.
 
-**DEFER:** remaining 52 warnings mix B1/protocol fixture lifetimes, unsafe external
-JSON/matcher typing and intentional empty-string fallbacks. They need individual
-protocol characterization, not replacement casts. Rollback error precedence,
-hostile filesystem races and generic event correlation need explicit compatibility
-review. Runtime/bootstrap relocation and migration remain separately authorized B2
+**DEFER / accepted with rationale:** the nine warnings are classified above.
+Unknown Windows handle ownership and npm descendants still need causal evidence;
+passing stress cannot substitute for it. Hostile filesystem races and generic
+event correlation require compatibility/design review. Runtime/bootstrap relocation and migration remain separately authorized B2
 work. Critical incident diagnosis takes precedence over further cosmetic changes.
 
 **REJECT:** speculative retries/sleeps, inflated timeouts, unproven CIM/pipe approaches,
