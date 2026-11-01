@@ -97,6 +97,11 @@ export function enforceMutation(scopes, expectedFiles = []) {
   }
   // Reviewed scopes have reached these assertion-only targets; timeout kills earn no credit.
   const minimum = {
+    'src/installation/setup.ts': 85,
+    'src/lifecycle/routing-plan.ts': 85,
+    'src/lifecycle/routing-files.ts': 85,
+    'src/lifecycle/recovery.ts': 85,
+    'src/lifecycle/removal.ts': 85,
     'src/cli/parsing.ts': 85,
     'src/cli/dispatch.ts': 85,
     'src/cli/presentation.ts': 85,

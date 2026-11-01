@@ -1,8 +1,8 @@
 import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { mutationEvidence, enforceMutation, verifyMutationSources } from './check-mutation.mjs';
 
-// A diagnostic pilot, separate from the five established blocking pilots.
-// Validate complete evidence even while its new numeric targets remain advisory.
+// Separately budgeted effect pilot. Full-source Windows and hosted POSIX
+// measurements established the per-file assertion-only gates; no branch is excluded.
 const report = JSON.parse(await readFile('reports/mutation-effects/mutation.json', 'utf8'));
 const scopes = mutationEvidence(report);
 const files = [
@@ -16,7 +16,7 @@ await verifyMutationSources(report, files);
 enforceMutation(scopes, files);
 const evidence = {
   measurement: 'PASS',
-  numericTargetsEnforced: false,
+  numericTargetsEnforced: true,
   scopes: scopes.map((scope) => ({ ...scope, target: 85, targetMet: 85 <= scope.assertionScore })),
 };
 await mkdir('reports', { recursive: true });
@@ -24,7 +24,7 @@ await writeFile('reports/effects-mutation-results.json', JSON.stringify(evidence
 const summary = [
   '## Effect mutation pilot',
   '',
-  'Measurement PASS. Numeric targets are advisory, not enforced gates. Timeouts earn no assertion credit.',
+  'Measurement PASS. Every effect module enforces 85% assertion-only kills. Timeouts earn no assertion credit.',
   '',
   ...evidence.scopes.map(
     (scope) =>

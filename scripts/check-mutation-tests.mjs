@@ -39,6 +39,21 @@ test('timeouts are visible and cannot substitute for assertion kills at the gate
   assert.equal(scopes[0].assertionScore, 50);
   assert.throws(() => enforceMutation(scopes), /below 90%/);
 });
+
+test('every effect gate rejects survivor-only and timeout-only evidence', () => {
+  for (const file of [
+    'src/installation/setup.ts',
+    'src/lifecycle/routing-plan.ts',
+    'src/lifecycle/routing-files.ts',
+    'src/lifecycle/recovery.ts',
+    'src/lifecycle/removal.ts',
+  ]) {
+    for (const status of ['Survived', 'Timeout']) {
+      const scopes = mutationEvidence({ files: { [file]: { mutants: [{ status }] } } });
+      assert.throws(() => enforceMutation(scopes, [file]), /below 85%/);
+    }
+  }
+});
 test('missing, empty and infrastructure error reports fail closed', () => {
   for (const value of [
     {},

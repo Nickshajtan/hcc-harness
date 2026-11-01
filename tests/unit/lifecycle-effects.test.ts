@@ -257,6 +257,24 @@ it('direct setup and uninstall refuse a symlinked metadata root without touching
   expect(await readFile(join(outside, 'user.txt'), 'utf8')).toBe('keep');
 });
 
+it.each(['.arch/routing.json', '.arch/harness.toml'])(
+  'refuses a symlink at the exact metadata entry before setup or removal reads it: %s',
+  async (path) => {
+    const fresh = file('guard-root');
+    const outside = file('guard-outside');
+    await mkdir(join(fresh, '.arch'), { recursive: true });
+    await mkdir(outside);
+    await actual.writeFile(join(outside, 'user.txt'), 'untouched');
+    // A directory junction at a file location is still an unsafe managed path.
+    // This uses supported Windows junctions without requiring file-symlink privileges.
+    await symlink(outside, join(fresh, path), 'win32' === process.platform ? 'junction' : 'dir');
+    await expect(setup(fresh, ['tool'])).rejects.toThrow(`Refusing managed symlink: ${path}`);
+    await expect(uninstall(fresh)).rejects.toThrow(`Refusing managed symlink: ${path}`);
+    expect(await readFile(join(outside, 'user.txt'), 'utf8')).toBe('untouched');
+    expect(await readOptional(join(fresh, '.arch/bootstrap.json'))).toBeUndefined();
+  },
+);
+
 it('rechecks obsolete bytes after the journal checkpoint and preserves the conflicting resource', async () => {
   const original = await readFile(file(route('removed')));
   await expect(

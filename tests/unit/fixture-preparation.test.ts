@@ -73,5 +73,7 @@ it('retains primary and secondary errors if failed fixture preparation cannot be
     throw new Error('Missing cleanup aggregation');
   }
   expect(result.errors).toEqual([primary, secondary]);
+  expect(result.errors[0]).toBe(primary);
+  expect(result.errors[1]).toBe(secondary);
   expect(result.cause).toBe(primary);
 });
