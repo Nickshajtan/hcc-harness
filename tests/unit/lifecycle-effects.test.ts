@@ -349,6 +349,16 @@ it('does not grant execution permission to non-executable private stages', async
   expect(await readFile(file(path), 'utf8')).toBe('metadata');
 });
 
+it('sets executable stage permissions only on POSIX, including when explicitly requested on Windows', async () => {
+  const path = '.arch/executable.stage';
+  vi.mocked(chmod).mockClear();
+  await stage(root, path, Buffer.from('executable'), true);
+  expect(vi.mocked(chmod).mock.calls).toEqual(
+    'win32' === process.platform ? [] : [[file(path), 0o755]],
+  );
+  expect(await readFile(file(path), 'utf8')).toBe('executable');
+});
+
 it.skipIf('win32' === process.platform)(
   'preserves a complete private stage and the exact permission failure before publication',
   async () => {

@@ -55,6 +55,54 @@ test('a successful step with missing artifacts is FAIL, never PASS', async () =>
   }
 });
 
+test('coverage totals cannot conceal a missing maintained production file', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'arch-coverage-completeness-'));
+  try {
+    await mkdir(join(root, 'src'));
+    await mkdir(join(root, 'coverage'));
+    await writeFile(join(root, 'src/critical.ts'), 'export const critical = true;\n');
+    await writeFile(
+      join(root, 'coverage/tests.json'),
+      JSON.stringify({
+        success: true,
+        numFailedTests: 0,
+        numPassedTests: 1,
+        numTotalTests: 1,
+        testResults: [{ assertionResults: [{ status: 'passed' }] }],
+      }),
+    );
+    await writeFile(
+      join(root, 'coverage/coverage-summary.json'),
+      JSON.stringify({
+        total: { lines: { total: 1, pct: 100 }, branches: { pct: 100 } },
+      }),
+    );
+    const child = spawnSync(
+      process.execPath,
+      [fileURLToPath(new URL('./summarize-quality.mjs', import.meta.url))],
+      {
+        cwd: root,
+        encoding: 'utf8',
+        timeout: 5000,
+        env: {
+          ...process.env,
+          GITHUB_STEP_SUMMARY: '',
+          LINT_OUTCOME: 'skipped',
+          DEPENDENCY_OUTCOME: 'skipped',
+          COVERAGE_OUTCOME: 'success',
+          MUTATION_OUTCOME: 'skipped',
+        },
+      },
+    );
+    assert.equal(child.status, 1, child.stderr);
+    assert.match(child.stderr, /Coverage evidence omits maintained production source/);
+    const report = JSON.parse(await readFile(join(root, 'reports/quality-results.json'), 'utf8'));
+    assert.equal(report.results.coverage, 'FAIL');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('the actual wizard summary fails closed for missing or failing measurement files', async () => {
   const workflow = await readFile(
     new URL('../.github/workflows/wizard.yml', import.meta.url),

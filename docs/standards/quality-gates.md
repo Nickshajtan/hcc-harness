@@ -139,6 +139,10 @@ complete five-module pilot has advisory 85% assertion-only targets, not new nume
 gates. `node scripts/report-effects-mutation.mjs` rejects missing scopes, errors,
 ignored mutants and missing reports, and marks unmet targets explicitly. Existing
 five blocking pilots and all thresholds remain unchanged.
+Mutation validators also require the reported original source to match the current
+file (allowing checkout line endings). An older passing score cannot validate edited
+code. Coverage summaries require every maintained production TS file, and test
+totals must match the actual assertion records; totals alone cannot hide omissions.
 
 ## Completion evidence
 

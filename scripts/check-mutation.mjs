@@ -130,6 +130,24 @@ export function enforceMutation(scopes, expectedFiles = []) {
   }
 }
 
+export async function verifyMutationSources(report, expectedFiles, root = '.') {
+  for (const file of expectedFiles) {
+    const entry = Object.entries(report.files).find(
+      ([name]) => name.replaceAll('\\', '/') === file,
+    );
+    const source = entry?.[1]?.source;
+    if ('string' !== typeof source) {
+      throw new Error(`Missing mutation source evidence: ${file}`);
+    }
+    const current = await readFile(resolve(root, file), 'utf8');
+    // Checkout line endings do not change the measured source. Any other edit
+    // requires a new measurement, even when an older report's score still passes.
+    if (source.replaceAll('\r\n', '\n') !== current.replaceAll('\r\n', '\n')) {
+      throw new Error(`Stale mutation source evidence: ${file}`);
+    }
+  }
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const reports = process.argv.slice(2);
   if (!reports.length) {
@@ -140,7 +158,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     if (!pilot) {
       throw new Error(`Unknown mutation pilot: ${name}`);
     }
-    const scopes = mutationEvidence(JSON.parse(await readFile(pilot.report, 'utf8')));
+    const report = JSON.parse(await readFile(pilot.report, 'utf8'));
+    const scopes = mutationEvidence(report);
+    await verifyMutationSources(report, pilot.files);
     enforceMutation(scopes, pilot.files);
     console.log(JSON.stringify(scopes));
   }

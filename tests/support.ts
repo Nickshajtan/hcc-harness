@@ -18,8 +18,11 @@ import { inspectInstallation } from '../src/lifecycle/inspection.js';
 export const cli = resolve('dist/cli.js');
 const localMise = resolve('.tools/mise/bin/mise.exe');
 export const mise = process.env.MISE_BIN || (existsSync(localMise) ? localMise : 'mise');
-export function requiredEnvironment(name: string): string {
-  const value = process.env[name];
+export function requiredEnvironment(
+  name: string,
+  environment: NodeJS.ProcessEnv = process.env,
+): string {
+  const value = environment[name];
   if (!value) {
     throw new Error(`Missing test prerequisite: ${name}`);
   }
@@ -308,8 +311,8 @@ export async function world(temporary = resolve('.test-state/fixtures')) {
         overrides: NodeJS.ProcessEnv = {},
         stdin = '',
       ) => run(command, args, cwd, { ...env, ...overrides }, stdin),
-      // Windows may retain an executable's file handle briefly after process exit.
-      // Bounded retries tolerate that release delay; persistent locks still fail.
+      // Preserve the pre-existing fixture-only cleanup policy. Its eventual
+      // success does not identify a denying handle or resolve an incident.
       dispose: () => rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }),
     };
   } catch (error) {

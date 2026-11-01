@@ -1,6 +1,34 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mutationEvidence, enforceMutation, pilots } from './check-mutation.mjs';
+import {
+  mutationEvidence,
+  enforceMutation,
+  verifyMutationSources,
+  pilots,
+} from './check-mutation.mjs';
+import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+test('mutation source evidence rejects stale or missing code while accepting checkout line endings', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'arch-mutation-source-'));
+  try {
+    await writeFile(join(root, 'decision.ts'), 'export const enabled = true;\n');
+    const measured = { files: { 'decision.ts': { source: 'export const enabled = true;\r\n' } } };
+    await verifyMutationSources(measured, ['decision.ts'], root);
+    await assert.rejects(
+      verifyMutationSources({ files: {} }, ['decision.ts'], root),
+      /Missing mutation source/,
+    );
+    await writeFile(join(root, 'decision.ts'), 'export const enabled = false;\n');
+    await assert.rejects(
+      verifyMutationSources(measured, ['decision.ts'], root),
+      /Stale mutation source/,
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
 
 const report = (statuses) => ({
   files: { 'src/config.ts': { mutants: statuses.map((status) => ({ status })) } },

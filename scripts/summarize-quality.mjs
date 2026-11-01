@@ -1,5 +1,11 @@
-import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { mutationEvidence, enforceMutation, pilots } from './check-mutation.mjs';
+import { appendFile, mkdir, readFile, writeFile, readdir } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import {
+  mutationEvidence,
+  enforceMutation,
+  verifyMutationSources,
+  pilots,
+} from './check-mutation.mjs';
 
 const results = {};
 const details = [];
@@ -45,13 +51,22 @@ await area('dependencies', process.env.DEPENDENCY_OUTCOME, async () => {
 await area('coverage', process.env.COVERAGE_OUTCOME, async () => {
   const coverage = await read('coverage/coverage-summary.json');
   const tests = await read('coverage/tests.json');
+  const assertions = tests.testResults?.flatMap((file) => file.assertionResults ?? []);
   if (
     !tests.success ||
     tests.numFailedTests ||
     !tests.numPassedTests ||
+    tests.numTotalTests !== assertions?.length ||
+    tests.numPassedTests !== assertions?.filter((test) => 'passed' === test.status).length ||
     !coverage.total?.lines?.total
   ) {
     throw new Error('Missing or failing coverage/test evidence');
+  }
+  const sources = (await readdir('src', { recursive: true })).filter(
+    (file) => file.endsWith('.ts') && !file.endsWith('.d.ts'),
+  );
+  if (!sources.length || sources.some((file) => !coverage[resolve('src', file)])) {
+    throw new Error('Coverage evidence omits maintained production source');
   }
   details.push(
     `Coverage: lines ${String(coverage.total.lines.pct)}%; branches ${String(coverage.total.branches.pct)}%. Tests: ${String(tests.numPassedTests)} passed / ${String(tests.numPendingTests)} skipped.`,
@@ -59,7 +74,9 @@ await area('coverage', process.env.COVERAGE_OUTCOME, async () => {
 });
 await area('mutation', process.env.MUTATION_OUTCOME, async () => {
   for (const pilot of Object.values(pilots)) {
-    const scopes = mutationEvidence(await read(pilot.report));
+    const report = await read(pilot.report);
+    const scopes = mutationEvidence(report);
+    await verifyMutationSources(report, pilot.files);
     enforceMutation(scopes, pilot.files);
     details.push(
       ...scopes.map(

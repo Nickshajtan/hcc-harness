@@ -22,7 +22,9 @@ it('validates native runtime protocol fields before using executable paths', () 
     expect(() => runtimeOutput(JSON.stringify(value))).toThrow('Malformed runtime fixture output');
   }
   expect(() => runtimeOutput('{')).toThrow(SyntaxError);
-  expect(() => requiredEnvironment('ARCH_TEST_DELIBERATELY_MISSING_PREREQUISITE')).toThrow(
+  expect(requiredEnvironment('runtime', { runtime: 'fixture-node' })).toBe('fixture-node');
+  expect(() => requiredEnvironment('runtime', {})).toThrow('Missing test prerequisite');
+  expect(() => requiredEnvironment('runtime', { runtime: '' })).toThrow(
     'Missing test prerequisite',
   );
 });

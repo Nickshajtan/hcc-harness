@@ -1,17 +1,19 @@
 import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { mutationEvidence, enforceMutation } from './check-mutation.mjs';
+import { mutationEvidence, enforceMutation, verifyMutationSources } from './check-mutation.mjs';
 
 // A diagnostic pilot, separate from the five established blocking pilots.
 // Validate complete evidence even while its new numeric targets remain advisory.
 const report = JSON.parse(await readFile('reports/mutation-effects/mutation.json', 'utf8'));
 const scopes = mutationEvidence(report);
-enforceMutation(scopes, [
+const files = [
   'src/installation/setup.ts',
   'src/lifecycle/routing-plan.ts',
   'src/lifecycle/routing-files.ts',
   'src/lifecycle/recovery.ts',
   'src/lifecycle/removal.ts',
-]);
+];
+await verifyMutationSources(report, files);
+enforceMutation(scopes, files);
 const evidence = {
   measurement: 'PASS',
   numericTargetsEnforced: false,

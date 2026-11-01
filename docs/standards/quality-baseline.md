@@ -66,6 +66,13 @@ behavior, including unchanged manifest bytes. No platform skip or product change
 | Inherited pipes/descendants explain npm help        | No original lifetime trace proves this; explicit direct-child disposal now has a three-second failure budget, without claiming descendant containment. |
 | Slow CIM is a useful critical-path diagnostic       | Rejected: the earlier five-second diagnostic itself timed out; no system-wide enumeration was added.                                                   |
 
+The exact starting checkout's first coverage attempt failed outside the sandbox:
+487 passed / 1 failed / 31 skipped. Interrupted three-lane uninstall stress hit
+EPERM recreating arbitrary.exe during initialization, after an earlier successful
+uninstall. The failed fixture and test/stress reports are retained separately from
+the baseline checkout. Sandbox restrictions therefore do not explain the entire
+incident family. No owner/cause was established; a later pass cannot close this result.
+
 A confirmed, separate fixture-preparation defect is fixed: a rejected Promise.all
 could precede completion of sibling directory effects, allowing early root cleanup.
 An explicit barrier test keeps one sibling pending, proves cleanup waits, then
