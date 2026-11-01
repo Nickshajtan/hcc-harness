@@ -214,9 +214,16 @@ export async function world(temporary = resolve('.test-state/fixtures')) {
     const directories = await Promise.allSettled(
       Object.values(paths).map((path) => mkdir(path, { recursive: true })),
     );
-    const failure = directories.find((result) => 'rejected' === result.status);
-    if (failure) {
-      throw failure.reason;
+    const failures = directories.filter((result) => 'rejected' === result.status);
+    const first = failures[0];
+    if (first && 1 === failures.length) {
+      throw first.reason;
+    }
+    if (first) {
+      const errors = failures.map((failure): unknown => failure.reason);
+      throw new AggregateError(errors, 'Fixture directory preparation failed', {
+        cause: first.reason,
+      });
     }
     const native = paths.native;
     // Extensionless Node fixtures must not inherit the repository's ESM package scope.

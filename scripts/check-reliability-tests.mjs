@@ -11,6 +11,11 @@ function complete() {
   return [false, true].flatMap((interrupted) =>
     [1, 3].map((lanes) => ({
       interrupted,
+      commit: 'fixture-sha',
+      platform: process.platform,
+      node: process.version,
+      started: '2026-11-01T00:00:00Z',
+      ended: '2026-11-01T00:01:00Z',
       lanes,
       iterations: 4,
       failed: false,
@@ -62,6 +67,12 @@ test('counts every first attempt and requires completed teardown', () => {
       reports[0].failed = true;
     },
     (reports) => {
+      reports[0].lanes = '1';
+    },
+    (reports) => {
+      delete reports[0].commit;
+    },
+    (reports) => {
       reports[0].evidence[0].stage = 'unexpected';
     },
     (reports) => {
@@ -72,6 +83,7 @@ test('counts every first attempt and requires completed teardown', () => {
     corrupt(reports);
     assert.throws(() => validateReliability(reports));
   }
+  assert.throws(() => validateReliability(complete(), 'different-sha'));
 });
 
 test('reporting fails on missing, malformed, truncated evidence and report-write errors', async () => {
@@ -82,7 +94,12 @@ test('reporting fails on missing, malformed, truncated evidence and report-write
       cwd: root,
       encoding: 'utf8',
       timeout: 5000,
-      env: { ...process.env, GITHUB_STEP_SUMMARY: '', ARCH_RELIABILITY_TEST_REPORT: testReport },
+      env: {
+        ...process.env,
+        GITHUB_SHA: '',
+        GITHUB_STEP_SUMMARY: '',
+        ARCH_RELIABILITY_TEST_REPORT: testReport,
+      },
     });
   try {
     assert.notEqual(invoke().status, 0);

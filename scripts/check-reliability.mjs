@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 // Fixed profiles prevent an empty or truncated run from declaring itself complete.
-export function validateReliability(reports) {
+export function validateReliability(reports, revision) {
   const expected = new Set(['false:1', 'true:1', 'false:3', 'true:3']);
   if (!Array.isArray(reports) || 4 !== reports.length) {
     throw new Error('Expected all four first-attempt reliability profiles');
@@ -12,6 +12,11 @@ export function validateReliability(reports) {
     const profile = `${String(report.interrupted)}:${String(report.lanes)}`;
     if (
       'boolean' !== typeof report.interrupted ||
+      !Number.isInteger(report.lanes) ||
+      !['commit', 'platform', 'node', 'started', 'ended'].every(
+        (name) => 'string' === typeof report[name] && 0 < report[name].length,
+      ) ||
+      (revision && report.commit !== revision) ||
       !expected.delete(profile) ||
       4 !== report.iterations ||
       false !== report.failed ||
@@ -59,7 +64,7 @@ async function main() {
       .filter((path) => path.endsWith('.json'))
       .map(async (path) => JSON.parse(await readFile(resolve(directory, path), 'utf8'))),
   );
-  const result = validateReliability(reports);
+  const result = validateReliability(reports, process.env.GITHUB_SHA);
   const testsPath = process.env.ARCH_RELIABILITY_TEST_REPORT;
   if (testsPath) {
     const tests = JSON.parse(await readFile(testsPath, 'utf8'));

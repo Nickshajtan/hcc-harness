@@ -77,3 +77,28 @@ it('retains primary and secondary errors if failed fixture preparation cannot be
   expect(result.errors[1]).toBe(secondary);
   expect(result.cause).toBe(primary);
 });
+
+it('retains every preparation failure in stable directory order before cleanup', async () => {
+  const parent = await mkdtemp(join(tmpdir(), 'arch-fixture-multiple-'));
+  roots.push(parent);
+  const home = new Error('home denied');
+  const data = new Error('data denied');
+  vi.mocked(mkdir).mockImplementation(async (path, options) => {
+    if ('string' === typeof path && 'home' === basename(path)) {
+      throw home;
+    }
+    if ('string' === typeof path && 'data' === basename(path)) {
+      throw data;
+    }
+    return actual.mkdir(path, options);
+  });
+  const result: unknown = await world(parent).catch((error: unknown) => error);
+  expect(result).toBeInstanceOf(AggregateError);
+  if (!(result instanceof AggregateError)) {
+    throw new Error('Missing preparation failures');
+  }
+  expect(result.errors).toEqual([home, data]);
+  expect(result.errors[0]).toBe(home);
+  expect(result.errors[1]).toBe(data);
+  expect(result.cause).toBe(home);
+});

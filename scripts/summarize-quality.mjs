@@ -53,12 +53,13 @@ await area('coverage', process.env.COVERAGE_OUTCOME, async () => {
   const tests = await read('coverage/tests.json');
   const assertions = tests.testResults?.flatMap((file) => file.assertionResults ?? []);
   if (
-    !tests.success ||
+    true !== tests.success ||
     tests.numFailedTests ||
     !tests.numPassedTests ||
     tests.numTotalTests !== assertions?.length ||
     tests.numPassedTests !== assertions?.filter((test) => 'passed' === test.status).length ||
-    !coverage.total?.lines?.total
+    !Number.isInteger(coverage.total?.lines?.total) ||
+    0 >= coverage.total.lines.total
   ) {
     throw new Error('Missing or failing coverage/test evidence');
   }
