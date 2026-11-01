@@ -82,7 +82,7 @@ test('reporting fails on missing, malformed, truncated evidence and report-write
       cwd: root,
       encoding: 'utf8',
       timeout: 5000,
-      env: { ...process.env, GITHUB_STEP_SUMMARY: '' },
+      env: { ...process.env, GITHUB_STEP_SUMMARY: '', ARCH_RELIABILITY_TEST_REPORT: '' },
     });
   try {
     assert.notEqual(invoke().status, 0);

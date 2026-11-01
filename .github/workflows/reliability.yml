@@ -5,6 +5,7 @@ on:
       - 'tests/support.ts'
       - 'tests/integration/uninstall-stability.test.ts'
       - 'tests/integration/npm-cli.test.ts'
+      - 'tests/integration/native-lifetime.test.ts'
       - 'scripts/check-reliability*.mjs'
       - '.github/workflows/reliability.yml'
   workflow_dispatch:
@@ -40,5 +41,6 @@ jobs:
             reports/uninstall-stress/
             reports/removal-diagnostics/
             reports/npm-help-diagnostics/
+            reports/native-lifetime/
           if-no-files-found: error
           retention-days: 14

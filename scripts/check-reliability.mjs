@@ -64,14 +64,17 @@ async function main() {
   if (testsPath) {
     const tests = JSON.parse(await readFile(testsPath, 'utf8'));
     const assertions = tests.testResults?.flatMap((file) => file.assertionResults ?? []);
+    const required = [
+      'links the existing CLI, dispatches help',
+      'creates, executes, closes, deletes and recreates independent native executables',
+      ...('win32' === process.platform ? ['reports a real Windows sharing refusal'] : []),
+    ];
     if (
       true !== tests.success ||
       0 !== tests.numFailedTests ||
       !tests.numPassedTests ||
-      !assertions?.some(
-        (test) =>
-          test.fullName.includes('links the existing CLI, dispatches help') &&
-          'passed' === test.status,
+      !required.every((name) =>
+        assertions?.some((test) => test.fullName.includes(name) && 'passed' === test.status),
       )
     ) {
       throw new Error('Missing or failing native npm help/test evidence');

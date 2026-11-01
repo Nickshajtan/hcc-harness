@@ -69,4 +69,6 @@ jobs:
             reports/removal-diagnostics/
             reports/npm-help-diagnostics/
             reports/uninstall-stress/
+            reports/native-lifetime/
+            reports/reliability-results.json
           include-hidden-files: true

@@ -31,7 +31,7 @@
     "report:dependencies": "depcruise src --config .dependency-cruiser.cjs --output-type json --output-to reports/dependencies.json",
     "lint:baseline": "node scripts/check-lint-baseline.mjs",
     "test:quality": "node --test scripts/check-lint-baseline-tests.mjs scripts/check-mutation-tests.mjs scripts/quality-evidence-tests.mjs scripts/check-reliability-tests.mjs",
-    "test:reliability": "npm run build && vitest run tests/integration/uninstall-stability.test.ts tests/integration/npm-cli.test.ts tests/unit/support.test.ts",
+    "test:reliability": "npm run build && vitest run tests/integration/uninstall-stability.test.ts tests/integration/native-lifetime.test.ts tests/integration/npm-cli.test.ts tests/unit/support.test.ts",
     "check:reliability": "node scripts/check-reliability.mjs",
     "test:mutation:core": "stryker run stryker.core.config.json",
     "lint:baseline:prune": "node scripts/check-lint-baseline.mjs --prune",

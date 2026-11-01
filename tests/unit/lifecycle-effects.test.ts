@@ -441,3 +441,32 @@ it('creates only recorded resources beside preexisting middleware configuration'
     }
   }
 });
+
+it('preserves historical launcher bytes when setup compares platform-specific route identity', async () => {
+  const fresh = file('case-identity');
+  await mkdir(fresh);
+  await setup(fresh, ['MiXeD']);
+  const before = await readFile(join(fresh, '.arch/bootstrap.json'));
+  if ('win32' === process.platform) {
+    await setup(fresh, ['mixed']);
+  } else {
+    await expect(setup(fresh, ['mixed'])).rejects.toThrow('Arch setup differs; use configure');
+  }
+  expect(await readFile(join(fresh, '.arch/bootstrap.json'))).toEqual(before);
+});
+
+it('applies installation permissions only to POSIX bin resources', async () => {
+  const fresh = file('permissions');
+  await mkdir(fresh);
+  vi.mocked(chmod).mockClear();
+  await setup(fresh, ['tool']);
+  const paths = vi.mocked(chmod).mock.calls.map(([path, mode]) => ({ path, mode }));
+  expect(paths).toEqual(
+    'win32' === process.platform
+      ? []
+      : [
+          { path: join(fresh, '.arch/bin/.arch-router'), mode: 0o755 },
+          { path: join(fresh, '.arch/bin/tool'), mode: 0o755 },
+        ],
+  );
+});
