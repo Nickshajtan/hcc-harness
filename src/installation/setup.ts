@@ -82,8 +82,16 @@ export async function setup(root: string, commands: readonly string[]): Promise<
       }
     }
   } catch (error) {
-    for (const file of created.reverse()) {
-      await unlink(file);
+    try {
+      for (const file of created.reverse()) {
+        await unlink(file);
+      }
+    } catch (cleanupError) {
+      // Keep the initiating failure authoritative without concealing the cleanup
+      // failure. Stop at the same first failed removal and preserve its evidence.
+      throw new AggregateError([error, cleanupError], 'Arch setup and rollback cleanup failed', {
+        cause: error,
+      });
     }
     throw error;
   }

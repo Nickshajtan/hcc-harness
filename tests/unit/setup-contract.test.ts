@@ -49,7 +49,7 @@ it('rolls back only resources created by this initialization and preserves the o
   expect(await readFile(harness, 'utf8')).toContain('# user configuration');
   expect(await readFile(join(root, 'user.txt'), 'utf8')).toBe('keep');
 });
-it('retains current rollback cleanup failure precedence and remaining evidence', async () => {
+it('preserves primary and cleanup identities in rollback failure order and retains remaining evidence', async () => {
   const writeError = new Error('initial write failure');
   const cleanupError = new Error('rollback removal failure');
   let writes = 0;
@@ -60,7 +60,13 @@ it('retains current rollback cleanup failure precedence and remaining evidence',
     await actual.writeFile(...args);
   });
   vi.mocked(unlink).mockRejectedValue(cleanupError);
-  await expect(setup(root, ['tool'])).rejects.toBe(cleanupError);
+  const result: unknown = await setup(root, ['tool']).catch((error: unknown) => error);
+  expect(result).toBeInstanceOf(AggregateError);
+  if (!(result instanceof AggregateError)) {
+    throw new Error('Expected both setup and cleanup failures');
+  }
+  expect(result.errors).toEqual([writeError, cleanupError]);
+  expect(result.cause).toBe(writeError);
   expect(unlink).toHaveBeenCalledTimes(1);
   expect(await readFile(join(root, '.arch/bin/.arch-router'), 'utf8')).toContain(
     'arch-harness-router',
