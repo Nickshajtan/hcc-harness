@@ -1,4 +1,4 @@
-import { beforeAll, afterAll, expect, it } from 'vitest';
+import { onTestFinished, beforeAll, afterAll, expect, it } from 'vitest';
 import {
   writeFile,
   readFile,
@@ -112,25 +112,22 @@ it.skipIf('win32' === process.platform)(
       FAKE_IGNORE_TERM: '1',
     });
     invocation.child.stdin.end();
-    try {
-      await waitForOutput(invocation, 'native ready');
-      invocation.child.kill('SIGTERM');
-      const result = await invocation.result;
-      expect(result.stderr).toContain('ignored SIGTERM');
-      expect(result.stderr).toContain('[arch:demo] cleanup');
-      expect(result.code).toBe(143);
-      // stderr readiness and stdout are independent pipes. Decode the PID only
-      // after close guarantees the complete stdout, not when stderr arrives.
-      const line = result.stdout.split(/\r?\n/)[0];
-      assert(line !== undefined);
-      const native: unknown = JSON.parse(line);
-      assert(null !== native && 'object' === typeof native && 'pid' in native);
-      assert('number' === typeof native.pid);
-      const pid = native.pid;
-      expect(() => process.kill(pid, 0)).toThrow();
-    } finally {
-      invocation.child.kill('SIGKILL');
-    }
+    onTestFinished(() => invocation.dispose());
+    await waitForOutput(invocation, 'native ready');
+    invocation.child.kill('SIGTERM');
+    const result = await invocation.result;
+    expect(result.stderr).toContain('ignored SIGTERM');
+    expect(result.stderr).toContain('[arch:demo] cleanup');
+    expect(result.code).toBe(143);
+    // stderr readiness and stdout are independent pipes. Decode the PID only
+    // after close guarantees the complete stdout, not when stderr arrives.
+    const line = result.stdout.split(/\r?\n/)[0];
+    assert(line !== undefined);
+    const native: unknown = JSON.parse(line);
+    assert(null !== native && 'object' === typeof native && 'pid' in native);
+    assert('number' === typeof native.pid);
+    const pid = native.pid;
+    expect(() => process.kill(pid, 0)).toThrow();
   },
 );
 
@@ -348,15 +345,12 @@ it.skipIf('win32' === process.platform)(
         ...fixture.env,
         FAKE_WAIT: '1',
       });
-      try {
-        await waitFor(() => invocation.output().stdout.includes('"pid":'));
-        invocation.child.kill(signal);
-        const result = await invocation.result;
-        expect(result.code).toBe('SIGINT' === signal ? 130 : 143);
-        expect(result.stderr).toContain('[arch:demo] cleanup');
-      } finally {
-        invocation.child.kill('SIGKILL');
-      }
+      onTestFinished(() => invocation.dispose());
+      await waitFor(() => invocation.output().stdout.includes('"pid":'));
+      invocation.child.kill(signal);
+      const result = await invocation.result;
+      expect(result.code).toBe('SIGINT' === signal ? 130 : 143);
+      expect(result.stderr).toContain('[arch:demo] cleanup');
     }
   },
 );

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { onTestFinished, afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   chmod,
   copyFile,
@@ -274,21 +274,18 @@ describe.skipIf('1' !== process.env.ARCH_RUNTIME_CONTRACT)('M2.2 shared runtime 
       } else {
         const invocation = start(route(), [], f.A, environment);
         invocation.child.stdin.end();
-        try {
-          const deadline = Date.now() + 10_000;
-          while (!invocation.output().stderr.includes('native ready')) {
-            if (Date.now() > deadline) {
-              throw new Error('Native child did not become ready: ' + invocation.output().stderr);
-            }
-            await new Promise((done) => setTimeout(done, 20));
+        onTestFinished(() => invocation.dispose());
+        const deadline = Date.now() + 10_000;
+        while (!invocation.output().stderr.includes('native ready')) {
+          if (Date.now() > deadline) {
+            throw new Error('Native child did not become ready: ' + invocation.output().stderr);
           }
-          invocation.child.kill(signal);
-          const result = await invocation.result;
-          expect(result.code).toBe(code);
-          expect(result.stderr).toContain('[arch:demo] cleanup');
-        } finally {
-          invocation.child.kill('SIGKILL');
+          await new Promise((done) => setTimeout(done, 20));
         }
+        invocation.child.kill(signal);
+        const result = await invocation.result;
+        expect(result.code).toBe(code);
+        expect(result.stderr).toContain('[arch:demo] cleanup');
       }
       const native = await records(log, 'runtime');
       expect(native).toHaveLength(1);

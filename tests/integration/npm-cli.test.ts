@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, expect, it, onTestFailed } from 'vitest';
+import { onTestFinished, afterAll, beforeAll, expect, it, onTestFailed } from 'vitest';
 import { mkdir, readFile, readdir, realpath, writeFile, access } from 'node:fs/promises';
 import { delimiter, join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -224,21 +224,18 @@ it.skipIf('win32' === process.platform)(
         ...env,
         FAKE_WAIT: '1',
       });
-      try {
-        const deadline = Date.now() + 10000;
-        while (!invocation.output().stdout.includes('"pid":')) {
-          if (Date.now() > deadline) {
-            throw new Error('Native startup timeout');
-          }
-          await new Promise((done) => setTimeout(done, 20));
+      onTestFinished(() => invocation.dispose());
+      const deadline = Date.now() + 10000;
+      while (!invocation.output().stdout.includes('"pid":')) {
+        if (Date.now() > deadline) {
+          throw new Error('Native startup timeout');
         }
-        invocation.child.kill(signal);
-        const result = await invocation.result;
-        expect(result.code).toBe('SIGINT' === signal ? 130 : 143);
-        expect(result.stderr).toContain('[arch:demo] cleanup');
-      } finally {
-        invocation.child.kill('SIGKILL');
+        await new Promise((done) => setTimeout(done, 20));
       }
+      invocation.child.kill(signal);
+      const result = await invocation.result;
+      expect(result.code).toBe('SIGINT' === signal ? 130 : 143);
+      expect(result.stderr).toContain('[arch:demo] cleanup');
     }
   },
 );
