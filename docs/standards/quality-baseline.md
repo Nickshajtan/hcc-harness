@@ -2,7 +2,7 @@
 
 Starting commit: `b1313eee0ce9dfe5103505650eac706c28fc0db5`, main after PR #15.
 Current hardening and exact-head CI: [PR #16](https://github.com/Nickshajtan/hcc-harness/pull/16).
-Previous measurements below remain explicitly identified until remeasured.
+Historical measurements and new first-attempt failures remain separately identified.
 Human Comprehensibility First remains the review criterion; metrics do not establish stability.
 M2.2 B2 is not implemented or authorized.
 
@@ -57,14 +57,14 @@ behavior, including unchanged manifest bytes. No platform skip or product change
 
 ## Reliability investigation and current enforcement
 
-| Hypothesis                                          | Distinguishing evidence / remaining uncertainty                                                                                                        |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Arch removal is necessary for executable denial     | Rejected as a necessary condition: raw copy/execute-close/unlink reproduced EPERM without Arch setup, routing or removal.                              |
-| Waiting for direct-child close prevents denial      | Rejected as sufficient: the failed raw attempt recorded exit 0, both stream ends and close before unlink failed.                                       |
-| Sandbox restrictions explain the denial             | One sandboxed concurrent raw run failed and a separate unsandboxed 16-cycle run passed. Correlation only; denying owner remains unknown.               |
-| External antivirus/indexer or Windows image sharing | Plausible alternatives, without owner/handle evidence; not established causes.                                                                         |
-| Inherited pipes/descendants explain npm help        | No original lifetime trace proves this; explicit direct-child disposal now has a three-second failure budget, without claiming descendant containment. |
-| Slow CIM is a useful critical-path diagnostic       | Rejected: the earlier five-second diagnostic itself timed out; no system-wide enumeration was added.                                                   |
+| Hypothesis                                          | Distinguishing evidence / remaining uncertainty                                                                                                               |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Arch removal is necessary for executable denial     | Rejected as a necessary condition: raw copy/execute-close/unlink reproduced EPERM without Arch setup, routing or removal.                                     |
+| Waiting for direct-child close prevents denial      | Rejected as sufficient: the failed raw attempt recorded exit 0, both stream ends and close before unlink failed.                                              |
+| Sandbox restrictions explain the denial             | Both sandboxed and unsandboxed raw failures were captured, along with passing comparisons. Sandbox-only necessity is rejected; denying owner remains unknown. |
+| External antivirus/indexer or Windows image sharing | Plausible alternatives, without owner/handle evidence; not established causes.                                                                                |
+| Inherited pipes/descendants explain npm help        | No original lifetime trace proves this; explicit direct-child disposal now has a three-second failure budget, without claiming descendant containment.        |
+| Slow CIM is a useful critical-path diagnostic       | Rejected: the earlier five-second diagnostic itself timed out; no system-wide enumeration was added.                                                          |
 
 The exact starting checkout's first coverage attempt failed outside the sandbox:
 487 passed / 1 failed / 31 skipped. Interrupted three-lane uninstall stress hit
@@ -73,10 +73,11 @@ uninstall. The failed fixture and test/stress reports are retained separately fr
 the baseline checkout. Sandbox restrictions therefore do not explain the entire
 incident family. No owner/cause was established; a later pass cannot close this result.
 
-A confirmed, separate fixture-preparation defect is fixed: a rejected Promise.all
-could precede completion of sibling directory effects, allowing early root cleanup.
-An explicit barrier test keeps one sibling pending, proves cleanup waits, then
-verifies removal and exact primary error identity. Failed cleanup aggregates
+A confirmed, separate fixture-preparation defect is fixed: failure before world()
+returned leaked its root, leaving the caller without a returned cleanup owner.
+The new cleanup waits for all sibling directory effects; Promise.all rejection alone
+would not establish their completion. A barrier test keeps one sibling pending,
+proves cleanup waits, then verifies removal and exact primary error identity. Failed cleanup aggregates
 primary and secondary errors in order. This does not causally explain either P0.
 
 The approved setup compound-failure correction preserves both errors through
@@ -101,78 +102,58 @@ children, signals, pending cleanup, pre-iteration failure and report-write failu
 fail. Stale PASS output is replaced by FAIL. A scheduled/manual/relevant-PR Windows
 job has a ten-minute budget; existing regression and required runtime names remain.
 
-## Previous measured quality (PR #15)
+## Current hardening measurements
 
-Pins unchanged: Node 24.19.0, TypeScript 6.0.3, ESLint 10.12.0,
-typescript-eslint 8.71.2, Prettier 3.9.10, Vitest/V8 5.0.5, Stryker core/runner
-10.1.1 and dependency-cruiser 18.7.0. No dependencies or lockfile changes.
+Pins remain Node 24.19.0, TypeScript 6.0.3, ESLint 10.12.0, typescript-eslint
+8.71.2, Prettier 3.9.10, Vitest/V8 5.0.5, Stryker 10.1.1 and dependency-cruiser
+18.7.0. Commands are maintained in testing and quality-gates documentation.
 
-The exact baseline was built/tested in an isolated checkout with native exit status
-captured directly: 456 passed, 31 explicit skips, exit 0. Coverage-on-failure was
-enabled for observation, never to change test status. Earlier sandboxed baseline
-runs failed with EPERM and remain retained.
+Exact starting effect pilot (Windows, 10m24s): setup 59/75, staging 36/44,
+recovery 38/39, removal 57/59, planning 47/48; no timeouts or infrastructure errors.
+The pristine starting coverage suite failed as recorded above, so it did not
+produce a complete numeric coverage baseline. PR #15's 96.05%/93.65% remains a
+historical reference, not a fresh successful exact-checkout result.
 
-| Measurement                           |  Starting commit | Measured implementation, Windows |
-| ------------------------------------- | ---------------: | -------------------------------: |
-| Lint errors / ordinary warnings       |           0 / 55 |                           0 / 52 |
-| V8 lines                              | 94.95% (866/912) |                 96.05% (876/912) |
-| V8 branches                           | 91.86% (565/615) |                 93.65% (576/615) |
-| Setup complexity / review length      |          15 / 72 |                          15 / 72 |
-| Production dependency modules / edges |         52 / 130 |                         54 / 138 |
-| Dependency violations / cycles        |            0 / 0 |                            0 / 0 |
+| Effect module       | Windows before |  Windows after | Hosted Ubuntu after |
+| ------------------- | -------------: | -------------: | ------------------: |
+| Setup               | 78.67% (59/75) | 90.00% (72/80) |      91.25% (73/80) |
+| Staging/publication | 81.82% (36/44) | 93.18% (41/44) |      95.45% (42/44) |
+| Recovery            | 97.44% (38/39) | 97.44% (38/39) |        100% (39/39) |
+| Removal             | 96.61% (57/59) | 96.61% (57/59) |      96.61% (57/59) |
+| Planning            | 97.92% (47/48) | 97.92% (47/48) |      91.67% (44/48) |
 
-Complete Windows suite: 488 passed / 31 explicit skips; baseline 456 / 31.
-Complexity analysis retains 38 review findings; ordinary warnings fall by three,
-with no new fingerprints. The larger test matrix does not change production
-setup's complexity or move it out of measurement.
+Windows after: 255/270 assertion kills, 13 survivors, 2 uncovered, zero timeouts,
+errors or exclusions; 6m53s. The approved rollback branch adds five mutants; scopes
+were not shrunk. The new guard characterization protects direct metadata-entry
+symlinks for setup and uninstall; its final mutation results are recorded in the PR.
+POSIX-only chmod branches remain explicitly uncovered on Windows and are exercised
+on POSIX. ASCII lower/upper identity normalization and platform-constant branches
+have equivalent variants; no mutants are ignored. Remaining phase/case variants
+stay visible rather than being declared universally equivalent.
 
-Setup's coordinator complexity was not hidden or reduced: rendering now has a
-separate resource responsibility, and planning no longer imports installation
-coordination. No classes, containers, transaction framework or global execution
-state were added. Latest exact-head counts/timings are in the PR, not extrapolated
-between operating systems or treated as performance benchmarks.
+All five full effect files now enforce 85% assertion-only mutation gates based on
+these Windows/POSIX measurements. Existing gates are unchanged. Source freshness,
+required files, errors/exclusions, and negative survivor/timeout-only tests block
+false PASS results. Coverage completeness checks include every production TS file.
 
-Measured Windows line/branch coverage: renderer 100/100, setup 97.5/90,
-planning 100/100, staging/publication 95.23/93.33, recovery 100/100, removal 100/100.
-These six scopes enforce 95% lines / 90% branches after Windows and hosted Ubuntu
-measurement. All prior gates remain. Thin CLI/readline subprocess V8 gaps remain
-visible; real CLI, native, interruption and terminal tests remain separate evidence.
-No production source was excluded.
+The established config/Core/lifecycle/process/CLI gates passed locally. One loaded
+intermediate effect run recorded seven timeouts (zero assertion credit); the final
+measurement above recorded none. The first sandboxed attempt logged taskkill access
+denied during Stryker worker disposal and was interrupted, not counted as PASS.
 
-## Mutation measurements
+Latest implementation-commit hosted Ubuntu coverage: 96.38% lines (881/914),
+94.30% branches (580/615). Local Windows check passed 500 tests / 32 skips, but the
+following coverage run failed 499/1/32 on the raw executable probe: two concurrent
+lanes hit EPERM unlink after close, outside the sandbox. Both outcomes are retained.
+This disproves sandbox-only necessity for raw denial too, without establishing a
+handle owner. A later green job cannot erase that first-attempt result.
 
-Scores are assertion-only; timeouts earn zero assertion credit. No ranges,
-mutators or difficult branches were excluded. Existing five pilot gates remain.
-
-| Windows scope                      | Killed / total | Survived / uncovered / timeout |
-| ---------------------------------- | -------------: | -----------------------------: |
-| Config                             |          87/93 |                      1 / 0 / 5 |
-| Core + middleware/events           |        219/229 |                      6 / 2 / 2 |
-| Lifecycle validation               |        383/397 |                     10 / 2 / 2 |
-| Process                            |        301/313 |                     11 / 1 / 0 |
-| CLI/Wizard                         |        444/458 |                      7 / 2 / 5 |
-| Effect pilot, first measurement    |        198/265 |                   34 / 17 / 16 |
-| Effect pilot, hardened measurement |        237/265 |                     26 / 2 / 0 |
-
-The hardened effect measurement is 89.43% overall: recovery 97.44%, removal 96.61%,
-planning 97.92%, staging/publication 81.82%, setup 78.67%. Assertions also cover
-case-preserving plans, equal-size route mismatches, exact resources beside
-preexisting middleware and POSIX executable/metadata modes. Latest remeasurement
-is reported by platform in the PR rather than inferred.
-
-Survivor review exposed genuine gaps in direct validation, pending-operation and
-foreign-platform refusal, late ownership modification, private-stage/initial
-exclusive-create races and cleanup diagnostics. Real-file tests now protect them.
-Remaining permission mutants require POSIX evidence; case-normalization and repeated
-path guards include platform-equivalent/redundant variants. None are ignored.
-Full reports retain every survivor, uncovered mutant, timeout and error count.
-
-The first effect pilot cost 16m45s under concurrent Windows load; the later pilot
-took 7m52s. Its separate relevant-change/scheduled/manual CI job preserves the
-established job's 15-minute budget. New per-file 85% targets remain advisory:
-setup/staging have not earned numeric gates. Reporting requires all five complete
-scopes and rejects missing/error/ignored evidence. Measurement success explicitly
-does not imply every advisory target is met.
+Ordinary warnings: 52 -> 9, errors 0. Setup review complexity/length: 15/72 -> 16/78;
+the added catch preserves approved failure precedence rather than hiding complexity.
+Production dependency graph remains 54 modules / 138 edges, no cycles/violations.
+No production modules, dependencies, schemas, launcher bytes or checkpoints moved.
+Four legacy signal fixtures now register awaited bounded child disposal through
+Vitest completion hooks; primary and teardown failures remain separate test errors.
 
 ## Responsibility and filesystem review
 
@@ -204,10 +185,11 @@ repair or migration was introduced.
 
 ## Debt disposition and security
 
-**FIX NOW:** installation/renderer ambiguity; three status JSON boundaries narrowed
-to unknown; warning fingerprints pruned; shared process capture distinguishes exit
-from close; external stress evidence survives cleanup; effect reports require every
-scope. Source behavior remains unchanged.
+**FIX NOW:** failed-preparation root cleanup; bounded direct-child teardown;
+real protocol/prerequisite validation; source-fresh mutation evidence; complete
+coverage/reliability reports; metadata-entry symlink, permission and rollback
+characterization; the explicitly approved compound setup failure correction.
+No public or filesystem policy changed beyond that approved error precedence.
 
 **DEFER / accepted with rationale:** the nine warnings are classified above.
 Unknown Windows handle ownership and npm descendants still need causal evidence;

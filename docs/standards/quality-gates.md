@@ -135,8 +135,9 @@ real subprocess and fault-injection contracts; they do not prove filesystem stab
 The separate effect mutation job runs for relevant installation/lifecycle PRs and
 scheduled/manual quality runs. It preserves the established job's 15-minute budget;
 its own 25-minute budget follows the initial 16m45s Windows observation. The
-complete five-module pilot has advisory 85% assertion-only targets, not new numeric
-gates. `node scripts/report-effects-mutation.mjs` rejects missing scopes, errors,
+complete five-module pilot enforces 85% assertion-only kills per module after
+Windows and hosted POSIX measurements, with zero timeout credit. Negative tooling
+tests reject survivor-only and timeout-only reports for every effect file. `node scripts/report-effects-mutation.mjs` rejects missing scopes, errors,
 ignored mutants and missing reports, and marks unmet targets explicitly. Existing
 five blocking pilots and all thresholds remain unchanged.
 Mutation validators also require the reported original source to match the current

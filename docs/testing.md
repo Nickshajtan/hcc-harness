@@ -45,7 +45,8 @@ mutation, not from regression. See [quality gates](standards/quality-gates.md).
 `npm run test:mutation:effects` measures complete installation setup, planning,
 staging/publication, recovery and removal files. Run
 `node scripts/report-effects-mutation.mjs` to validate all expected evidence.
-Its new per-file targets remain advisory and unmet targets are explicit. A separate
+All five complete modules enforce 85% assertion-only mutation gates after Windows
+and hosted POSIX measurement. A separate
 relevant-change/scheduled/manual quality job contains its higher measured cost.
 
 `tests/integration/uninstall-stability.test.ts` runs one and three independent project lanes,
