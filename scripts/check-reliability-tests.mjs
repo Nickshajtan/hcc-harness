@@ -77,12 +77,12 @@ test('counts every first attempt and requires completed teardown', () => {
 test('reporting fails on missing, malformed, truncated evidence and report-write errors', async () => {
   const root = await mkdtemp(join(tmpdir(), 'arch-reliability-report-'));
   const script = fileURLToPath(new URL('./check-reliability.mjs', import.meta.url));
-  const invoke = () =>
+  const invoke = (testReport = '') =>
     spawnSync(process.execPath, [script, join(root, 'input')], {
       cwd: root,
       encoding: 'utf8',
       timeout: 5000,
-      env: { ...process.env, GITHUB_STEP_SUMMARY: '', ARCH_RELIABILITY_TEST_REPORT: '' },
+      env: { ...process.env, GITHUB_STEP_SUMMARY: '', ARCH_RELIABILITY_TEST_REPORT: testReport },
     });
   try {
     assert.notEqual(invoke().status, 0);
@@ -106,6 +106,37 @@ test('reporting fails on missing, malformed, truncated evidence and report-write
       JSON.parse(await readFile(join(root, 'reports/reliability-results.json'))).status,
       'PASS',
     );
+    const testReport = join(root, 'tests.json');
+    assert.notEqual(invoke(testReport).status, 0);
+    const assertions = [
+      'links the existing CLI, dispatches help',
+      'creates, executes, closes, deletes and recreates independent native executables',
+      ...('win32' === process.platform ? ['reports a real Windows sharing refusal'] : []),
+    ].map((fullName) => ({ fullName, status: 'passed' }));
+    const measured = {
+      success: true,
+      numFailedTests: 0,
+      numPassedTests: assertions.length,
+      numTotalTests: assertions.length,
+      testResults: [{ assertionResults: assertions }],
+    };
+    for (const value of [
+      {},
+      { ...measured, success: false },
+      { ...measured, numTotalTests: 99 },
+      { ...measured, testResults: [] },
+      {
+        ...measured,
+        testResults: [
+          { assertionResults: assertions.map((entry) => ({ ...entry, status: 'pending' })) },
+        ],
+      },
+    ]) {
+      await writeFile(testReport, JSON.stringify(value));
+      assert.notEqual(invoke(testReport).status, 0);
+    }
+    await writeFile(testReport, JSON.stringify(measured));
+    assert.equal(invoke(testReport).status, 0);
     await writeFile(join(root, 'input/0.json'), '{');
     assert.notEqual(invoke().status, 0);
     assert.equal(

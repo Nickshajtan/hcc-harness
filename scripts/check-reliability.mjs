@@ -73,6 +73,8 @@ async function main() {
       true !== tests.success ||
       0 !== tests.numFailedTests ||
       !tests.numPassedTests ||
+      tests.numTotalTests !== assertions?.length ||
+      tests.numPassedTests !== assertions.filter((test) => 'passed' === test.status).length ||
       !required.every((name) =>
         assertions?.some((test) => test.fullName.includes(name) && 'passed' === test.status),
       )

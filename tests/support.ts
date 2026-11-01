@@ -98,7 +98,12 @@ export function capture(child: ChildProcessWithoutNullStreams) {
       }
       // Test-owned direct child only. A parent exit with open inherited pipes is
       // not completion; do not pretend this can contain unknown descendants.
-      if (null === child.exitCode && null === child.signalCode && !child.kill('SIGKILL')) {
+      if (
+        undefined !== child.pid &&
+        null === child.exitCode &&
+        null === child.signalCode &&
+        !child.kill('SIGKILL')
+      ) {
         throw new Error(`Unable to terminate test child ${String(child.pid)}`);
       }
       let timer: ReturnType<typeof setTimeout> | undefined;

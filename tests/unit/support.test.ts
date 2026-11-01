@@ -86,6 +86,18 @@ it('settles and closes an explicitly owned waiting child during bounded teardown
     await invocation.dispose();
   }
 });
+
+it('closes a failed spawn without inventing a failed kill or replacing its error', async () => {
+  const invocation = start('arch-deliberately-missing-executable-82d129', [], process.cwd(), {
+    ...process.env,
+    PATH: '',
+  });
+  invocation.child.stdin.end();
+  const failure: unknown = await invocation.result.catch((error: unknown) => error);
+  expect(failure).toMatchObject({ code: 'ENOENT' });
+  await invocation.dispose();
+  expect(invocation.observations().at(-1)?.event).toBe('close');
+});
 afterEach(async () => {
   await Promise.all(
     directories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
