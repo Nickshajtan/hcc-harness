@@ -89,9 +89,12 @@ export async function setup(root: string, commands: readonly string[]): Promise<
     } catch (cleanupError) {
       // Keep the initiating failure authoritative without concealing the cleanup
       // failure. Stop at the same first failed removal and preserve its evidence.
-      throw new AggregateError([error, cleanupError], 'Arch setup and rollback cleanup failed', {
-        cause: error,
-      });
+      const detail = String(cleanupError);
+      throw new AggregateError(
+        [error, cleanupError],
+        `Arch setup and rollback cleanup failed: ${detail}`,
+        { cause: error },
+      );
     }
     throw error;
   }

@@ -69,7 +69,10 @@ it('preserves primary and cleanup identities in rollback failure order and retai
   expect(result.errors[0]).toBe(writeError);
   expect(result.errors[1]).toBe(cleanupError);
   expect(result.cause).toBe(writeError);
-  expect(result.message).toBe('Arch setup and rollback cleanup failed');
+  // The CLI already prints message + cause; retain the cleanup detail there too.
+  expect(result.message).toBe(
+    'Arch setup and rollback cleanup failed: Error: rollback removal failure',
+  );
   expect(unlink).toHaveBeenCalledTimes(1);
   expect(await readFile(join(root, '.arch/bin/.arch-router'), 'utf8')).toContain(
     'arch-harness-router',
