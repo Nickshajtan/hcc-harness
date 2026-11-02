@@ -27,8 +27,7 @@ export default ts.config(
     rules: {
       '@typescript-eslint/consistent-type-imports': ['error', { disallowTypeAnnotations: false }],
       '@typescript-eslint/switch-exhaustiveness-check': 'error',
-      // Existing lifecycle/platform invariants need characterization before rewriting
-      // assertions and conditions. Visible debt, not blocking compliance; see baseline.
+      // Infrastructure keeps typed safety checks; ordinary test exceptions follow below.
       '@typescript-eslint/no-non-null-assertion': 'error',
       '@typescript-eslint/no-unnecessary-condition': 'warn',
       '@typescript-eslint/prefer-optional-chain': 'error',
@@ -64,6 +63,23 @@ export default ts.config(
   },
   prettier,
   {
+    files: ['tests/{unit,integration,acceptance,feasibility}/**/*.test.ts'],
+    rules: {
+      // Failed fixture initialization and mocked states can invalidate static narrowing.
+      // Preserve defensive teardown guards without relaxing async or unsafe-value checks.
+      '@typescript-eslint/no-unnecessary-condition': 'off',
+      '@typescript-eslint/no-non-null-assertion': 'off',
+    },
+  },
+  {
+    files: ['tests/support.ts'],
+    rules: {
+      // Empty MISE_BIN/SystemRoot intentionally selects the fallback, just like absence.
+      // This stylistic exception does not relax unsafe values, promises or conditions.
+      '@typescript-eslint/prefer-nullish-coalescing': 'off',
+    },
+  },
+  {
     files: ['tests/fixtures/native.cjs'],
     rules: {
       // Native fixture deliberately executes as CommonJS, including require().
@@ -74,6 +90,7 @@ export default ts.config(
     files: ['**/*.{ts,js,mjs,cjs}'],
     rules: {
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      'no-unreachable': 'error',
       eqeqeq: 'error',
       curly: ['error', 'all'],
       yoda: ['error', 'always', { exceptRange: true }],

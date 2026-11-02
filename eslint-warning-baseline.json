@@ -1,11 +1,1 @@
-[
-  "{\"file\":\"tests/acceptance/routing.test.ts\",\"rule\":\"@typescript-eslint/no-unnecessary-condition\",\"diagnostic\":\"neverOptionalChain\",\"source\":\"await fixture?.dispose();\"}",
-  "{\"file\":\"tests/feasibility/runtime-bootstrap.test.ts\",\"rule\":\"@typescript-eslint/no-unnecessary-condition\",\"diagnostic\":\"neverOptionalChain\",\"source\":\"await f?.dispose();\"}",
-  "{\"file\":\"tests/feasibility/runtime-contract.test.ts\",\"rule\":\"@typescript-eslint/no-unnecessary-condition\",\"diagnostic\":\"neverOptionalChain\",\"source\":\"await f?.dispose();\"}",
-  "{\"file\":\"tests/integration/lifecycle.test.ts\",\"rule\":\"@typescript-eslint/no-unnecessary-condition\",\"diagnostic\":\"neverOptionalChain\",\"source\":\"await fixture?.dispose();\"}",
-  "{\"file\":\"tests/integration/npm-cli.test.ts\",\"rule\":\"@typescript-eslint/no-unnecessary-condition\",\"diagnostic\":\"neverOptionalChain\",\"source\":\"await fixture?.dispose();\"}",
-  "{\"file\":\"tests/integration/npm-runtime.test.ts\",\"rule\":\"@typescript-eslint/no-unnecessary-condition\",\"diagnostic\":\"neverOptionalChain\",\"source\":\"await fixture?.dispose();\"}",
-  "{\"file\":\"tests/integration/process.test.ts\",\"rule\":\"@typescript-eslint/no-unnecessary-condition\",\"diagnostic\":\"neverOptionalChain\",\"source\":\"await fixture?.dispose();\"}",
-  "{\"file\":\"tests/support.ts\",\"rule\":\"@typescript-eslint/prefer-nullish-coalescing\",\"diagnostic\":\"preferNullishOverOr\",\"source\":\"export const mise = process.env.MISE_BIN || (existsSync(localMise) ? localMise : 'mise');\"}",
-  "{\"file\":\"tests/support.ts\",\"rule\":\"@typescript-eslint/prefer-nullish-coalescing\",\"diagnostic\":\"preferNullishOverOr\",\"source\":\"process.env.SystemRoot || 'C:/Windows',\"}"
-]
+[]

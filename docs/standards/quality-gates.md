@@ -45,11 +45,31 @@ Type-only import annotations remain allowed for vi.importActual module shapes.
 `eslint-config-prettier` disables conflicting layout rules; semantic curly/Yoda rules
 are deliberately applied afterwards. Prettier is the sole layout authority.
 
-The configuration names specific legacy rules at warning severity with rationale.
-Remaining warnings are **reviewed debt, not compliance**: guarded teardown after
+### Responsibility-specific lint profiles
+
+Production (`src/**`) retains all typed safety rules and its warning ratchet.
+Ordinary `tests/{unit,integration,acceptance,feasibility}/**/*.test.ts` files disable
+only `no-unnecessary-condition` and `no-non-null-assertion`: controlled fixtures,
+mocked states and failed initialization can invalidate TypeScript's narrowing.
+These files still enforce unsafe-value checks, floating/misused promises, unused
+variables and unreachable code. TypeScript checks are unchanged.
+
+Helpers outside those patterns, including `tests/support.ts`, recovery evidence
+collectors and all scripts, retain their existing safety profiles. The sole helper
+exception disables stylistic `prefer-nullish-coalescing` in `tests/support.ts`:
+empty MISE_BIN/SystemRoot must continue selecting the fallback. It does not relax
+unsafe-value or async checks. Maintained JS/MJS utilities retain their existing
+non-type-aware recommended profile, not a newly claimed typed profile.
+`no-unreachable` explicitly blocks all maintained TS/JS/MJS/CJS code; the typed
+preset previously delegated this check to TypeScript. Profile regression tests
+exercise real lint violations and inspect effective configuration. The warning
+baseline is empty; future warnings still fail the unchanged fingerprint ratchet.
+
+The previous configuration named specific legacy rules at warning severity with rationale.
+Previously remaining warnings were **reviewed debt, not compliance**: guarded teardown after
 failed beforeAll and intentional empty-string environment fallbacks. Non-null
 assertions and unsafe assignment/member/argument/return/type-assertion checks now
-block tests as well as production after boundary validation and prerequisite
+block infrastructure as well as production after boundary validation and prerequisite
 checks removed the findings. Dynamic deletion and test empty functions also block.
 They remain reported and reviewable, not hidden by eslint-disable blocks.
 
@@ -63,8 +83,8 @@ and MUST NOT conceal new debt. Do not create a generic lint framework.
 Prefer-optional-chain, no-confusing-void-expression, no-unnecessary-type-conversion
 and restrict-template-expressions now block globally; test plus operands also block.
 No-unnecessary-condition blocks production; no-non-null-assertion
-blocks all maintained typed code. Remaining test condition findings
-stay visible in the ratchet. This does not claim that every type assertion is safe.
+blocks production and typed infrastructure. Ordinary test exceptions are defined
+above. This does not claim that every type assertion is safe.
 Strict-boolean-expressions remains unadopted pending review of intentional length,
 optional-state and environment truthiness conventions; existing constant/unnecessary
 condition diagnostics are not evidence of complete misleading-boolean detection.
