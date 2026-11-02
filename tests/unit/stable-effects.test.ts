@@ -5,6 +5,7 @@ import {
   mkdtemp,
   readFile,
   readdir,
+  realpath,
   rm,
   symlink,
   writeFile,
@@ -30,7 +31,7 @@ beforeEach(async () => {
   vi.mocked(copyFile).mockImplementation(actual.copyFile);
   vi.mocked(mkdir).mockImplementation(actual.mkdir);
   vi.mocked(writeFile).mockImplementation(actual.writeFile);
-  root = await mkdtemp(join(tmpdir(), 'arch-stable-effects-'));
+  root = await mkdtemp(join(await realpath(tmpdir()), 'arch-stable-effects-'));
   source = join(root, 'source');
   destination = join(root, 'app');
   npm = join(root, 'controlled-npm.cjs');

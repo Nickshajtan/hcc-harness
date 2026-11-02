@@ -87,11 +87,14 @@ async function materialize(source: string, destination: string, npm: string) {
   if (!manifest || 'object' !== typeof manifest) {
     throw new Error('Invalid application package metadata');
   }
-  const runtimePackage = Object.fromEntries(
-    Object.entries(manifest).filter(
-      ([key]) => !['scripts', 'devDependencies', 'allowScripts'].includes(key),
+  const runtimePackage = {
+    ...Object.fromEntries(
+      Object.entries(manifest).filter(
+        ([key]) => !['scripts', 'devDependencies', 'allowScripts'].includes(key),
+      ),
     ),
-  );
+    archStableSnapshot: installationKind,
+  };
   await writeFile(join(app, 'package.json'), JSON.stringify(runtimePackage, null, 2) + '\n');
   const entry = join(destination, 'win32' === process.platform ? 'arch.exe' : 'arch');
   const template =

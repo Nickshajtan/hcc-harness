@@ -1,5 +1,14 @@
 import { afterEach, expect, it } from 'vitest';
-import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
+import {
+  mkdtemp,
+  mkdir,
+  readFile,
+  readdir,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { compatibleRuntime } from '../../src/runtime-version.js';
@@ -7,7 +16,7 @@ import { installationDestination, installStable } from '../../src/installation/s
 
 const roots: string[] = [];
 async function fixture() {
-  const root = await mkdtemp(join(tmpdir(), 'arch-install-policy-'));
+  const root = await mkdtemp(join(await realpath(tmpdir()), 'arch-install-policy-'));
   roots.push(root);
   return root;
 }

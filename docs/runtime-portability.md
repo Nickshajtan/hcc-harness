@@ -175,13 +175,18 @@ no Node runtime or AI CLI is installed. `private: true`, npm bin and development
   installation.json        # installed resource hashes, kind and platform
   .arch-ready/             # exclusive completion publication
   application/
-    package.json           # runtime metadata, without dev dependencies/scripts
+    package.json           # explicit snapshot identity, without dev dependencies/scripts
     package-lock.json      # dependency provenance; dev lock metadata is not installed code
     LICENSE                # Arch attribution; vendor/dependency attribution stays with resources
     dist/                  # built JavaScript only
     node_modules/          # npm production closure; no links to checkout
     vendor/                # both supplied Scoop architectures and attribution
 ```
+
+The snapshot's own `application/package.json` carries `archStableSnapshot` with
+the installation kind. Only that explicit identity enables stable route rendering;
+a development checkout ignores unrelated parent metadata. A marked snapshot with
+missing or invalid completion metadata fails instead of reverting to legacy paths.
 
 Validation checks ancestors, then exclusive `mkdir` reserves the destination
 (POSIX mode 0700; Windows inherits parent ACLs). Preparation occurs inside that

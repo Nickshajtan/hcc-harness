@@ -10,6 +10,9 @@ if (!$installation) { throw 'B1 prototype requires Visual C++ x64 build tools; n
 $vcvars = Join-Path $installation 'VC/Auxiliary/Build/vcvars64.bat'
 $definition = ''
 if ($Stable) { $definition = '/DARCH_STABLE' }
+# Windows PowerShell drops empty native arguments. Keep the SDK position occupied
+# so the stable preprocessor definition cannot become a vcvars SDK argument.
+if (!$WindowsSdk) { $WindowsSdk = 'default' }
 & (Join-Path $PSScriptRoot 'build-bootstrap.cmd') $vcvars $destination $WindowsSdk $definition
 if ($LASTEXITCODE -ne 0) { throw "B1 native prototype build failed: $LASTEXITCODE" }
 Write-Output (Join-Path $destination 'arch-bootstrap.exe')
