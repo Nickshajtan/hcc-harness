@@ -74,6 +74,14 @@ The
 Windows executable-access and npm-help incidents both remain **UNRESOLVED**;
 no antivirus attribution, exclusion, production retry or sleep was introduced.
 
+Post-merge main `7c53797` [Windows runtime validation](https://github.com/Nickshajtan/hcc-harness/actions/runs/41512245097)
+failed with EBUSY deleting `node-alias.exe` immediately after successful help.
+The alias test now uses separate runtime and bootstrap alias paths, retaining
+both identity assertions and unconditional fixture teardown. Immediate executable
+deletion remains covered by the reliability tests. This removes an unnecessary
+delete/recreate dependency from alias validation, not a proven repair of the
+underlying Windows image lock or either historical incident.
+
 Hosted validation found and corrected three separate integration issues. Canonical
 temporary roots preserve the installer refusal of macOS's `/var` symlink. An explicit
 SDK placeholder prevents Windows PowerShell from dropping an empty build argument

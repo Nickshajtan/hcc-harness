@@ -179,21 +179,20 @@ it('rejects invalid explicit runtimes without silently falling back', async () =
 });
 
 it('accepts a runtime file alias and refuses a bootstrap alias without recursion', async () => {
-  const alias = join(f.root, windows ? 'node-alias.exe' : 'node-alias');
+  const runtimeAlias = join(f.root, windows ? 'node-alias.exe' : 'node-alias');
+  const bootstrapAlias = join(f.root, windows ? 'bootstrap-alias.exe' : 'bootstrap-alias');
+  // These are independent identity checks. Reusing an executed image's path
+  // adds a Windows deletion/sharing dependency unrelated to either contract.
   if (windows) {
-    await link(requiredEnvironment('ARCH_NODE', env), alias);
+    await link(requiredEnvironment('ARCH_NODE', env), runtimeAlias);
+    await link(entry, bootstrapAlias);
   } else {
-    await symlink(requiredEnvironment('ARCH_NODE', env), alias);
+    await symlink(requiredEnvironment('ARCH_NODE', env), runtimeAlias);
+    await symlink(entry, bootstrapAlias);
   }
-  const valid = await run(entry, ['--help'], project, { ...env, ARCH_NODE: alias });
+  const valid = await run(entry, ['--help'], project, { ...env, ARCH_NODE: runtimeAlias });
   expect(valid.code, valid.stderr).toBe(0);
-  await unlink(alias);
-  if (windows) {
-    await link(entry, alias);
-  } else {
-    await symlink(entry, alias);
-  }
-  const refused = await run(entry, ['--help'], project, { ...env, ARCH_NODE: alias });
+  const refused = await run(entry, ['--help'], project, { ...env, ARCH_NODE: bootstrapAlias });
   expect(refused.code, refused.stderr).toBe(1);
   expect(refused.stderr).toContain('Recursive Arch');
 });
