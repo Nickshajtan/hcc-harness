@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { onTestFinished, afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   chmod,
   copyFile,
@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os';
 import { delimiter, dirname, join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { records, run, start, world } from '../support.js';
+import { requiredEnvironment, runtimeOutput } from '../support.js';
 
 // Normal regression runs don't provision a second engine. The mandatory CI job
 // sets this flag and fails setup (rather than skipping) if prerequisites are absent.
@@ -43,7 +44,7 @@ describe.skipIf('1' !== process.env.ARCH_RUNTIME_CONTRACT)('M2.2 shared runtime 
     );
     const target = join(directory, windows ? 'arch-bootstrap.exe' : 'arch-bootstrap');
     await copyFile(
-      windows ? process.env.ARCH_B1_BOOTSTRAP! : resolve('scripts/b1/arch-bootstrap.sh'),
+      windows ? requiredEnvironment('ARCH_B1_BOOTSTRAP') : resolve('scripts/b1/arch-bootstrap.sh'),
       target,
     );
     if (!windows) {
@@ -64,13 +65,13 @@ describe.skipIf('1' !== process.env.ARCH_RUNTIME_CONTRACT)('M2.2 shared runtime 
     const paths = [];
     for (const [name, source] of [
       ['arch24', process.execPath],
-      ['project22', process.env.ARCH_B1_NODE22!],
+      ['project22', requiredEnvironment('ARCH_B1_NODE22')],
       ['replacement24', process.execPath],
-    ]) {
-      const dir = join(f.root, name!);
+    ] as const) {
+      const dir = join(f.root, name);
       await mkdir(dir);
       const target = join(dir, executable);
-      await copyFile(source!, target);
+      await copyFile(source, target);
       if (!windows) {
         await chmod(target, 0o755);
       }
@@ -90,7 +91,7 @@ describe.skipIf('1' !== process.env.ARCH_RUNTIME_CONTRACT)('M2.2 shared runtime 
         'if(process.env.CONTRACT_WAIT){fs.appendFileSync(process.env.FAKE_LOG,JSON.stringify(record)+"\\n"); console.error("native ready");setInterval(()=>{},1000);}else{process.stdout.write(fs.readFileSync(0,"utf8"));process.exit(23);}\n',
     );
     // Standard npm package executable generation, not a hand-written approximation.
-    const require = createRequire(process.env.npm_execpath!);
+    const require = createRequire(requiredEnvironment('npm_execpath'));
     const cmdShim = createRequire(require.resolve('bin-links'))('cmd-shim') as (
       from: string,
       to: string,
@@ -134,9 +135,19 @@ describe.skipIf('1' !== process.env.ARCH_RUNTIME_CONTRACT)('M2.2 shared runtime 
     const loaded = (await readFile(log, 'utf8'))
       .trim()
       .split(/\r?\n/)
-      .map((line) => JSON.parse(line));
+      .map((line): unknown => JSON.parse(line));
     expect(loaded.length).toBeGreaterThan(0);
     for (const record of loaded) {
+      if (
+        null === record ||
+        'object' !== typeof record ||
+        !('version' in record) ||
+        'string' !== typeof record.version ||
+        !('exec' in record) ||
+        'string' !== typeof record.exec
+      ) {
+        throw new Error('Malformed Arch runtime probe');
+      }
       expect(record.version).toMatch(/^v24\./);
       expect(await realpath(record.exec)).toBe(await realpath(archNode));
     }
@@ -156,8 +167,8 @@ describe.skipIf('1' !== process.env.ARCH_RUNTIME_CONTRACT)('M2.2 shared runtime 
     const environment = env();
     const result = await run(route(), args, f.A, environment, 'input\nsecond line\n');
     expect(result, result.stderr).toMatchObject({ code: 23 });
-    expect(JSON.parse(result.stdout.split(/\r?\n/)[0]!)).toMatchObject({
-      node: expect.stringMatching(/^v22\./),
+    expect(runtimeOutput(result.stdout).node).toMatch(/^v22\./);
+    expect(JSON.parse(result.stdout.split(/\r?\n/)[0] ?? '')).toMatchObject({
       exec: projectNode,
       args,
       cwd: f.A,
@@ -177,7 +188,7 @@ describe.skipIf('1' !== process.env.ARCH_RUNTIME_CONTRACT)('M2.2 shared runtime 
     try {
       const result = await run(route(), [], f.A, env(replacement));
       expect(result, result.stderr).toMatchObject({ code: 23 });
-      expect(JSON.parse(result.stdout.split(/\r?\n/)[0]!).exec).toBe(adjacent);
+      expect(runtimeOutput(result.stdout).exec).toBe(adjacent);
     } finally {
       const { unlink } = await import('node:fs/promises');
       await unlink(adjacent);
@@ -188,8 +199,8 @@ describe.skipIf('1' !== process.env.ARCH_RUNTIME_CONTRACT)('M2.2 shared runtime 
       [projectNode, replacement].map(async (node) => {
         const result = await run(route(), ['concurrent'], f.A, env(node));
         expect(result, result.stderr).toMatchObject({ code: 23 });
-        expect(JSON.parse(result.stdout.split(/\r?\n/)[0]!).exec).toBe(node);
-        return JSON.parse(result.stdout.split(/\r?\n/)[0]!).node;
+        expect(runtimeOutput(result.stdout).exec).toBe(node);
+        return runtimeOutput(result.stdout).node;
       }),
     );
     expect(results[0]).toMatch(/^v22\./);
@@ -236,7 +247,7 @@ describe.skipIf('1' !== process.env.ARCH_RUNTIME_CONTRACT)('M2.2 shared runtime 
       expect((await run(entry, ['--help'], f.C, env())).code).toBe(1);
       const result = await run(route(), [], f.A, { ...env(), ARCH_NODE: replacement });
       expect(result, result.stderr).toMatchObject({ code: 23 });
-      expect(JSON.parse(result.stdout.split(/\r?\n/)[0]!).exec).toBe(projectNode);
+      expect(runtimeOutput(result.stdout).exec).toBe(projectNode);
       expect(
         await run(entry, ['status', '--json'], f.B, { ...env(), ARCH_NODE: replacement }),
       ).toMatchObject({ code: 0 });
@@ -263,25 +274,26 @@ describe.skipIf('1' !== process.env.ARCH_RUNTIME_CONTRACT)('M2.2 shared runtime 
       } else {
         const invocation = start(route(), [], f.A, environment);
         invocation.child.stdin.end();
-        try {
-          const deadline = Date.now() + 10_000;
-          while (!invocation.output().stderr.includes('native ready')) {
-            if (Date.now() > deadline) {
-              throw new Error('Native child did not become ready: ' + invocation.output().stderr);
-            }
-            await new Promise((done) => setTimeout(done, 20));
+        onTestFinished(() => invocation.dispose());
+        const deadline = Date.now() + 10_000;
+        while (!invocation.output().stderr.includes('native ready')) {
+          if (Date.now() > deadline) {
+            throw new Error('Native child did not become ready: ' + invocation.output().stderr);
           }
-          invocation.child.kill(signal);
-          const result = await invocation.result;
-          expect(result.code).toBe(code);
-          expect(result.stderr).toContain('[arch:demo] cleanup');
-        } finally {
-          invocation.child.kill('SIGKILL');
+          await new Promise((done) => setTimeout(done, 20));
         }
+        invocation.child.kill(signal);
+        const result = await invocation.result;
+        expect(result.code).toBe(code);
+        expect(result.stderr).toContain('[arch:demo] cleanup');
       }
       const native = await records(log, 'runtime');
       expect(native).toHaveLength(1);
-      expect(() => process.kill(native[0]!.pid, 0)).toThrow();
+      const child = native[0];
+      if (!child) {
+        throw new Error('Missing native process record');
+      }
+      expect(() => process.kill(child.pid, 0)).toThrow();
     }
   });
   it('switches real mise-linked project runtimes offline without altering Arch runtime', async () => {
@@ -302,18 +314,23 @@ describe.skipIf('1' !== process.env.ARCH_RUNTIME_CONTRACT)('M2.2 shared runtime 
         await copyFile(node, join(root, 'bin/node'));
         await chmod(join(root, 'bin/node'), 0o755);
       }
-      const linked = await run(mise!, ['link', `node@${version}`, root], f.C, env());
+      const linked = await run(
+        requiredEnvironment('ARCH_B1_MISE'),
+        ['link', `node@${version}`, root],
+        f.C,
+        env(),
+      );
       expect(linked, linked.stderr).toMatchObject({ code: 0 });
     }
     for (const version of ['22.12.0', '24.19.0', '22.12.0']) {
       const result = await run(
-        mise!,
+        requiredEnvironment('ARCH_B1_MISE'),
         ['exec', `node@${version}`, '--', entry, 'run', 'runtime', '--', 'mise-switch'],
         f.C,
         { ...env(), MISE_NODE_COREPACK: 'false' },
       );
       expect(result, result.stderr).toMatchObject({ code: 23 });
-      expect(JSON.parse(result.stdout.split(/\r?\n/)[0]!).node).toBe('v' + version);
+      expect(runtimeOutput(result.stdout).node).toBe('v' + version);
     }
   });
 });

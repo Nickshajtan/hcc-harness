@@ -1,6 +1,34 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mutationEvidence, enforceMutation, pilots } from './check-mutation.mjs';
+import {
+  mutationEvidence,
+  enforceMutation,
+  verifyMutationSources,
+  pilots,
+} from './check-mutation.mjs';
+import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+test('mutation source evidence rejects stale or missing code while accepting checkout line endings', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'arch-mutation-source-'));
+  try {
+    await writeFile(join(root, 'decision.ts'), 'export const enabled = true;\n');
+    const measured = { files: { 'decision.ts': { source: 'export const enabled = true;\r\n' } } };
+    await verifyMutationSources(measured, ['decision.ts'], root);
+    await assert.rejects(
+      verifyMutationSources({ files: {} }, ['decision.ts'], root),
+      /Missing mutation source/,
+    );
+    await writeFile(join(root, 'decision.ts'), 'export const enabled = false;\n');
+    await assert.rejects(
+      verifyMutationSources(measured, ['decision.ts'], root),
+      /Stale mutation source/,
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
 
 const report = (statuses) => ({
   files: { 'src/config.ts': { mutants: statuses.map((status) => ({ status })) } },
@@ -10,6 +38,21 @@ test('timeouts are visible and cannot substitute for assertion kills at the gate
   assert.equal(scopes[0].score, 100);
   assert.equal(scopes[0].assertionScore, 50);
   assert.throws(() => enforceMutation(scopes), /below 90%/);
+});
+
+test('every effect gate rejects survivor-only and timeout-only evidence', () => {
+  for (const file of [
+    'src/installation/setup.ts',
+    'src/lifecycle/routing-plan.ts',
+    'src/lifecycle/routing-files.ts',
+    'src/lifecycle/recovery.ts',
+    'src/lifecycle/removal.ts',
+  ]) {
+    for (const status of ['Survived', 'Timeout']) {
+      const scopes = mutationEvidence({ files: { [file]: { mutants: [{ status }] } } });
+      assert.throws(() => enforceMutation(scopes, [file]), /below 85%/);
+    }
+  }
 });
 test('missing, empty and infrastructure error reports fail closed', () => {
   for (const value of [

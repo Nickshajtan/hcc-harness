@@ -14,6 +14,7 @@ it.each([
 ])(
   'preserves user configuration through immediate run/uninstall (interrupted=$interrupted, lanes=$lanes)',
   async ({ interrupted, lanes }) => {
+    const started = new Date().toISOString();
     const fixture = await world();
     const custom = 'schema=1\nmiddleware=[]\n';
     const evidence: unknown[] = [];
@@ -47,7 +48,15 @@ it.each([
                 await unlink(join(project, '.config/mise/conf.d/arch.toml'));
               }
               const result = await run(command, [...args], project, env);
-              const record = { lane, iteration, stage, interrupted, project, ...result };
+              const record = {
+                lane,
+                iteration,
+                stage,
+                interrupted,
+                project,
+                ended: new Date().toISOString(),
+                ...result,
+              };
               evidence.push(record);
               if (0 !== result.code || null !== result.signal) {
                 failed = true;
@@ -76,6 +85,11 @@ it.each([
       // A failed fixture is retained for inspection rather than destroying the
       // manifest/journal evidence. No environment values or credentials are saved.
       const record = {
+        commit: process.env.GITHUB_SHA ?? 'local-uncommitted',
+        node: process.version,
+        workerPid: process.pid,
+        started,
+        ended: new Date().toISOString(),
         platform: process.platform,
         lanes,
         iterations: 4,
@@ -84,7 +98,7 @@ it.each([
         evidence,
         cleanup: failed ? 'retained' : 'pending',
       };
-      const directory = 'reports/uninstall-stress';
+      const directory = process.env.ARCH_RELIABILITY_DIRECTORY ?? 'reports/uninstall-stress';
       await mkdir(directory, { recursive: true });
       const report = join(directory, `${randomUUID()}.json`);
       await writeFile(report, JSON.stringify(record, null, 2));

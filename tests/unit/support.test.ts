@@ -2,9 +2,84 @@ import { afterEach, expect, it } from 'vitest';
 import { mkdtemp, rm, writeFile, mkdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { events, records, recordRemovalFailure, start } from '../support.js';
+import {
+  events,
+  records,
+  recordRemovalFailure,
+  start,
+  runtimeOutput,
+  requiredEnvironment,
+  diagnosticStreams,
+  recordBeforeDisposal,
+} from '../support.js';
 
 const directories: string[] = [];
+
+it('always tears down after recording and preserves compound diagnostic failures', async () => {
+  const sequence: string[] = [];
+  await recordBeforeDisposal({
+    record: () => {
+      sequence.push('record');
+      return Promise.resolve();
+    },
+    dispose: () => {
+      sequence.push('dispose');
+      return Promise.resolve();
+    },
+  });
+  expect(sequence).toEqual(['record', 'dispose']);
+  const primary = new Error('report write denied');
+  const cleanup = new Error('child did not close');
+  const error: unknown = await recordBeforeDisposal({
+    record: () => Promise.reject(primary),
+    dispose: () => Promise.reject(cleanup),
+  }).catch((failure: unknown) => failure);
+  if (!(error instanceof AggregateError)) {
+    throw new Error('Missing compound diagnostic failure');
+  }
+  expect(error.errors[0]).toBe(primary);
+  expect(error.errors[1]).toBe(cleanup);
+  expect(error.cause).toBe(primary);
+  await expect(
+    recordBeforeDisposal({
+      record: () => Promise.reject(primary),
+      dispose: () => Promise.resolve(),
+    }),
+  ).rejects.toBe(primary);
+  await expect(
+    recordBeforeDisposal({
+      record: () => Promise.resolve(),
+      dispose: () => Promise.reject(cleanup),
+    }),
+  ).rejects.toBe(cleanup);
+});
+
+it('bounds diagnostic streams without mutating complete assertion output', () => {
+  const output = { stdout: 'x'.repeat(70_000) + 'tail', stderr: 'short' };
+  const bounded = diagnosticStreams(output);
+  expect(bounded.stdout).toHaveLength(64 * 1024);
+  expect(bounded.stdout.endsWith('tail')).toBe(true);
+  expect(bounded.stdoutTruncated).toBe(true);
+  expect(bounded.stderr).toBe('short');
+  expect(bounded.stderrTruncated).toBe(false);
+  expect(output.stdout).toHaveLength(70_004);
+});
+
+it('validates native runtime protocol fields before using executable paths', () => {
+  expect(runtimeOutput('{"node":"v22.0.0","exec":"native-node"}\nextra')).toEqual({
+    node: 'v22.0.0',
+    exec: 'native-node',
+  });
+  for (const value of [null, [], {}, { node: 'v22', exec: 3 }, { node: false, exec: 'node' }]) {
+    expect(() => runtimeOutput(JSON.stringify(value))).toThrow('Malformed runtime fixture output');
+  }
+  expect(() => runtimeOutput('{')).toThrow(SyntaxError);
+  expect(requiredEnvironment('runtime', { runtime: 'fixture-node' })).toBe('fixture-node');
+  expect(() => requiredEnvironment('runtime', {})).toThrow('Missing test prerequisite');
+  expect(() => requiredEnvironment('runtime', { runtime: '' })).toThrow(
+    'Missing test prerequisite',
+  );
+});
 
 it('persists nonzero removal status, streams and checkpoint presence before cleanup', async () => {
   const root = await mkdtemp(join(tmpdir(), 'arch-removal-evidence-'));
@@ -45,6 +120,37 @@ it('captures both complete pipes and process events through close', async () => 
   expect(observations).toContainEqual({ event: 'stderr-end' });
   observations.splice(0);
   expect(invocation.observations()).not.toEqual([]);
+  await invocation.dispose();
+});
+
+it('settles and closes an explicitly owned waiting child during bounded teardown', async () => {
+  const invocation = start(
+    process.execPath,
+    ['-e', 'setInterval(() => {}, 1000)'],
+    process.cwd(),
+    process.env,
+  );
+  invocation.child.stdin.end();
+  try {
+    await invocation.dispose();
+    await invocation.result;
+    expect(invocation.observations().at(-1)?.event).toBe('close');
+    await invocation.dispose();
+  } finally {
+    await invocation.dispose();
+  }
+});
+
+it('closes a failed spawn without inventing a failed kill or replacing its error', async () => {
+  const invocation = start('arch-deliberately-missing-executable-82d129', [], process.cwd(), {
+    ...process.env,
+    PATH: '',
+  });
+  invocation.child.stdin.end();
+  const failure: unknown = await invocation.result.catch((error: unknown) => error);
+  expect(failure).toMatchObject({ code: 'ENOENT' });
+  await invocation.dispose();
+  expect(invocation.observations().at(-1)?.event).toBe('close');
 });
 afterEach(async () => {
   await Promise.all(

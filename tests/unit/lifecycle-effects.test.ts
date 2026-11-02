@@ -11,6 +11,7 @@ import {
   symlink,
   readdir,
   stat,
+  chmod,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative, sep } from 'node:path';
@@ -32,6 +33,7 @@ vi.mock('node:fs/promises', async (original) => {
     unlink: vi.fn(actual.unlink),
     rename: vi.fn(actual.rename),
     link: vi.fn(actual.link),
+    chmod: vi.fn(actual.chmod),
   };
 });
 const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises');
@@ -44,6 +46,7 @@ beforeEach(async () => {
   vi.mocked(unlink).mockImplementation(actual.unlink);
   vi.mocked(rename).mockImplementation(actual.rename);
   vi.mocked(link).mockImplementation(actual.link);
+  vi.mocked(chmod).mockImplementation(actual.chmod);
   root = await mkdtemp(join(tmpdir(), 'arch-effect-contract-'));
   await setup(root, ['retained', 'removed']);
   await actual.writeFile(file('user.txt'), 'unrelated');
@@ -254,6 +257,24 @@ it('direct setup and uninstall refuse a symlinked metadata root without touching
   expect(await readFile(join(outside, 'user.txt'), 'utf8')).toBe('keep');
 });
 
+it.each(['.arch/routing.json', '.arch/harness.toml'])(
+  'refuses a symlink at the exact metadata entry before setup or removal reads it: %s',
+  async (path) => {
+    const fresh = file('guard-root');
+    const outside = file('guard-outside');
+    await mkdir(join(fresh, '.arch'), { recursive: true });
+    await mkdir(outside);
+    await actual.writeFile(join(outside, 'user.txt'), 'untouched');
+    // A directory junction at a file location is still an unsafe managed path.
+    // This uses supported Windows junctions without requiring file-symlink privileges.
+    await symlink(outside, join(fresh, path), 'win32' === process.platform ? 'junction' : 'dir');
+    await expect(setup(fresh, ['tool'])).rejects.toThrow(`Refusing managed symlink: ${path}`);
+    await expect(uninstall(fresh)).rejects.toThrow(`Refusing managed symlink: ${path}`);
+    expect(await readFile(join(outside, 'user.txt'), 'utf8')).toBe('untouched');
+    expect(await readOptional(join(fresh, '.arch/bootstrap.json'))).toBeUndefined();
+  },
+);
+
 it('rechecks obsolete bytes after the journal checkpoint and preserves the conflicting resource', async () => {
   const original = await readFile(file(route('removed')));
   await expect(
@@ -326,9 +347,48 @@ it('accepts an already complete private stage without attempting exclusive recre
   const path = '.arch/complete.stage';
   const bytes = Buffer.from('complete');
   await actual.writeFile(file(path), bytes, { flag: 'wx' });
+  vi.mocked(writeFile).mockClear();
   await stage(root, path, bytes);
+  expect(writeFile).not.toHaveBeenCalled();
   expect(await readFile(file(path))).toEqual(bytes);
 });
+
+it('does not remove an unrelated resource when optional removal finds no file', async () => {
+  await removeOptional(root, '.arch/absent.stage');
+  expect(unlink).toHaveBeenCalledExactlyOnceWith(file('.arch/absent.stage'));
+  expect(await readFile(file('user.txt'), 'utf8')).toBe('unrelated');
+});
+
+it('does not grant execution permission to non-executable private stages', async () => {
+  const path = '.arch/data.stage';
+  vi.mocked(chmod).mockClear();
+  await stage(root, path, Buffer.from('metadata'));
+  expect(chmod).not.toHaveBeenCalled();
+  expect(await readFile(file(path), 'utf8')).toBe('metadata');
+});
+
+it('sets executable stage permissions only on POSIX, including when explicitly requested on Windows', async () => {
+  const path = '.arch/executable.stage';
+  vi.mocked(chmod).mockClear();
+  await stage(root, path, Buffer.from('executable'), true);
+  expect(vi.mocked(chmod).mock.calls).toEqual(
+    'win32' === process.platform ? [] : [[file(path), 0o755]],
+  );
+  expect(await readFile(file(path), 'utf8')).toBe('executable');
+});
+
+it.skipIf('win32' === process.platform)(
+  'preserves a complete private stage and the exact permission failure before publication',
+  async () => {
+    const failure = Object.assign(new Error('chmod denied'), { code: 'EPERM' });
+    vi.mocked(chmod).mockRejectedValue(failure);
+    await expect(stage(root, '.arch/permission.stage', Buffer.from('complete'), true)).rejects.toBe(
+      failure,
+    );
+    expect(await readFile(file('.arch/permission.stage'), 'utf8')).toBe('complete');
+    expect(link).not.toHaveBeenCalled();
+  },
+);
 
 it('preserves routing removal diagnostics and code-less publication causes', async () => {
   const failure = new Error('external failure without an errno');
@@ -408,4 +468,33 @@ it('creates only recorded resources beside preexisting middleware configuration'
       expect((await stat(file(path))).mode & 0o111).toBe(path.startsWith('.arch/bin/') ? 0o111 : 0);
     }
   }
+});
+
+it('preserves historical launcher bytes when setup compares platform-specific route identity', async () => {
+  const fresh = file('case-identity');
+  await mkdir(fresh);
+  await setup(fresh, ['MiXeD']);
+  const before = await readFile(join(fresh, '.arch/bootstrap.json'));
+  if ('win32' === process.platform) {
+    await setup(fresh, ['mixed']);
+  } else {
+    await expect(setup(fresh, ['mixed'])).rejects.toThrow('Arch setup differs; use configure');
+  }
+  expect(await readFile(join(fresh, '.arch/bootstrap.json'))).toEqual(before);
+});
+
+it('applies installation permissions only to POSIX bin resources', async () => {
+  const fresh = file('permissions');
+  await mkdir(fresh);
+  vi.mocked(chmod).mockClear();
+  await setup(fresh, ['tool']);
+  const paths = vi.mocked(chmod).mock.calls.map(([path, mode]) => ({ path, mode }));
+  expect(paths).toEqual(
+    'win32' === process.platform
+      ? []
+      : [
+          { path: join(fresh, '.arch/bin/.arch-router'), mode: 0o755 },
+          { path: join(fresh, '.arch/bin/tool'), mode: 0o755 },
+        ],
+  );
 });

@@ -1,16 +1,17 @@
-import { afterAll, beforeAll, expect, it, onTestFailed } from 'vitest';
+import { onTestFinished, afterAll, beforeAll, expect, it, onTestFailed } from 'vitest';
 import { mkdir, readFile, readdir, realpath, writeFile, access } from 'node:fs/promises';
 import { delimiter, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { capture, cli, records, run, start, world, type Result } from '../support.js';
+import { requiredEnvironment, diagnosticStreams, recordBeforeDisposal } from '../support.js';
 
 let fixture: Awaited<ReturnType<typeof world>>;
 let prefix: string, executable: string, env: NodeJS.ProcessEnv;
 const repository = process.cwd();
 // Invoke npm's own JS entry to avoid shell quoting and host-global configuration.
-const npm = process.env.npm_execpath!;
+const npm = requiredEnvironment('npm_execpath');
 beforeAll(async () => {
   fixture = await world(tmpdir());
   prefix = join(fixture.root, 'npm-prefix');
@@ -57,7 +58,7 @@ function startArch(
     expect(value).not.toMatch(/["%&|<>^!\r\n]/);
   }
   const command = `"${values.map((value) => `"${value}"`).join(' ')}"`;
-  const child = spawn(process.env.ComSpec!, ['/d', '/s', '/c', command], {
+  const child = spawn(requiredEnvironment('ComSpec'), ['/d', '/s', '/c', command], {
     cwd,
     env: { ...env, ...overrides },
     windowsVerbatimArguments: true,
@@ -82,32 +83,52 @@ it('links the existing CLI, dispatches help, and leaves the target project untou
   // while retaining help-only streams before fixture teardown can discard them.
   let phase = 'read npm executable';
   let invocation: ReturnType<typeof start> | undefined;
+  let testFailed = false;
   const completed: Record<string, Result> = {};
-  onTestFailed(async () => {
-    const observation = {
-      phase,
-      cwd: fixture.C,
-      executable,
-      process: invocation
-        ? {
-            executable: invocation.child.spawnfile,
-            arguments: [...invocation.child.spawnargs],
-            pid: invocation.child.pid ?? null,
-            exitCode: invocation.child.exitCode,
-            signal: invocation.child.signalCode,
-            killed: invocation.child.killed,
-            partial: invocation.output(),
-            events: invocation.observations(),
-          }
-        : null,
-      completed: { ...completed },
-    };
-    console.error('[arch:test] npm help failure:', JSON.stringify(observation));
-    const directory = join(repository, 'reports/npm-help-diagnostics');
-    await mkdir(directory, { recursive: true });
-    await writeFile(join(directory, `${randomUUID()}.json`), JSON.stringify(observation, null, 2));
+  onTestFailed(() => {
+    testFailed = true;
+    return recordBeforeDisposal({
+      record: async () => {
+        const observation = {
+          phase,
+          cwd: fixture.C,
+          executable,
+          process: invocation
+            ? {
+                executable: invocation.child.spawnfile,
+                arguments: [...invocation.child.spawnargs],
+                pid: invocation.child.pid ?? null,
+                exitCode: invocation.child.exitCode,
+                signal: invocation.child.signalCode,
+                killed: invocation.child.killed,
+                partial: diagnosticStreams(invocation.output()),
+                events: invocation.observations(),
+              }
+            : null,
+          completed: Object.fromEntries(
+            Object.entries(completed).map(([label, result]) => [
+              label,
+              { code: result.code, signal: result.signal, ...diagnosticStreams(result) },
+            ]),
+          ),
+        };
+        console.error('[arch:test] npm help failure:', JSON.stringify(observation));
+        const directory = join(repository, 'reports/npm-help-diagnostics');
+        await mkdir(directory, { recursive: true });
+        await writeFile(
+          join(directory, `${randomUUID()}.json`),
+          JSON.stringify(observation, null, 2),
+        );
+        // Capture first, then bound direct-child teardown. A failed teardown remains
+        // a failure; neither successful termination nor a rerun closes the incident.
+      },
+      dispose: () => invocation?.dispose(),
+    });
   });
   async function help(label: string, create: () => ReturnType<typeof start>): Promise<Result> {
+    if (testFailed) {
+      throw new Error('Test already failed; refusing late subprocess creation');
+    }
     phase = label;
     invocation = undefined;
     invocation = create();
@@ -132,7 +153,7 @@ it('links the existing CLI, dispatches help, and leaves the target project untou
   if ('win32' === process.platform) {
     const powershell = await help('PowerShell npm shim help', () => {
       const current = start(
-        join(process.env.SystemRoot!, 'System32/WindowsPowerShell/v1.0/powershell.exe'),
+        join(requiredEnvironment('SystemRoot'), 'System32/WindowsPowerShell/v1.0/powershell.exe'),
         [
           '-NoProfile',
           '-NonInteractive',
@@ -220,21 +241,18 @@ it.skipIf('win32' === process.platform)(
         ...env,
         FAKE_WAIT: '1',
       });
-      try {
-        const deadline = Date.now() + 10000;
-        while (!invocation.output().stdout.includes('"pid":')) {
-          if (Date.now() > deadline) {
-            throw new Error('Native startup timeout');
-          }
-          await new Promise((done) => setTimeout(done, 20));
+      onTestFinished(() => invocation.dispose());
+      const deadline = Date.now() + 10000;
+      while (!invocation.output().stdout.includes('"pid":')) {
+        if (Date.now() > deadline) {
+          throw new Error('Native startup timeout');
         }
-        invocation.child.kill(signal);
-        const result = await invocation.result;
-        expect(result.code).toBe('SIGINT' === signal ? 130 : 143);
-        expect(result.stderr).toContain('[arch:demo] cleanup');
-      } finally {
-        invocation.child.kill('SIGKILL');
+        await new Promise((done) => setTimeout(done, 20));
       }
+      invocation.child.kill(signal);
+      const result = await invocation.result;
+      expect(result.code).toBe('SIGINT' === signal ? 130 : 143);
+      expect(result.stderr).toContain('[arch:demo] cleanup');
     }
   },
 );

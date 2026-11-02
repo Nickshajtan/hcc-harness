@@ -93,7 +93,11 @@ it('accepts the complete A/B/C workflow through normal CLI names, including deni
         expect(e.schemaVersion).toBe(1);
         expect(Number.isNaN(Date.parse(e.timestamp))).toBe(false);
       }
-      return observed[0]!.executionId;
+      const first = observed[0];
+      if (!first) {
+        throw new Error('Expected an observed execution');
+      }
+      return first.executionId;
     });
   expect(new Set(executionIds).size).toBe(3);
   expect(concurrent[3].stderr).toContain('[arch:demo] cleanup');

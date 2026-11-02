@@ -13,6 +13,7 @@ import {
 import { join, resolve, dirname, delimiter } from 'node:path';
 import { tmpdir } from 'node:os';
 import { world, run, records } from '../support.js';
+import { requiredEnvironment, runtimeOutput } from '../support.js';
 
 const bootstrap = process.env.ARCH_B1_BOOTSTRAP;
 const node20 = process.env.ARCH_B1_NODE20;
@@ -49,11 +50,11 @@ describe.skipIf(!enabled)(
       await cp(resolve('vendor'), join(app, 'vendor'), { recursive: true });
       entry = join(app, 'arch-bootstrap.exe');
       cli = join(app, 'dist/cli.js');
-      await copyFile(bootstrap!, entry);
+      await copyFile(requiredEnvironment('ARCH_B1_BOOTSTRAP'), entry);
       for (const [name, source] of [
         ['24', process.execPath],
-        ['20', node20!],
-        ['22', node22!],
+        ['20', requiredEnvironment('ARCH_B1_NODE20')],
+        ['22', requiredEnvironment('ARCH_B1_NODE22')],
       ] as const) {
         const dir = join(f.root, 'Node ' + name);
         await mkdir(dir);
@@ -91,13 +92,14 @@ describe.skipIf(!enabled)(
         ARCH_NODE: path24,
       });
       expect(result, result.stderr).toMatchObject({ code: 0 });
-      expect(JSON.parse(result.stdout).state).toBe('uninitialized');
+      const status: unknown = JSON.parse(result.stdout);
+      expect(status).toMatchObject({ state: 'uninitialized' });
     });
     it('preserves Scoop route arguments, cwd, stdin/out/err and nonzero exit', async () => {
       const env = { ...environment(path20), ARCH_NODE: path24, FAKE_STDIN: '1', FAKE_EXIT: '23' };
       const result = await run(route, hostile, f.A, env, 'input\nsecond line\n');
       expect(result, result.stderr).toMatchObject({ code: 23 });
-      expect(JSON.parse(result.stdout.split(/\r?\n/)[0]!)).toMatchObject({
+      expect(JSON.parse(result.stdout.split(/\r?\n/)[0] ?? '')).toMatchObject({
         args: hostile,
         cwd: f.A,
       });
@@ -191,7 +193,7 @@ describe.skipIf(!enabled)(
           );
           expect(result, result.stderr).toMatchObject({ code: 7 });
           expect(result.stderr).toContain('runtime stderr');
-          const record = JSON.parse(result.stdout.split(/\r?\n/)[0]!);
+          const record: unknown = JSON.parse(result.stdout.split(/\r?\n/)[0] ?? '');
           expect(record).toMatchObject({
             exec: native,
             path: env.PATH,
@@ -200,7 +202,7 @@ describe.skipIf(!enabled)(
             args: hostile,
           });
           expect(result.stdout).toContain('native input');
-          return record.node as string;
+          return runtimeOutput(result.stdout).node;
         }),
       );
       expect(results[0]).toMatch(/^v20\./);
@@ -223,7 +225,11 @@ describe.skipIf(!enabled)(
         expect(result.stderr).toContain('[arch:demo] cleanup');
         const native = await records(log);
         expect(native).toHaveLength(1);
-        expect(() => process.kill(native[0]!.pid, 0)).toThrow();
+        const child = native[0];
+        if (!child) {
+          throw new Error('Missing native process record');
+        }
+        expect(() => process.kill(child.pid, 0)).toThrow();
       },
     );
     it.each([
@@ -257,7 +263,11 @@ describe.skipIf(!enabled)(
         const native = await records(log, 'process');
         expect(native).toHaveLength(1);
         expect(native[0]?.node).toMatch(/^v20\./);
-        expect(() => process.kill(native[0]!.pid, 0)).toThrow();
+        const child = native[0];
+        if (!child) {
+          throw new Error('Missing native process record');
+        }
+        expect(() => process.kill(child.pid, 0)).toThrow();
       },
     );
     it('retains user-edited middleware through explicit deinit/init rebind', async () => {
