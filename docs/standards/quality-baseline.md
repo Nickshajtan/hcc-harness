@@ -116,14 +116,14 @@ historical reference, not a fresh successful exact-checkout result.
 
 | Effect module       | Windows before |  Windows after | Hosted Ubuntu after |
 | ------------------- | -------------: | -------------: | ------------------: |
-| Setup               | 78.67% (59/75) | 92.50% (74/80) |      91.25% (73/80) |
+| Setup               | 78.67% (59/75) | 92.50% (74/80) |      93.75% (75/80) |
 | Staging/publication | 81.82% (36/44) | 93.18% (41/44) |      95.45% (42/44) |
 | Recovery            | 97.44% (38/39) | 97.44% (38/39) |        100% (39/39) |
-| Removal             | 96.61% (57/59) |   100% (59/59) |      96.61% (57/59) |
+| Removal             | 96.61% (57/59) |   100% (59/59) |        100% (59/59) |
 | Planning            | 97.92% (47/48) | 97.92% (47/48) |      91.67% (44/48) |
 
 Windows after: 259/270 assertion kills, 9 survivors, 2 uncovered, zero timeouts,
-errors or exclusions; 6m44s. The approved rollback branch adds five mutants; scopes
+errors or exclusions; final frozen run 6m39s. The approved rollback branch adds five mutants; scopes
 were not shrunk. Direct metadata-entry symlink characterization killed the four remaining setup/removal
 path-guard mutants; it does not weaken or replace the guards.
 POSIX-only chmod branches remain explicitly uncovered on Windows and are exercised
@@ -141,8 +141,15 @@ intermediate effect run recorded seven timeouts (zero assertion credit); the fin
 measurement above recorded none. The first sandboxed attempt logged taskkill access
 denied during Stryker worker disposal and was interrupted, not counted as PASS.
 
-Latest implementation-commit hosted Ubuntu coverage: 96.38% lines (881/914),
-94.30% branches (580/615). Local Windows check passed 500 tests / 32 skips, but the
+At frozen implementation commit `30236ca`, hosted Ubuntu coverage is 96.39% lines,
+94.30% branches; local Windows is 96.06% lines (879/915), 93.65% branches (576/615).
+Both final local check and coverage passed 508 tests / 32 explicit platform skips.
+All regression, Wizard, runtime, quality and Windows reliability jobs passed at
+that head; [quality artifacts](https://github.com/Nickshajtan/hcc-harness/actions/runs/41368371347)
+and [Windows reliability](https://github.com/Nickshajtan/hcc-harness/actions/runs/41368371365)
+were inspected. Reliability recorded four profiles, 32 sequences and 96 operations.
+These results do not resolve either historical incident. Earlier local check
+passed 500 tests / 32 skips, but the
 following coverage run failed 499/1/32 on the raw executable probe: two concurrent
 lanes hit EPERM unlink after close, outside the sandbox. Both outcomes are retained.
 This disproves sandbox-only necessity for raw denial too, without establishing a
@@ -151,6 +158,7 @@ handle owner. A later green job cannot erase that first-attempt result.
 Ordinary warnings: 52 -> 9, errors 0. Setup review complexity/length: 15/72 -> 16/81;
 the added catch preserves approved failure precedence rather than hiding complexity.
 Production dependency graph remains 54 modules / 138 edges, no cycles/violations.
+There are 43 diagnostic complexity/size review findings, distinct from ordinary warnings.
 No production modules, dependencies, schemas, launcher bytes or checkpoints moved.
 Recovery failures now retain operation phase, worker and active subprocess identity,
 bounded streams and read-only checkpoint snapshots before fixture cleanup. Reporter
