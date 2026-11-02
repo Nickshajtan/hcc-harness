@@ -25,6 +25,7 @@ Before completing a task:
 
 MUST, SHOULD, MAY and exception handling are defined in the standards entrypoint.
 Do not bypass gates by suppressing diagnostics, weakening tests or hiding source.
-M2.2 B1 is verified feasibility; B2 production integration requires separate approval.
+M2.2 B1 is verified feasibility; B2 stable installation/bootstrap is authorized.
+Real AI CLI integration, migration/rebind and M2.5 remain outside B2.
 Preserve current runtime, ownership and process contracts unless a task explicitly
 authorizes changing them. See the [active portability design](docs/runtime-portability.md).

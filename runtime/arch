@@ -1,0 +1,33 @@
+#!/bin/sh
+# Runtime selection only. The selected Node validates its version before app imports.
+set -efu
+fail() { printf '%s\n' "[arch bootstrap] $*" >&2; exit 1; }
+app=$(CDPATH= cd -- "${0%/*}" && pwd -P)
+[ -d "$app/.arch-ready" ] || fail 'Incomplete installation; retain it for inspection and install into a new destination'
+if [ "${ARCH_NODE+x}" = x ]; then
+  node=$ARCH_NODE
+  case "$node" in /*) ;; *) fail 'ARCH_NODE must name an absolute compatible Node executable';; esac
+else
+  node=''
+  oldifs=$IFS; IFS=:
+  for directory in ${PATH-}; do
+    [ -n "$directory" ] || continue
+    [ ! -f "$directory/.arch-router" ] || continue
+    if [ -f "$directory/node" ] && [ -x "$directory/node" ]; then node=$directory/node; break; fi
+  done
+  IFS=$oldifs
+  [ -n "$node" ] || fail 'No node on PATH; set ARCH_NODE to Node >=24.15.0 <25'
+fi
+[ -f "$node" ] && [ -x "$node" ] || fail 'Selected Node is missing or not executable; set ARCH_NODE'
+resolved=$node
+hops=0
+while [ -L "$resolved" ]; do
+  hops=$((hops + 1))
+  [ "$hops" -le 32 ] || fail 'Node symlink chain is too deep'
+  target=$(/usr/bin/readlink "$resolved") || fail 'Cannot resolve selected Node symlink'
+  case "$target" in /*) resolved=$target;; *) resolved=${resolved%/*}/$target;; esac
+done
+directory=$(CDPATH= cd -- "${resolved%/*}" && pwd -P) || fail 'Cannot resolve selected Node directory'
+[ ! "$resolved" -ef "$0" ] || fail 'Recursive Arch Node refused'
+[ ! -f "$directory/.arch-router" ] || fail 'Recursive Arch router runtime refused'
+exec "$node" "$app/application/dist/cli.js" "$@"

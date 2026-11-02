@@ -169,7 +169,9 @@ export async function run(
   stdin = '',
 ): Promise<Result> {
   const invocation = start(command, args, cwd, env);
-  invocation.child.stdin.end(stdin);
+  // Empty input means EOF, not a zero-byte write. A fast-refusing bootstrap may
+  // already have closed its pipe; end('') still attempts a write and can EPIPE.
+  invocation.child.stdin.end('' === stdin ? undefined : stdin);
   const result = await invocation.result;
   const operation = args[1];
   if (

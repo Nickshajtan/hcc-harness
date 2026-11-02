@@ -46,6 +46,7 @@ jobs:
           'ARCH_RUNTIME_CONTRACT=1' >> $env:GITHUB_ENV
       - run: npm ci
       - run: npm run build
+      - run: npm run build:bootstrap
       - name: Record npm shim generator
         shell: bash
         run: npm exec -- node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV, "npm_execpath=" + process.env.npm_execpath + "\n")'
@@ -56,14 +57,23 @@ jobs:
           ./scripts/b1/build-bootstrap.ps1
           "ARCH_B1_BOOTSTRAP=$((Resolve-Path .test-state/b1-bootstrap/arch-bootstrap.exe).Path)" >> $env:GITHUB_ENV
       - name: Shared runtime contract (no platform skips permitted)
+        id: shared
         run: node node_modules/vitest/vitest.mjs run tests/feasibility/runtime-contract.test.ts --reporter=default --reporter=json --outputFile=.test-state/m22-runtime-contract.json
+      - name: Stable installation and source relocation contract (no platform skips)
+        id: stable
+        run: node node_modules/vitest/vitest.mjs run tests/unit/stable-install.test.ts tests/integration/stable-runtime.test.ts tests/integration/stable-interruption.test.ts --reporter=default --reporter=json --outputFile=.test-state/m22-stable-contract.json
       - name: Windows executable / console / runtime isolation
+        id: windows
         if: runner.os == 'Windows'
         run: node node_modules/vitest/vitest.mjs run tests/feasibility/runtime-bootstrap.test.ts tests/integration/npm-runtime.test.ts --reporter=default --reporter=json --outputFile=.test-state/m22-b1-executable.json
       - name: Real terminal contract
         run: node scripts/b1/check-runtime-tty.mjs
       - name: Publish PASS / FAIL / NOT TESTED evidence
         if: always()
+        env:
+          STABLE_OUTCOME: ${{ steps.stable.outcome }}
+          SHARED_OUTCOME: ${{ steps.shared.outcome }}
+          WINDOWS_OUTCOME: ${{ steps.windows.outcome }}
         run: node scripts/b1/summarize-runtime.mjs
       - uses: actions/upload-artifact@v4
         if: always()
@@ -72,6 +82,7 @@ jobs:
           path: |
             .test-state/m22-runtime-*.json
             .test-state/m22-b1-executable.json
+            .test-state/m22-stable-contract.json
           include-hidden-files: true
           if-no-files-found: error
   required-runtime-portability:

@@ -12,3 +12,4 @@
 *.yaml text eol=lf
 # Frozen source is already stored with CRLF: preserve the exact historical blob.
 tests/fixtures/m1-setup.ts -text !eol
+runtime/arch text eol=lf

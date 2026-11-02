@@ -1,4 +1,4 @@
-// B1 feasibility prototype only. Not installed or used by renderFiles().
+// Shared narrow bootstrap: B1 fixture entry, or B2 snapshot with ARCH_STABLE.
 // Fixed Arch entry point; deliberately not a general process launcher.
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -149,7 +149,14 @@ DWORD arch(const std::wstring& self, int argc, wchar_t** argv) {
     CloseHandle(writer.value); writer.value = nullptr;
     CloseHandle(reader.value); reader.value = nullptr;
     CloseHandle(nullInput.value); nullInput.value = nullptr;
+#ifdef ARCH_STABLE
+    DWORD ready = GetFileAttributesW((directory(self) + L"\\.arch-ready").c_str());
+    if (ready == INVALID_FILE_ATTRIBUTES || !(ready & FILE_ATTRIBUTE_DIRECTORY))
+        fail(L"Incomplete installation; retain it for inspection and install into a new destination");
+    std::wstring cli = directory(self) + L"\\application\\dist\\cli.js";
+#else
     std::wstring cli = directory(self) + L"\\dist\\cli.js";
+#endif
     if (GetFileAttributesW(cli.c_str()) == INVALID_FILE_ATTRIBUTES) fail(L"Arch application missing beside bootstrap: " + cli);
     line = quote(node) + L" " + quote(cli);
     for (int i = 1; i < argc; ++i) line += L" " + quote(argv[i]);

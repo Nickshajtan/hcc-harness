@@ -2,20 +2,40 @@ import { appendFileSync, existsSync, readFileSync, writeFileSync, mkdirSync } fr
 
 const read = (file) => (existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : undefined);
 const reports = [
-  ['Shared runtime contract', '.test-state/m22-runtime-contract.json'],
+  [
+    'Stable installation and source relocation',
+    '.test-state/m22-stable-contract.json',
+    'STABLE_OUTCOME',
+  ],
+  ['Shared runtime contract', '.test-state/m22-runtime-contract.json', 'SHARED_OUTCOME'],
   ...('win32' === process.platform
-    ? [['Windows bootstrap executable', '.test-state/m22-b1-executable.json']]
+    ? [['Windows bootstrap executable', '.test-state/m22-b1-executable.json', 'WINDOWS_OUTCOME']]
     : []),
 ];
-const areas = reports.map(([area, file]) => {
+const areas = reports.map(([area, file, outcome]) => {
   const report = read(file);
   let status = 'NOT TESTED';
   if (report) {
+    const assertions = report.testResults?.flatMap((result) => result.assertionResults ?? []);
+    const stableFiles = [
+      'tests/unit/stable-install.test.ts',
+      'tests/integration/stable-runtime.test.ts',
+      'tests/integration/stable-interruption.test.ts',
+    ];
+    const completeStable =
+      'Stable installation and source relocation' !== area ||
+      stableFiles.every((expected) =>
+        report.testResults?.some((result) => result.name?.replaceAll('\\', '/').endsWith(expected)),
+      );
     const passed =
-      report.success &&
+      'success' === process.env[outcome] &&
+      true === report.success &&
       0 < report.numPassedTests &&
       0 === report.numFailedTests &&
-      0 === report.numPendingTests;
+      0 === report.numPendingTests &&
+      report.numTotalTests === assertions?.length &&
+      report.numPassedTests === assertions.filter((test) => 'passed' === test.status).length &&
+      completeStable;
     status = passed ? 'PASS' : 'FAIL';
   }
   return {
@@ -41,7 +61,6 @@ const result = {
     nvm: 'NOT TESTED',
     fnm: 'NOT TESTED',
     windowsArm64: 'NOT TESTED',
-    stableInstallationB2: 'NOT TESTED',
   },
 };
 mkdirSync('.test-state', { recursive: true });
@@ -54,7 +73,7 @@ const summary =
         `| ${row.area} | ${row.status} (${row.passed ?? '—'} passed; ${row.skipped ?? '—'} skipped) |`,
     )
     .join('\n') +
-  '\n\nShared contract includes real offline mise link/exec switching; PATH-switch simulation is a separate assertion. nvm/fnm, Windows ARM64 and B2 stable installation: **NOT TESTED**. Bootstrap entries are opt-in feasibility fixtures; production launchers remain unchanged.\n';
+  '\n\nShared contract includes real offline mise link/exec switching; PATH-switch simulation is separate. Stable installation evidence uses controlled fixtures, never AI providers. nvm/fnm and Windows ARM64 execution remain **NOT TESTED**.\n';
 console.log(summary);
 if (process.env.GITHUB_STEP_SUMMARY) {
   appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);

@@ -1,0 +1,27 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "testRunner": "vitest",
+  "plugins": ["@stryker-mutator/vitest-runner"],
+  "files": [
+    ".tools/stable-bootstrap/arch-bootstrap.exe",
+    "package.json",
+    "tsconfig.json",
+    "vitest.stable-mutation.config.ts",
+    "src/**/*.ts",
+    "tests/unit/stable-install.test.ts",
+    "tests/unit/stable-layout.test.ts",
+    "tests/unit/stable-effects.test.ts"
+  ],
+  "mutate": [
+    "src/runtime-version.ts",
+    "src/installation/stable-layout.ts",
+    "src/installation/stable-install.ts"
+  ],
+  "vitest": { "configFile": "vitest.stable-mutation.config.ts" },
+  "coverageAnalysis": "perTest",
+  "concurrency": 2,
+  "reporters": ["clear-text", "json", "html"],
+  "jsonReporter": { "fileName": "reports/mutation-stable/mutation.json" },
+  "htmlReporter": { "fileName": "reports/mutation-stable/index.html" },
+  "thresholds": { "break": 0 }
+}

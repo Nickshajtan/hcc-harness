@@ -5,17 +5,28 @@
 Use Node >=24.15.0 <25 (pinned 24.19.0), installed development dependencies and
 mise 2026.10.11 on PATH, or set `MISE_BIN` to an absolute executable. Windows native
 fixtures use `%SystemRoot%/Microsoft.NET/Framework64/v4.0.30319/csc.exe`.
+Stable Windows bootstrap tests also require Visual C++ x64 tools and a complete
+Windows SDK. Build with `npm run build:bootstrap`; `ARCH_WINDOWS_SDK` may choose an
+installed SDK explicitly. `npm run check` includes that build. The snapshot ships
+the compiled executable, not a compiler/SDK or development scripts.
 
 ```sh
 mise run bootstrap                 # or npm run bootstrap with compatible Node
 npm run check                      # typecheck, lint, build, all ordinary suites
 npm run test:acceptance             # builds, then black-box routing scenario
 npm run test:wizard                 # builds, focused unit tests + real terminals
+npm run test:stable                 # stable install, source rename, runtime isolation, interruption
 ```
 
 Quality controls: `npm run format:check`, `npm run lint:report`,
 `npm run check:dependencies`, `npm run test:coverage`, `npm run test:mutation`.
 See the [quality baseline](standards/quality-baseline.md) for measured limits and debt.
+`npm run test:mutation:stable` measures runtime-version, stable-layout and complete
+stable-install code using real filesystem fixtures and controlled negative paths.
+Its initial pilot is measured, not an invented numerical gate; existing mutation
+gates are unchanged. The mandatory portability matrix runs stable contracts with
+real Node 24/22 on each OS and rejects missing or skipped evidence. Real AI CLI
+execution and provider credentials are not required.
 
 Individual scripts: `typecheck`, `lint`, `build`, `experiment`, `test:unit`,
 `test:integration`, `test:acceptance`, `test:wizard:terminal`. Build before individual

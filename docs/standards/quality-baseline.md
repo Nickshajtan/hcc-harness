@@ -1,5 +1,186 @@
 # Quality baseline
 
+## M2.2 B2 stable runtime baseline
+
+Starting main: `78aeb389ea9af7d09d97e91298b20bbdffe1d6f9` (PR #17 merged).
+The inspected [baseline quality run](https://github.com/Nickshajtan/hcc-harness/actions/runs/41446920283)
+reported Ubuntu coverage **96.39% lines / 94.30% branches** (915 lines, 615
+branches); these are hosted Ubuntu measurements, not a reproduced Windows baseline.
+PR #17's inspected Windows/Ubuntu/macOS regression and portability jobs passed,
+including the required aggregate. Ordinary warnings reproduced at zero.
+
+B2 adds explicit stable installation, a readiness boundary, independent runtime
+entrypoints and a pre-import engine guard. Core, process, lifecycle/journal,
+middleware/event APIs and historical ownership bytes are unchanged. New stable
+launchers intentionally reference the completed snapshot; development rendering
+retains its frozen bytes. No migration/rebind or real AI CLI integration was added.
+See the [installation contract](../runtime-portability.md#stable-installation-contract).
+
+The public command is tested from an isolated source/build tree, including Windows
+native compilation, into a separate destination with spaces, Unicode, apostrophe
+and `&`. npm's initial compound script incorrectly applied batch escaping to
+arguments consumed by the final Node command on Windows. Its standard
+`preinstall:stable` hook now owns build preparation; `install:stable` is a single
+Node invocation. The unchanged destination passes the regression. No custom shell
+installer was introduced. Native CLR stdin output is compared with direct native
+execution, preserving its encoding policy rather than imposing Arch's encoding.
+
+Local Windows evidence includes real installer interruption at reserved,
+materialized, verified and published barriers; a complete source rename and
+fixture-owned historical Node deletion/replacement; recorded resource hashes;
+native npm runtime isolation; Ctrl+C/Ctrl+Break, cleanup and child termination.
+Earlier local complete check PASS: 574 tests / 32 existing explicit skips, 24 quality-tooling
+tests, zero ordinary warnings, and no dependency violations (60 modules / 152
+dependencies). The final stable command suite separately passed 37 tests, including
+the strengthened process-completion races and byte-exact configuration assertion.
+Final hosted conclusions belong to the implementation PR; do not infer platform
+acceptance from local Windows scenarios alone.
+
+Latest Windows coverage PASS: **95.05% lines / 92.96% branches** (1032 lines / 697
+branches), 581 passed / 32 existing skips. Reporting-on-failure was enabled for
+diagnostic completeness; exit semantics/assertions/thresholds were unchanged.
+New modules: runtime-version 100%/100%, stable-layout 100%/95.65%, stable-install
+97.61%/89.58% line/branch; renderer 100%/100%. The new installer branch target is
+not fully reached on Windows. CLI/bootstrap entrypoint subprocess coverage is
+separate from V8 worker coverage; zero entrypoint counters do not mean those
+contracts were untested. Baseline Ubuntu versus current Windows totals are not a
+same-platform regression comparison. The current reliability validation PASS
+requires all four profiles / 96 operations plus the passing suite report.
+
+**Retained first-attempt failure:** intermediate coverage ran 566 passed / one
+failed / 32 existing skips. Raw executable recreation hit EPERM at
+`tests/integration/native-lifetime.test.ts:75`, without Arch removal. Evidence:
+`.test-state/b2-coverage.log`, `.test-state/b2-coverage-first-attempt.json`,
+`reports/native-lifetime/e0ed49b0-a90b-4fd1-bae7-36cbf15c5e3a.json` and retained
+fixture `arch-fixture-R1voi8`. This is not erased by later passing checks. A later
+coverage run recorded 570 passed / three failed / 32 skips: an NTFS recovery
+checkpoint timeout at `staged:.arch/bin/gemini.shim`, EPERM recreating
+`arbitrary.exe` in the workspace-based interrupted/uninstall profile, and a new
+vendor-directory fixture that was incorrectly empty (fixed by adding a real
+payload so the intended directory-type refusal is exercised). That run and its
+reliability rejection are retained in `.test-state/b2-final-test-coverage.log`,
+`.test-state/b2-final-coverage-first-attempt.json` and
+`.test-state/b2-final-test-coverage-evidence/5719e82e-ee09-49ad-b87e-ab680f9524d0.json`.
+The checkpoint timeout remains unexplained; it is not attributed to exFAT.
+The later complete check at `0d005e0` FAILed: 580 passed / one failed / 32 skips,
+again raw `copyfile` EPERM during executable recreation, fixture `arch-fixture-QRTok1`.
+Evidence: `.test-state/b2-latest-check.log` and
+`reports/native-lifetime/37ff384a-f8f6-4e6a-8937-eb559ed4ba7d.json`.
+The independent coverage measurement above does not erase this first-attempt failure.
+Direct OS drive information identifies this checkout's `D:` as exFAT and temporary
+`C:` as NTFS. This supports the independently observed workspace hard-link/symlink
+capability failures, not an explanation for all executable or recovery failures.
+The
+Windows executable-access and npm-help incidents both remain **UNRESOLVED**;
+no antivirus attribution, exclusion, production retry or sleep was introduced.
+
+Hosted validation found and corrected three separate integration issues. Canonical
+temporary roots preserve the installer refusal of macOS's `/var` symlink. An explicit
+SDK placeholder prevents Windows PowerShell from dropping an empty build argument
+and shifting `/DARCH_STABLE` into vcvars. Ubuntu exposed empty-string stdin writes
+to a fast-refusing bootstrap: the test helper now sends EOF without a zero-byte
+write; nonempty input still reaches the native process. This does not explain the
+historical Windows npm-help hang. Vitest's JSON can report success despite unhandled
+stream errors, so runtime summaries now independently require successful suite-step
+outcomes, with failure/cancellation/skip/missing-outcome negative tests. Failed
+[initial platform runs](https://github.com/Nickshajtan/hcc-harness/actions/runs/41485458395)
+and the [Ubuntu EPIPE run](https://github.com/Nickshajtan/hcc-harness/actions/runs/41506070096)
+remain evidence, not silently replaced successes.
+
+Development dependency audit executed with Node's system CA trust after the
+host's default registry trust failed. Production audit: **0 vulnerabilities**.
+Full audit: **15 moderate development-only entries**, through the existing
+Stryker/typed-rest-client/qs and ESLint/minimatch trees. Direct affected tooling
+reports no available fix; no forced overrides or unrelated major upgrades were
+applied. Installed snapshots omit development dependencies and lifecycle scripts.
+
+### Complete complexity review
+
+The maintained [per-finding inventory](complexity-inventory.json) contains both
+measurements, source locations/symbols, metric/value/threshold, correctness and
+maintenance risks, recommendations, decisions/rationales and test references.
+Generate diagnostics with `npm run lint:report` (`reports/lint.json`); no source
+exclusions or thresholds changed. Review severity is priority, not a confirmed
+defect or an incident-resolution claim.
+
+| Metric              | Before | After |
+| ------------------- | -----: | ----: |
+| Complexity >12      |     13 |    14 |
+| Nesting >3          |      8 |     8 |
+| Parameters >4       |      3 |     3 |
+| Function length >60 |     19 |    22 |
+| Total               |     43 |    47 |
+
+No baseline findings were removed or hidden. All four new findings are ACCEPT:
+runtime evidence completeness (16 branches), the negative evidence matrix (68 lines), the
+real interruption scenario (97 lines) and the complete source-relocation scenario
+(67 lines). Their independent safe-refusal checks and complete fixture lifetimes
+are clearer together. The inventory groups all remaining findings by module and
+severity: 39 ACCEPT, eight DEFER, zero metric-driven FIX NOW changes. An intermediate
+stable metadata finding disappeared after correcting snapshot identification:
+the application's own package explicitly declares its role, rather than inspecting
+unrelated parent metadata. Both responsibilities remain measured. Deferred
+items require coordinated contract/resource-ownership work; they were not simply
+classified by file size.
+
+Top five maintenance priorities remain:
+
+1. Reliability validator/report orchestration: false-green risk; preserve the
+   negative evidence matrix before considering smaller named validators.
+2. Shared `world` fixture preparation: compiler, environment and resource ownership
+   coupling; separate only with caller and cleanup characterization.
+3. Existing project setup: collision/proof/write/rollback precedence; a dedicated
+   filesystem change must preserve historical hashes and failure identity.
+4. CLI grammar: 27 branches for public variants; reconsider command-specific
+   syntax operations only with a grammar change, without a generic command bus.
+5. Terminal helper coordination: bounded waits, listeners and disposal; evaluate
+   ownership during a dedicated PTY change, not a cosmetic extraction.
+
+### New mutation scope and measurement limits
+
+`npm run test:mutation:stable` mutates complete runtime-version, stable-layout and
+stable-install sources. `test:mutation:check` verifies their nonempty current-source
+reports and rejects infrastructure errors/exclusions. Existing numerical gates are
+unchanged; the new effect pilot's proposed 85% assertion-only target is not yet a
+blocking threshold. Timeouts never earn assertion credit. New production files
+remain in coverage and dependency analysis; CLI subprocess instrumentation limits
+remain explicit. The final pilot and coverage numbers must be read at the final
+implementation commit, not inferred from an earlier source revision. Final local
+Windows pilot: 302 mutants, 254 killed, three timeouts, 38 surviving, seven uncovered,
+zero errors/exclusions; 85.10% timeout-inclusive, **84.11% assertion-only**, 248
+seconds including bootstrap build. Per-module assertion scores: runtime-version
+100% (22/22), stable-layout 90% (63/70), stable-install **80.48%** (169/210).
+The installer remains below the proposed 85% target; numerical adoption is deferred
+instead of shrinking scope or giving timeouts assertion credit. All existing
+mutation commands and current-source gates executed successfully; the effect
+pilot's separate validator also enforces its unchanged 85% per-file thresholds.
+
+Initial pilots exposed real test gaps in ancestor symlinks, npm safety flags,
+completion collisions and metadata narrowing; targeted tests now cover them.
+Remaining pilot gaps include platform-specific permissions/entry selection,
+nonregular-resource refusals, defensive malformed package states, some bounded
+subprocess option changes and diagnostic-only mutations. Detailed status counts
+and survivor IDs remain in the mutation JSON/HTML artifacts. No critical branch
+was excluded to improve a score. The initial restricted Windows run failed worker
+disposal (taskkill access denied); the normal-permission measurement is separate.
+
+## B2 scope-correction measurement
+
+Scope-correction measurement at `398df4e8a77cc1e687dd2c1929df5737ca2a7d1c`:
+`npm run lint:report` PASS; 43 diagnostic findings (13 complexity, eight nesting,
+three parameter-count, 19 function-length). Thresholds remain complexity >12,
+depth >3, parameters >4 and length >60 nonblank/noncomment lines. The generated
+local report is `reports/lint.json`; it is ignored output, not a durable reviewed
+inventory. The completed reviewed inventory is linked above.
+
+B2 must preserve its starting report and deliver the complete reviewed inventory
+and before/after summary specified in the
+[active scope](../runtime-portability.md#mandatory-complexity-review). Each finding
+needs FIX NOW / DEFER / ACCEPT with evidence and rationale. The complete counts,
+introduced/fixed findings, severity/module grouping, top five risks and accepted
+complexity reasoning are recorded above. No analysis exclusions or thresholds
+were changed by the specification correction.
+
 ## M2.4.7 lint profile adoption
 
 Starting main: `ec2764def94e573539aaccbc46105c1bc5ebe42d` (merged PR #16).
@@ -34,7 +215,9 @@ Starting commit: `b1313eee0ce9dfe5103505650eac706c28fc0db5`, main after PR #15.
 Current hardening and exact-head CI: [PR #16](https://github.com/Nickshajtan/hcc-harness/pull/16).
 Historical measurements and new first-attempt failures remain separately identified.
 Human Comprehensibility First remains the review criterion; metrics do not establish stability.
-M2.2 B2 is not implemented or authorized.
+M2.2 B2 implementation is described above and authorized under the
+[corrected B2 scope](../runtime-portability.md#b2-scope-and-acceptance-corrections);
+authorization does not change the unresolved stability assessment.
 
 ## Acceptance and operational incidents
 

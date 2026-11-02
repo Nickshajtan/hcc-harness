@@ -10,6 +10,10 @@
     "node": ">=24.15.0 <25"
   },
   "scripts": {
+    "build:bootstrap": "node scripts/build-stable-bootstrap.mjs",
+    "preinstall:stable": "npm run build && npm run build:bootstrap",
+    "install:stable": "node dist/install-stable.js",
+    "test:stable": "npm run build && npm run build:bootstrap && vitest run tests/unit/stable-install.test.ts tests/integration/stable-runtime.test.ts tests/integration/stable-interruption.test.ts",
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
@@ -19,7 +23,7 @@
     "test:acceptance": "npm run build && vitest run tests/acceptance",
     "test:wizard": "npm run build && vitest run tests/unit/wizard.test.ts tests/unit/cli-policy.test.ts tests/unit/discovery.test.ts && node scripts/check-wizard.mjs",
     "test:wizard:terminal": "node scripts/check-wizard.mjs",
-    "check": "npm run format:check && npm run typecheck && npm run lint && npm run lint:baseline && npm run test:quality && npm run check:dependencies && npm run build && npm test",
+    "check": "npm run format:check && npm run typecheck && npm run lint && npm run lint:baseline && npm run test:quality && npm run check:dependencies && npm run build && npm run build:bootstrap && npm test",
     "bootstrap": "npm ci && npm run build",
     "experiment": "vitest run tests/feasibility",
     "format": "prettier --write .",
@@ -35,11 +39,12 @@
     "check:reliability": "node scripts/check-reliability.mjs",
     "test:mutation:core": "stryker run stryker.core.config.json",
     "lint:baseline:prune": "node scripts/check-lint-baseline.mjs --prune",
-    "test:mutation:check": "node scripts/check-mutation.mjs config core lifecycle process cli",
+    "test:mutation:check": "node scripts/check-mutation.mjs config core lifecycle process cli stable",
     "test:mutation:lifecycle": "stryker run stryker.lifecycle.config.json",
     "test:mutation:process": "stryker run stryker.process.config.json",
     "test:mutation:cli": "stryker run stryker.cli.config.json",
-    "test:mutation:effects": "stryker run stryker.effects.config.json"
+    "test:mutation:effects": "stryker run stryker.effects.config.json",
+    "test:mutation:stable": "npm run build:bootstrap && stryker run stryker.stable.config.json"
   },
   "dependencies": {
     "emittery": "2.1.0",

@@ -1,4 +1,5 @@
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
+import { Socket } from 'node:net';
 import { mkdtemp, rm, writeFile, mkdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,6 +8,7 @@ import {
   records,
   recordRemovalFailure,
   start,
+  run,
   runtimeOutput,
   requiredEnvironment,
   diagnosticStreams,
@@ -14,6 +16,20 @@ import {
 } from '../support.js';
 
 const directories: string[] = [];
+
+it('sends EOF without an empty write and preserves actual stdin payloads', async () => {
+  const endings = vi.spyOn(Socket.prototype, 'end');
+  const args = ['-e', 'process.stdin.pipe(process.stdout)'];
+  try {
+    const empty = await run(process.execPath, args, process.cwd(), process.env);
+    expect(empty).toMatchObject({ code: 0, signal: null, stdout: '' });
+    expect(endings.mock.calls.some(([chunk]) => '' === chunk)).toBe(false);
+    const payload = await run(process.execPath, args, process.cwd(), process.env, 'native input');
+    expect(payload).toMatchObject({ code: 0, signal: null, stdout: 'native input' });
+  } finally {
+    endings.mockRestore();
+  }
+});
 
 it('always tears down after recording and preserves compound diagnostic failures', async () => {
   const sequence: string[] = [];

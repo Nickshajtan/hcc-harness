@@ -6,6 +6,77 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
+test('runtime summaries reject missing, truncated, skipped and incomplete stable evidence', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'arch-stable-evidence-'));
+  const state = join(root, '.test-state');
+  const files = [
+    'tests/unit/stable-install.test.ts',
+    'tests/integration/stable-runtime.test.ts',
+    'tests/integration/stable-interruption.test.ts',
+  ];
+  const passing = (names) => ({
+    success: true,
+    numTotalTests: names.length,
+    numPassedTests: names.length,
+    numFailedTests: 0,
+    numPendingTests: 0,
+    testResults: names.map((name) => ({
+      name,
+      assertionResults: [{ fullName: name, status: 'passed' }],
+    })),
+  });
+  const invoke = (outcomes = {}) =>
+    spawnSync(
+      process.execPath,
+      [fileURLToPath(new URL('./b1/summarize-runtime.mjs', import.meta.url))],
+      {
+        cwd: root,
+        encoding: 'utf8',
+        timeout: 5000,
+        windowsHide: true,
+        env: {
+          ...process.env,
+          GITHUB_STEP_SUMMARY: '',
+          STABLE_OUTCOME: 'success',
+          SHARED_OUTCOME: 'success',
+          WINDOWS_OUTCOME: 'success',
+          ...outcomes,
+        },
+      },
+    );
+  try {
+    await mkdir(state);
+    for (const file of ['m22-runtime-contract.json', 'm22-b1-executable.json']) {
+      await writeFile(join(state, file), JSON.stringify(passing(['controlled-fixture'])));
+    }
+    await writeFile(join(state, 'm22-runtime-tty.json'), '{"status":"PASS"}');
+    assert.equal(invoke().status, 1);
+    for (const report of [
+      { ...passing(files), numTotalTests: 99 },
+      passing(files.slice(1)),
+      { ...passing(files), numPendingTests: 1 },
+      { ...passing(files), success: false },
+    ]) {
+      await writeFile(join(state, 'm22-stable-contract.json'), JSON.stringify(report));
+      assert.equal(invoke().status, 1);
+    }
+    await writeFile(join(state, 'm22-stable-contract.json'), '{broken');
+    assert.notEqual(invoke().status, 0);
+    await writeFile(join(state, 'm22-stable-contract.json'), JSON.stringify(passing(files)));
+    const valid = invoke();
+    assert.equal(valid.status, 0, valid.stderr);
+    // Vitest JSON success can remain true despite unhandled stream errors.
+    // The actual suite exit must independently authorize each PASS.
+    for (const outcome of ['failure', 'cancelled', 'skipped', '']) {
+      assert.equal(invoke({ STABLE_OUTCOME: outcome }).status, 1);
+      const report = JSON.parse(await readFile(join(state, 'm22-runtime-summary.json'), 'utf8'));
+      assert.equal(report.areas[0].status, 'FAIL');
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('effect pilot reporting rejects missing evidence instead of creating a PASS', async () => {
   const root = await mkdtemp(join(tmpdir(), 'arch-effect-evidence-'));
   try {
