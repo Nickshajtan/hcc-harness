@@ -1,5 +1,35 @@
 # Quality baseline
 
+## M2.4.7 lint profile adoption
+
+Starting main: `ec2764def94e573539aaccbc46105c1bc5ebe42d` (merged PR #16).
+Reproduced warning ratchet: nine warnings, zero errors. Seven defensive test
+teardown conditions now use the ordinary-test profile; two intentional empty-string
+fallbacks use the explicit stylistic exception in `tests/support.ts`. No guard or
+fallback expression changed. The warning baseline is pruned to zero rather than
+expanded. Production rules and source coverage remain intact; `no-unreachable`
+is additionally explicit for all maintained code. See the
+[profile definitions](quality-gates.md#responsibility-specific-lint-profiles).
+
+This is configuration adoption, not a repair of either historical Windows incident.
+Their unresolved classification and B2 NOT READY assessment remain unchanged.
+No mutation, coverage, reliability, TypeScript or runtime contract is relaxed.
+
+Local Windows validation: `npm run check` PASS (508 passed, 32 explicit platform
+skips); `npm run lint:report` PASS (zero ordinary warnings, 43 complexity/size
+review warnings); quality tooling PASS (23 tests). `npm run test:mutation:check`
+PASS validates existing source-matched reports; mutation pilots were not rerun
+for this configuration-only change. Coverage FAIL (507 passed, one failed,
+32 skipped): raw executable recreation hit EPERM after child close. Check and
+coverage overlapped under load; this is not causal attribution. Retained local
+log `.test-state/m247-coverage.log`, native report
+`reports/native-lifetime/3bf4e657-ed5f-47b8-93fd-54acdd3ab6ca.json` and fixture
+`arch-fixture-3bNnOr` preserve the failure. `npm run check:reliability` with that
+coverage report correctly FAILS despite all four uninstall profiles completing
+96 operations: failed native evidence must not become PASS. No retry, skip,
+assertion change or operational repair was introduced. Hosted results belong in
+the PR and must be inspected separately.
+
 Starting commit: `b1313eee0ce9dfe5103505650eac706c28fc0db5`, main after PR #15.
 Current hardening and exact-head CI: [PR #16](https://github.com/Nickshajtan/hcc-harness/pull/16).
 Historical measurements and new first-attempt failures remain separately identified.
