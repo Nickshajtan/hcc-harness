@@ -9,6 +9,9 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    env:
+      ARCH_RELIABILITY_DIRECTORY: reports/uninstall-stress/${{ github.run_id }}-${{ github.run_attempt }}
+      ARCH_RELIABILITY_TEST_REPORT: .test-state/m2-integration.json
     steps:
       - uses: actions/checkout@v6
       - uses: jdx/mise-action@v4
@@ -26,6 +29,9 @@ jobs:
       - run: npm run experiment
       - run: npm run test:unit -- --reporter=default --reporter=json --outputFile=.test-state/m2-unit.json
       - run: npm run test:integration -- --reporter=default --reporter=json --outputFile=.test-state/m2-integration.json
+      - name: Validate every first-attempt reliability profile and cleanup
+        if: always()
+        run: npm run check:reliability
       - run: npm run test:acceptance -- --reporter=default --reporter=json --outputFile=.test-state/m2-acceptance.json
       - name: Summarize test evidence
         if: always()
@@ -35,8 +41,19 @@ jobs:
           import { existsSync, readFileSync } from 'node:fs';
           for (const suite of ['unit', 'integration', 'acceptance']) {
             const path = `.test-state/m2-${suite}.json`;
-            if (!existsSync(path)) continue;
+            if (!existsSync(path)) {
+              console.error(`Missing required M2 ${suite} evidence: ${path}`);
+              process.exitCode = 1;
+              continue;
+            }
             const report = JSON.parse(readFileSync(path, 'utf8'));
+            const assertions = (report.testResults ?? []).flatMap(file => file.assertionResults ?? []);
+            if (true !== report.success || 0 !== report.numFailedTests || !report.numPassedTests ||
+                report.numTotalTests !== assertions.length ||
+                report.numPassedTests !== assertions.filter(test => 'passed' === test.status).length) {
+              console.error(`Incomplete or failing M2 ${suite} evidence`);
+              process.exitCode = 1;
+            }
             console.log(`::notice title=M2 ${suite}::${report.numPassedTests} passed; ${report.numFailedTests} failed; ${report.numPendingTests} pending`);
             for (const file of report.testResults ?? []) {
               if (file.message) {
@@ -61,6 +78,9 @@ jobs:
             .test-state/mise-*.json
             .test-state/m2-*.json
             reports/removal-diagnostics/
+            reports/routing-diagnostics/
             reports/npm-help-diagnostics/
             reports/uninstall-stress/
+            reports/native-lifetime/
+            reports/reliability-results.json
           include-hidden-files: true

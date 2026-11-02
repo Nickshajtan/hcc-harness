@@ -1,0 +1,50 @@
+name: Windows reliability
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'package*.json'
+      - 'mise.toml'
+      - 'vitest*.ts'
+      - 'tests/support.ts'
+      - 'tests/integration/uninstall-stability.test.ts'
+      - 'tests/integration/npm-cli.test.ts'
+      - 'tests/integration/native-lifetime.test.ts'
+      - 'scripts/check-reliability*.mjs'
+      - '.github/workflows/reliability.yml'
+  workflow_dispatch:
+  schedule:
+    - cron: '43 4 * * 3'
+permissions:
+  contents: read
+jobs:
+  reliability:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    env:
+      ARCH_RELIABILITY_DIRECTORY: reports/uninstall-stress/${{ github.run_id }}-${{ github.run_attempt }}
+      ARCH_RELIABILITY_TEST_REPORT: reports/reliability-tests.json
+    steps:
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v4
+        with:
+          version: '2026.10.11'
+          install: true
+      - run: npm ci
+      # Same first-attempt profiles as regression, isolated from mutation load.
+      - run: npm run test:reliability -- --reporter=json --outputFile=reports/reliability-tests.json
+      - name: Validate complete operations and completed teardown
+        if: always()
+        run: npm run check:reliability
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-reliability-evidence
+          path: |
+            reports/reliability-*.json
+            reports/uninstall-stress/
+            reports/removal-diagnostics/
+            reports/npm-help-diagnostics/
+            reports/native-lifetime/
+          if-no-files-found: error
+          retention-days: 14

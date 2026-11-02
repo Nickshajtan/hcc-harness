@@ -69,7 +69,12 @@ describe('configuration', () => {
     const root = await mkdtemp(join(tmpdir(), 'arch-config-io-'));
     try {
       await mkdir(join(root, '.arch/harness.toml'), { recursive: true });
-      await expect(discoverConfiguration(root)).rejects.toMatchObject({ code: expect.any(String) });
+      const failure: unknown = await discoverConfiguration(root).catch((error: unknown) => error);
+      expect(failure).toBeInstanceOf(Error);
+      if (!(failure instanceof Error) || !('code' in failure)) {
+        throw new Error('Expected a filesystem error with an OS code');
+      }
+      expect(typeof failure.code).toBe('string');
     } finally {
       await rm(root, { recursive: true, force: true });
     }

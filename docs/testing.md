@@ -23,6 +23,22 @@ integration/terminal tests. Dependencies/tools need network for provisioning; te
 run mise offline and make no AI/provider calls. No CLI credentials are needed.
 Npm link/unlink tests use temporary prefixes/config/cache, never the user's globals.
 
+`npm run test:reliability` builds and runs focused fixture/close, npm help,
+raw native executable lifetime, uninstall/recovery and sharing contracts.
+Use a fresh `ARCH_RELIABILITY_DIRECTORY` per run (for example a directory under
+`reports/uninstall-stress/`) and then `npm run check:reliability`. The validator
+requires all four profiles; it intentionally refuses mixed or incomplete runs.
+Set `ARCH_RELIABILITY_TEST_REPORT` to the Vitest JSON report to additionally verify
+help/native/sharing assertions, as CI does. Every first attempt counts.
+The Windows reliability workflow provides a ten-minute isolated PR/scheduled/manual
+profile; regression retains all three platforms. Stress uses 32 Arch sequences
+and 16 raw native copy/execute-close/unlink sequences, with one and three lanes.
+Failed fixtures are retained and named in artifacts; inspect before removing them.
+No automatic retention pruning deletes failure evidence; CI artifacts expire after
+14 days for reliability/quality jobs; other suites retain their existing policies.
+Each run has a fixed operation budget. Local retained roots require
+explicit owner cleanup, so repeated local failures can consume disk space.
+
 `npm run test:mutation:cli` measures parsing, dispatch, CLI signal mapping, status
 presentation and Wizard decisions/workflow. It excludes real terminal tests from
 mutation, not from regression. See [quality gates](standards/quality-gates.md).
@@ -30,7 +46,8 @@ mutation, not from regression. See [quality gates](standards/quality-gates.md).
 `npm run test:mutation:effects` measures complete installation setup, planning,
 staging/publication, recovery and removal files. Run
 `node scripts/report-effects-mutation.mjs` to validate all expected evidence.
-Its new per-file targets remain advisory and unmet targets are explicit. A separate
+All five complete modules enforce 85% assertion-only mutation gates after Windows
+and hosted POSIX measurement. A separate
 relevant-change/scheduled/manual quality job contains its higher measured cost.
 
 `tests/integration/uninstall-stability.test.ts` runs one and three independent project lanes,
@@ -43,6 +60,12 @@ The Windows-only
 sharing test holds a managed launcher until an explicit stdin barrier releases it,
 verifies refusal/checkpoint retention, then requests recovery. A passing stress or
 sharing test does not resolve the historical unexplained uninstall failure.
+
+Recovery interruption failures also write `reports/routing-diagnostics/`: the
+pending operation, worker and active subprocess IDs/events, bounded streams, and
+exact checkpoint bytes where within budget. The snapshots survive fixture cleanup.
+Their helper is independently tested against missing files, symlinks and oversized
+payloads; a saved stage is evidence, not proof that Arch owns it.
 
 The subprocess helper also logs and saves nonzero direct CLI deinit/uninstall
 results, process events and read-only ownership status under `reports/removal-diagnostics/`

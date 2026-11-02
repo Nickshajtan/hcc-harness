@@ -1,12 +1,22 @@
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { afterAll, beforeAll, expect, it, onTestFailed } from 'vitest';
+import { randomUUID } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import { join, resolve, delimiter } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { spawn } from 'node:child_process';
 import { copyFile, mkdir, readFile, readdir, stat, writeFile, unlink } from 'node:fs/promises';
-import { world, run, cli, records } from '../support.js';
+import {
+  world,
+  run,
+  cli,
+  records,
+  start,
+  diagnosticStreams,
+  recordBeforeDisposal,
+} from '../support.js';
 import { journalFrom } from '../../src/lifecycle/routing-journal.js';
+import { recoveryEvidence } from '../recovery-evidence.js';
 
 let fixture: Awaited<ReturnType<typeof world>>;
 beforeAll(async () => {
@@ -24,7 +34,8 @@ let sequence = 0;
 async function project() {
   const root = join(fixture.root, `project-${String(sequence++)}`);
   await mkdir(root);
-  expect((await fixture.init(root)).code).toBe(0);
+  const initialized = await fixture.init(root);
+  expect(initialized, initialized.stderr).toMatchObject({ code: 0 });
   return root;
 }
 
@@ -53,6 +64,16 @@ it.each(checkpoints)(
   'recovers after real subprocess termination at %s',
   async (checkpoint) => {
     const root = await project();
+    let active: ReturnType<typeof start> | undefined;
+    let testFailed = false;
+    function trackedRun(command: string, args: string[], cwd: string, env: NodeJS.ProcessEnv) {
+      if (testFailed) {
+        throw new Error('Test already failed; refusing late subprocess creation');
+      }
+      active = start(command, args, cwd, env);
+      active.child.stdin.end();
+      return active.result;
+    }
     const nativeBefore = await readFile(
       join(fixture.native, 'claude' + ('win32' === process.platform ? '.exe' : '')),
     );
@@ -67,16 +88,82 @@ it.each(checkpoints)(
       ],
       { cwd: root, env: fixture.env, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] },
     );
-    let stderr = '';
+    let stderr = '',
+      stdout = '',
+      stdoutTruncated = false,
+      stderrTruncated = false,
+      phase = 'await checkpoint',
+      lastEvent = 'created';
+    child.once('spawn', () => {
+      lastEvent = 'spawn';
+    });
+    child.once('exit', () => {
+      lastEvent = 'exit';
+    });
+    assert(child.stdout, 'Worker stdout must be piped');
+    child.stdout.on('data', (data: Buffer) => {
+      const combined = stdout + data.toString('utf8');
+      stdoutTruncated ||= 64 * 1024 < combined.length;
+      stdout = combined.slice(-64 * 1024);
+    });
     assert(child.stderr, 'Worker stderr must be piped');
     child.stderr.on('data', (data: Buffer) => {
-      stderr += data.toString('utf8');
+      const combined = stderr + data.toString('utf8');
+      stderrTruncated ||= 64 * 1024 < combined.length;
+      stderr = combined.slice(-64 * 1024);
     });
     const closed = new Promise<void>((done) =>
       child.once('close', () => {
+        lastEvent = 'close';
         done();
       }),
     );
+    onTestFailed(() => {
+      testFailed = true;
+      return recordBeforeDisposal({
+        record: async () => {
+          const observation = {
+            commit: process.env.GITHUB_SHA ?? 'local-uncommitted',
+            platform: process.platform,
+            node: process.version,
+            checkpoint,
+            phase,
+            root,
+            worker: {
+              pid: child.pid ?? null,
+              exitCode: child.exitCode,
+              signal: child.signalCode,
+              lastEvent,
+            },
+            operation: active
+              ? {
+                  executable: active.child.spawnfile,
+                  arguments: active.child.spawnargs,
+                  pid: active.child.pid ?? null,
+                  exitCode: active.child.exitCode,
+                  signal: active.child.signalCode,
+                  events: active.observations(),
+                  ...diagnosticStreams(active.output()),
+                }
+              : null,
+            stdout,
+            stderr,
+            stdoutTruncated,
+            stderrTruncated,
+            observed: new Date().toISOString(),
+          };
+          console.error('[arch:test] recovery failure:', JSON.stringify(observation));
+          const checkpointFiles = await recoveryEvidence(root);
+          await mkdir('reports/routing-diagnostics', { recursive: true });
+          await writeFile(
+            join('reports/routing-diagnostics', `${randomUUID()}.json`),
+            JSON.stringify({ ...observation, checkpointFiles }, null, 2),
+            { signal: AbortSignal.timeout(3000) },
+          );
+        },
+        dispose: () => active?.dispose(),
+      });
+    });
     try {
       await new Promise<void>((done, reject) => {
         const timeout = setTimeout(() => {
@@ -107,13 +194,15 @@ it.each(checkpoints)(
           Buffer.from(addition, 'base64'),
         );
       }
+      phase = 'terminate checkpoint worker and await close';
       child.kill('SIGKILL');
       await closed;
       const env = {
         ...fixture.env,
         PATH: [join(root, '.arch/bin'), fixture.env.PATH].join(delimiter),
       };
-      const status = await run(process.execPath, [cli, 'status', '--json'], root, env);
+      phase = 'inspect interrupted installation';
+      const status = await trackedRun(process.execPath, [cli, 'status', '--json'], root, env);
       const parsedStatus: unknown = JSON.parse(status.stdout);
       if (['fs:before-journal', 'fs:after-journal-removal'].includes(checkpoint)) {
         expect(parsedStatus).toMatchObject({ state: 'initialized', recoveryPending: false });
@@ -126,22 +215,26 @@ it.each(checkpoints)(
         });
       }
       if ('fs:before-journal' === checkpoint) {
+        phase = 'verify orphan stage refusal';
         // This stage has no published ownership authority: require explicit fixture-owner removal.
         const stage = join(root, '.arch/routing.stage');
         const bytes = await readFile(stage);
         expect(
-          (await run(process.execPath, [cli, 'configure', 'claude', 'gemini'], root, env)).code,
+          (await trackedRun(process.execPath, [cli, 'configure', 'claude', 'gemini'], root, env))
+            .code,
         ).toBe(1);
         expect(await readFile(stage)).toEqual(bytes);
         await unlink(stage);
       }
       if ('fs:partial-stage' === checkpoint) {
+        phase = 'verify partial stage refusal';
         const recorded = await readFile(join(root, '.arch/routing.json'), 'utf8');
         const journal = journalFrom(Buffer.from(recorded));
         const stage = join(root, `.arch/.routing-${journal.id}-0.stage`);
         expect(await readFile(stage)).toHaveLength(3);
         expect(
-          (await run(process.execPath, [cli, 'configure', 'claude', 'gemini'], root, env)).code,
+          (await trackedRun(process.execPath, [cli, 'configure', 'claude', 'gemini'], root, env))
+            .code,
         ).toBe(1);
         expect(await readFile(stage)).toHaveLength(3);
         const payload = Object.values(journal.additions)[0];
@@ -150,14 +243,18 @@ it.each(checkpoints)(
         }
         await writeFile(stage, Buffer.from(payload, 'base64'));
       }
-      const retained = await run('claude', ['still-routed'], root, env);
+      phase = 'execute retained route';
+      const retained = await trackedRun('claude', ['still-routed'], root, env);
       expect(retained.code).toBe(0);
       expect(retained.stderr).toContain('[arch:demo] preflight');
+      phase = 'reconcile recorded routes';
       expect(
-        (await run(process.execPath, [cli, 'configure', 'claude', 'gemini'], root, env)).code,
+        (await trackedRun(process.execPath, [cli, 'configure', 'claude', 'gemini'], root, env))
+          .code,
       ).toBe(0);
+      phase = 'inspect completed reconciliation';
       const finalStatus: unknown = JSON.parse(
-        (await run(process.execPath, [cli, 'status', '--json'], root, env)).stdout,
+        (await trackedRun(process.execPath, [cli, 'status', '--json'], root, env)).stdout,
       );
       expect(finalStatus).toMatchObject({
         state: 'initialized',
@@ -166,7 +263,8 @@ it.each(checkpoints)(
         recoveryPending: false,
       });
       const record = join(root, 'calls.jsonl');
-      const added = await run('gemini', ['new-route'], root, { ...env, FAKE_LOG: record });
+      phase = 'execute added route';
+      const added = await trackedRun('gemini', ['new-route'], root, { ...env, FAKE_LOG: record });
       expect(added.code).toBe(0);
       expect(added.stderr).toContain('[arch:demo] preflight');
       expect(await records(record)).toHaveLength(1);

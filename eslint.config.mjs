@@ -29,7 +29,7 @@ export default ts.config(
       '@typescript-eslint/switch-exhaustiveness-check': 'error',
       // Existing lifecycle/platform invariants need characterization before rewriting
       // assertions and conditions. Visible debt, not blocking compliance; see baseline.
-      '@typescript-eslint/no-non-null-assertion': 'warn',
+      '@typescript-eslint/no-non-null-assertion': 'error',
       '@typescript-eslint/no-unnecessary-condition': 'warn',
       '@typescript-eslint/prefer-optional-chain': 'error',
       '@typescript-eslint/prefer-nullish-coalescing': 'warn',
@@ -50,13 +50,13 @@ export default ts.config(
   {
     files: ['tests/**/*.ts'],
     rules: {
-      // Legacy subprocess JSON and test doubles require real boundary validation,
-      // not casts to manufacture safety. Retain findings for structural follow-up.
-      '@typescript-eslint/no-unsafe-assignment': 'warn',
-      '@typescript-eslint/no-unsafe-member-access': 'warn',
-      '@typescript-eslint/no-unsafe-return': 'warn',
-      '@typescript-eslint/no-unsafe-argument': 'warn',
-      '@typescript-eslint/no-unnecessary-type-assertion': 'warn',
+      // Fixture JSON now narrows at its protocol boundary; prevent unsafe values
+      // from returning through future test/helper changes.
+      '@typescript-eslint/no-unsafe-assignment': 'error',
+      '@typescript-eslint/no-unsafe-member-access': 'error',
+      '@typescript-eslint/no-unsafe-return': 'error',
+      '@typescript-eslint/no-unsafe-argument': 'error',
+      '@typescript-eslint/no-unnecessary-type-assertion': 'error',
       '@typescript-eslint/restrict-plus-operands': 'error',
       '@typescript-eslint/no-empty-function': 'error',
       '@typescript-eslint/require-await': 'error',
