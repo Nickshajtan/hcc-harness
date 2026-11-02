@@ -26,6 +26,7 @@ jobs:
       - run: npm run test:quality
       - run: npm run check:dependencies
       - run: npm run build
+      - run: npm run build:bootstrap
       - run: npm run experiment
       - run: npm run test:unit -- --reporter=default --reporter=json --outputFile=.test-state/m2-unit.json
       - run: npm run test:integration -- --reporter=default --reporter=json --outputFile=.test-state/m2-integration.json

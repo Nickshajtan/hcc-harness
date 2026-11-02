@@ -75,6 +75,11 @@ await area('coverage', process.env.COVERAGE_OUTCOME, async () => {
 });
 await area('mutation', process.env.MUTATION_OUTCOME, async () => {
   for (const pilot of Object.values(pilots)) {
+    if (pilot === pilots.stable) {
+      details.push(
+        'Stable installer pilot verifies complete current-source measurement; initial numerical targets are not yet blocking. Timeout kills earn no assertion credit.',
+      );
+    }
     const report = await read(pilot.report);
     const scopes = mutationEvidence(report);
     await verifyMutationSources(report, pilot.files);

@@ -3,6 +3,14 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 export const pilots = {
+  stable: {
+    report: 'reports/mutation-stable/mutation.json',
+    files: [
+      'src/runtime-version.ts',
+      'src/installation/stable-layout.ts',
+      'src/installation/stable-install.ts',
+    ],
+  },
   cli: {
     report: 'reports/mutation-cli/mutation.json',
     files: [

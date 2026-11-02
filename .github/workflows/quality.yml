@@ -47,7 +47,7 @@ jobs:
       - name: Focused config, execution, ownership, process and CLI mutation pilots
         id: mutation
         if: github.event_name != 'pull_request' || steps.pilot.outputs.run == 'true'
-        run: npm run test:mutation && npm run test:mutation:core && npm run test:mutation:lifecycle && npm run test:mutation:process && npm run test:mutation:cli && npm run test:mutation:check
+        run: npm run test:mutation && npm run test:mutation:core && npm run test:mutation:lifecycle && npm run test:mutation:process && npm run test:mutation:cli && npm run test:mutation:stable && npm run test:mutation:check
       - name: Publish verified measurement evidence
         if: always()
         env:

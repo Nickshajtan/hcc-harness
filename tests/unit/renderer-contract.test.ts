@@ -2,10 +2,29 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { renderFiles } from '../../src/setup.js';
+import * as stableLayout from '../../src/installation/stable-layout.js';
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
+
+it.each(['linux', 'win32'] as const)(
+  'routes stable %s installations through their bootstrap',
+  async (platform) => {
+    const entry = 'win32' === platform ? 'C:\\stable app\\arch.exe' : "/stable app's/arch";
+    vi.stubGlobal('process', { ...process, platform, arch: 'x64' });
+    vi.spyOn(stableLayout, 'stableEntry').mockResolvedValue(entry);
+    const files = await renderFiles(['tool']);
+    if ('win32' === platform) {
+      expect(files.get('.arch/bin/tool.shim')).toBe(`path = ${entry}\nargs = run tool --\n`);
+    } else {
+      expect(files.get('.arch/bin/tool')).toBe(
+        `#!/bin/sh\nexec ${quote(entry)} run 'tool' -- "$@"\n`,
+      );
+    }
+  },
+);
 
 // Independent byte contract captured from setup.ts at e875ddc. Anchor to the
 // historical module location, never to the implementation under test.
