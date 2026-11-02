@@ -29,17 +29,17 @@ Local Windows evidence includes real installer interruption at reserved,
 materialized, verified and published barriers; a complete source rename and
 fixture-owned historical Node deletion/replacement; recorded resource hashes;
 native npm runtime isolation; Ctrl+C/Ctrl+Break, cleanup and child termination.
-Local complete check PASS: 574 tests / 32 existing explicit skips, 24 quality-tooling
+Earlier local complete check PASS: 574 tests / 32 existing explicit skips, 24 quality-tooling
 tests, zero ordinary warnings, and no dependency violations (60 modules / 152
 dependencies). The final stable command suite separately passed 37 tests, including
 the strengthened process-completion races and byte-exact configuration assertion.
 Final hosted conclusions belong to the implementation PR; do not infer platform
 acceptance from local Windows scenarios alone.
 
-Current Windows coverage PASS: **95.02% lines / 92.91% branches** (1026 lines / 692
-branches), 574 passed / 32 existing skips. Reporting-on-failure was enabled for
+Latest Windows coverage PASS: **95.05% lines / 92.96% branches** (1032 lines / 697
+branches), 581 passed / 32 existing skips. Reporting-on-failure was enabled for
 diagnostic completeness; exit semantics/assertions/thresholds were unchanged.
-New modules: runtime-version 100%/100%, stable-layout 100%/94.44%, stable-install
+New modules: runtime-version 100%/100%, stable-layout 100%/95.65%, stable-install
 97.61%/89.58% line/branch; renderer 100%/100%. The new installer branch target is
 not fully reached on Windows. CLI/bootstrap entrypoint subprocess coverage is
 separate from V8 worker coverage; zero entrypoint counters do not mean those
@@ -62,12 +62,30 @@ reliability rejection are retained in `.test-state/b2-final-test-coverage.log`,
 `.test-state/b2-final-coverage-first-attempt.json` and
 `.test-state/b2-final-test-coverage-evidence/5719e82e-ee09-49ad-b87e-ab680f9524d0.json`.
 The checkpoint timeout remains unexplained; it is not attributed to exFAT.
+The later complete check at `0d005e0` FAILed: 580 passed / one failed / 32 skips,
+again raw `copyfile` EPERM during executable recreation, fixture `arch-fixture-QRTok1`.
+Evidence: `.test-state/b2-latest-check.log` and
+`reports/native-lifetime/37ff384a-f8f6-4e6a-8937-eb559ed4ba7d.json`.
+The independent coverage measurement above does not erase this first-attempt failure.
 Direct OS drive information identifies this checkout's `D:` as exFAT and temporary
 `C:` as NTFS. This supports the independently observed workspace hard-link/symlink
 capability failures, not an explanation for all executable or recovery failures.
 The
 Windows executable-access and npm-help incidents both remain **UNRESOLVED**;
 no antivirus attribution, exclusion, production retry or sleep was introduced.
+
+Hosted validation found and corrected three separate integration issues. Canonical
+temporary roots preserve the installer refusal of macOS's `/var` symlink. An explicit
+SDK placeholder prevents Windows PowerShell from dropping an empty build argument
+and shifting `/DARCH_STABLE` into vcvars. Ubuntu exposed empty-string stdin writes
+to a fast-refusing bootstrap: the test helper now sends EOF without a zero-byte
+write; nonempty input still reaches the native process. This does not explain the
+historical Windows npm-help hang. Vitest's JSON can report success despite unhandled
+stream errors, so runtime summaries now independently require successful suite-step
+outcomes, with failure/cancellation/skip/missing-outcome negative tests. Failed
+[initial platform runs](https://github.com/Nickshajtan/hcc-harness/actions/runs/41485458395)
+and the [Ubuntu EPIPE run](https://github.com/Nickshajtan/hcc-harness/actions/runs/41506070096)
+remain evidence, not silently replaced successes.
 
 Development dependency audit executed with Node's system CA trust after the
 host's default registry trust failed. Production audit: **0 vulnerabilities**.
@@ -87,18 +105,21 @@ defect or an incident-resolution claim.
 
 | Metric              | Before | After |
 | ------------------- | -----: | ----: |
-| Complexity >12      |     13 |    15 |
+| Complexity >12      |     13 |    14 |
 | Nesting >3          |      8 |     8 |
 | Parameters >4       |      3 |     3 |
-| Function length >60 |     19 |    21 |
+| Function length >60 |     19 |    22 |
 | Total               |     43 |    47 |
 
-No findings were removed or hidden. All four new findings are ACCEPT: stable
-metadata guards (15 branches), runtime evidence completeness (15 branches), the
+No baseline findings were removed or hidden. All four new findings are ACCEPT:
+runtime evidence completeness (16 branches), the negative evidence matrix (68 lines), the
 real interruption scenario (97 lines) and the complete source-relocation scenario
 (67 lines). Their independent safe-refusal checks and complete fixture lifetimes
 are clearer together. The inventory groups all remaining findings by module and
-severity: 39 ACCEPT, eight DEFER, zero metric-driven FIX NOW changes. Deferred
+severity: 39 ACCEPT, eight DEFER, zero metric-driven FIX NOW changes. An intermediate
+stable metadata finding disappeared after correcting snapshot identification:
+the application's own package explicitly declares its role, rather than inspecting
+unrelated parent metadata. Both responsibilities remain measured. Deferred
 items require coordinated contract/resource-ownership work; they were not simply
 classified by file size.
 
@@ -125,10 +146,10 @@ blocking threshold. Timeouts never earn assertion credit. New production files
 remain in coverage and dependency analysis; CLI subprocess instrumentation limits
 remain explicit. The final pilot and coverage numbers must be read at the final
 implementation commit, not inferred from an earlier source revision. Final local
-Windows pilot: 285 mutants, 238 killed, two timeouts, 38 surviving, seven uncovered,
-zero errors/exclusions; 84.21% timeout-inclusive, **83.51% assertion-only**, 224
+Windows pilot: 302 mutants, 254 killed, three timeouts, 38 surviving, seven uncovered,
+zero errors/exclusions; 85.10% timeout-inclusive, **84.11% assertion-only**, 248
 seconds including bootstrap build. Per-module assertion scores: runtime-version
-100% (22/22), stable-layout 87.04% (47/54), stable-install **80.86%** (169/209).
+100% (22/22), stable-layout 90% (63/70), stable-install **80.48%** (169/210).
 The installer remains below the proposed 85% target; numerical adoption is deferred
 instead of shrinking scope or giving timeouts assertion credit. All existing
 mutation commands and current-source gates executed successfully; the effect

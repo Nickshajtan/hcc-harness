@@ -20,10 +20,10 @@
       "max-lines-per-function": 19
     },
     "afterByRule": {
-      "complexity": 15,
+      "complexity": 14,
       "max-depth": 8,
       "max-params": 3,
-      "max-lines-per-function": 21
+      "max-lines-per-function": 22
     },
     "beforeBySubsystem": {
       "scripts/b1": 2,
@@ -50,9 +50,10 @@
       "scripts/check-reliability-tests.mjs": 1,
       "scripts/check-reliability.mjs": 2,
       "scripts/check-wizard.mjs": 6,
+      "scripts/quality-evidence-tests.mjs": 1,
       "scripts/summarize-quality.mjs": 1,
       "src/cli": 3,
-      "src/installation": 3,
+      "src/installation": 2,
       "src/lifecycle": 3,
       "src/middleware.ts": 1,
       "src/process": 1,
@@ -70,9 +71,9 @@
         "rule": "complexity"
       },
       {
-        "file": "src/installation/stable-layout.ts",
-        "function": "stableEntry",
-        "rule": "complexity"
+        "file": "scripts/quality-evidence-tests.mjs",
+        "function": "test: 'runtime summaries reject missing, truncated, skipped and incomplete stable evidence'",
+        "rule": "max-lines-per-function"
       },
       {
         "file": "tests/integration/stable-interruption.test.ts",
@@ -913,11 +914,11 @@
     {
       "file": "scripts/b1/summarize-runtime.mjs",
       "function": "reports.map: runtime evidence summary",
-      "line": 11,
+      "line": 15,
       "rule": "complexity",
-      "value": 15,
+      "value": 16,
       "threshold": 12,
-      "diagnostic": "Arrow function has a complexity of 15. Maximum allowed is 12.",
+      "diagnostic": "Arrow function has a complexity of 16. Maximum allowed is 12.",
       "severity": "medium",
       "sourceOfComplexity": "Independent success/count/status checks plus required stable report file identities.",
       "correctnessRisk": "Missing or partial reports could otherwise produce false PASS.",
@@ -1098,6 +1099,23 @@
       "protectedBy": ["scripts/b1/check-runtime-tty.mjs"]
     },
     {
+      "file": "scripts/quality-evidence-tests.mjs",
+      "function": "test: 'runtime summaries reject missing, truncated, skipped and incomplete stable evidence'",
+      "line": 9,
+      "rule": "max-lines-per-function",
+      "value": 68,
+      "threshold": 60,
+      "diagnostic": "Async arrow function has too many lines (68). Maximum allowed is 60.",
+      "severity": "medium",
+      "sourceOfComplexity": "One isolated report fixture exercises missing, malformed, incomplete and skipped reports plus non-successful suite outcomes despite passing assertions.",
+      "correctnessRisk": "A passing assertion count must not certify a suite with unhandled process or stream errors.",
+      "maintainabilityRisk": "The negative matrix needs several deliberate report variants and one owned cleanup lifecycle.",
+      "recommendedTreatment": "Retain explicit negative cases and suite-outcome checks; avoid a generic reporting framework.",
+      "decision": "ACCEPT",
+      "rationale": "The 68-line contract test keeps generation, invocation, assertions and cleanup together; every false-green state is asserted.",
+      "protectedBy": ["scripts/quality-evidence-tests.mjs"]
+    },
+    {
       "file": "scripts/summarize-quality.mjs",
       "function": "area: 'coverage'",
       "line": 51,
@@ -1205,27 +1223,6 @@
         "tests/unit/setup-contract.test.ts",
         "tests/unit/m1-compatibility.test.ts",
         "tests/unit/lifecycle-effects.test.ts"
-      ]
-    },
-    {
-      "file": "src/installation/stable-layout.ts",
-      "function": "stableEntry",
-      "line": 8,
-      "rule": "complexity",
-      "value": 15,
-      "threshold": 12,
-      "diagnostic": "Async function 'stableEntry' has a complexity of 15. Maximum allowed is 12.",
-      "severity": "medium",
-      "sourceOfComplexity": "Distinguishes absent metadata, read failure, invalid external shape, readiness type and platform selection.",
-      "correctnessRisk": "Accepting incomplete or foreign state could render unusable launchers.",
-      "maintainabilityRisk": "Several defensive guards contribute to complexity 15 in a short function.",
-      "recommendedTreatment": "Keep explicit narrowing and independent metadata/readiness tests.",
-      "decision": "ACCEPT",
-      "rationale": "Every guard has a distinct safe-refusal purpose; extracting a generic marker validator would hide this small boundary.",
-      "protectedBy": [
-        "tests/unit/stable-layout.test.ts",
-        "tests/unit/renderer-contract.test.ts",
-        "tests/integration/stable-runtime.test.ts"
       ]
     },
     {
@@ -1596,7 +1593,7 @@
     {
       "file": "tests/support.ts",
       "function": "world",
-      "line": 236,
+      "line": 238,
       "rule": "max-lines-per-function",
       "value": 133,
       "threshold": 60,
@@ -1617,7 +1614,7 @@
     {
       "file": "tests/support.ts",
       "function": "world",
-      "line": 236,
+      "line": 238,
       "rule": "complexity",
       "value": 16,
       "threshold": 12,
@@ -1638,7 +1635,7 @@
     {
       "file": "tests/support.ts",
       "function": "world.invoke",
-      "line": 351,
+      "line": 353,
       "rule": "max-params",
       "value": 5,
       "threshold": 4,
@@ -1659,7 +1656,7 @@
     {
       "file": "tests/support.ts",
       "function": "records: protocol decoder",
-      "line": 437,
+      "line": 439,
       "rule": "complexity",
       "value": 14,
       "threshold": 12,
