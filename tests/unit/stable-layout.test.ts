@@ -36,14 +36,18 @@ it('refuses missing snapshot metadata while preserving development rendering', a
 });
 it('does not inspect unrelated parent metadata from a development checkout', async () => {
   vi.mocked(readFile).mockImplementation(async (...args) => {
-    if (String(args[0]).endsWith('/installation.json')) {
+    if (args[0] instanceof URL && args[0].pathname.endsWith('/installation.json')) {
       throw new Error('unrelated parent metadata must not be read');
     }
     return actual.readFile(...args);
   });
   expect(await stableEntry()).toBeUndefined();
   expect(
-    vi.mocked(readFile).mock.calls.some(([path]) => String(path).endsWith('/installation.json')),
+    vi
+      .mocked(readFile)
+      .mock.calls.some(
+        ([path]) => path instanceof URL && path.pathname.endsWith('/installation.json'),
+      ),
   ).toBe(false);
 });
 it.each(['file:///opt/Arch%20App/', 'file:///C:/Users/Example/Arch%20App/'])(
