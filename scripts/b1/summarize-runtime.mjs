@@ -2,13 +2,17 @@ import { appendFileSync, existsSync, readFileSync, writeFileSync, mkdirSync } fr
 
 const read = (file) => (existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : undefined);
 const reports = [
-  ['Stable installation and source relocation', '.test-state/m22-stable-contract.json'],
-  ['Shared runtime contract', '.test-state/m22-runtime-contract.json'],
+  [
+    'Stable installation and source relocation',
+    '.test-state/m22-stable-contract.json',
+    'STABLE_OUTCOME',
+  ],
+  ['Shared runtime contract', '.test-state/m22-runtime-contract.json', 'SHARED_OUTCOME'],
   ...('win32' === process.platform
-    ? [['Windows bootstrap executable', '.test-state/m22-b1-executable.json']]
+    ? [['Windows bootstrap executable', '.test-state/m22-b1-executable.json', 'WINDOWS_OUTCOME']]
     : []),
 ];
-const areas = reports.map(([area, file]) => {
+const areas = reports.map(([area, file, outcome]) => {
   const report = read(file);
   let status = 'NOT TESTED';
   if (report) {
@@ -24,6 +28,7 @@ const areas = reports.map(([area, file]) => {
         report.testResults?.some((result) => result.name?.replaceAll('\\', '/').endsWith(expected)),
       );
     const passed =
+      'success' === process.env[outcome] &&
       true === report.success &&
       0 < report.numPassedTests &&
       0 === report.numFailedTests &&

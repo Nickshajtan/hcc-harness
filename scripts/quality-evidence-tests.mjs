@@ -25,7 +25,7 @@ test('runtime summaries reject missing, truncated, skipped and incomplete stable
       assertionResults: [{ fullName: name, status: 'passed' }],
     })),
   });
-  const invoke = () =>
+  const invoke = (outcomes = {}) =>
     spawnSync(
       process.execPath,
       [fileURLToPath(new URL('./b1/summarize-runtime.mjs', import.meta.url))],
@@ -34,7 +34,14 @@ test('runtime summaries reject missing, truncated, skipped and incomplete stable
         encoding: 'utf8',
         timeout: 5000,
         windowsHide: true,
-        env: { ...process.env, GITHUB_STEP_SUMMARY: '' },
+        env: {
+          ...process.env,
+          GITHUB_STEP_SUMMARY: '',
+          STABLE_OUTCOME: 'success',
+          SHARED_OUTCOME: 'success',
+          WINDOWS_OUTCOME: 'success',
+          ...outcomes,
+        },
       },
     );
   try {
@@ -58,6 +65,13 @@ test('runtime summaries reject missing, truncated, skipped and incomplete stable
     await writeFile(join(state, 'm22-stable-contract.json'), JSON.stringify(passing(files)));
     const valid = invoke();
     assert.equal(valid.status, 0, valid.stderr);
+    // Vitest JSON success can remain true despite unhandled stream errors.
+    // The actual suite exit must independently authorize each PASS.
+    for (const outcome of ['failure', 'cancelled', 'skipped', '']) {
+      assert.equal(invoke({ STABLE_OUTCOME: outcome }).status, 1);
+      const report = JSON.parse(await readFile(join(state, 'm22-runtime-summary.json'), 'utf8'));
+      assert.equal(report.areas[0].status, 'FAIL');
+    }
   } finally {
     await rm(root, { recursive: true, force: true });
   }
