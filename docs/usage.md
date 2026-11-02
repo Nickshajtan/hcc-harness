@@ -1,8 +1,8 @@
 # Usage and recovery
 
 This guide describes **current production**. Installation prerequisites and npm
-link/unlink are in the [README](../README.md); the uninstalled runtime prototypes
-and planned B2 work are described in the [active design](runtime-portability.md).
+link/unlink are in the [README](../README.md); the stable installation and runtime
+selection contract is in the [active design](runtime-portability.md).
 
 ## Commands and interaction
 

@@ -5,11 +5,12 @@ middleware around one native process, preserving arguments, cwd, terminal stream
 exit codes and supported signals. It has no AI SDK, agent loop, credentials,
 background service or remote telemetry.
 
-| Status                   | Capability                                                                                                                        |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| **CURRENT PRODUCTION**   | npm-linked `arch`; project-local routing, wizard, configuration discovery, status, ownership-checked updates/recovery and removal |
-| **VERIFIED FEASIBILITY** | M2.2 B1 independent runtime bootstraps and real Node 24/22 isolation on Ubuntu, macOS and Windows                                 |
-| **PLANNED / NOT TESTED** | M2.2 B2 stable installation and production portability; real AI CLI/TUI integration; Windows ARM64                                |
+| Status                       | Capability                                                                                                                                     |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| **CURRENT PRODUCTION**       | npm-linked `arch`; project-local routing, wizard, configuration discovery, status, ownership-checked updates/recovery and removal              |
+| **VERIFIED FEASIBILITY**     | M2.2 B1 independent runtime bootstraps and real Node 24/22 isolation on Ubuntu, macOS and Windows                                              |
+| **IMPLEMENTED / VALIDATING** | M2.2 B2 stable snapshot installation, independent bootstrap and controlled native fixture routing; current evidence is in the quality baseline |
+| **NOT IN B2**                | Real AI CLI/TUI integration, WSL2/Docker hardening and Windows ARM64 execution                                                                 |
 
 ## Install the CLI
 
@@ -18,18 +19,33 @@ Requires Node **>=24.15.0 <25**. The repository pins Node 24.19.0 and mise
 
 ```sh
 npm run bootstrap
-npm link
-arch --help
+npm run install:stable -- --destination /absolute/user-owned/arch
+ARCH_NODE=/absolute/compatible/node /absolute/user-owned/arch/arch --help
 ```
 
-Alternatively, install [mise](https://mise.jdx.dev/installing-mise.html) and run
-`mise run bootstrap` before linking. The package remains private; nothing is
-published. npm's executable directory must already be on PATH. On Windows, npm
-creates `.cmd`/PowerShell shims; use `arch.cmd` if execution policy requires it.
-Installation does not edit PATH, profiles or target project configuration.
+On Windows use an absolute destination such as `C:\Users\you\Arch` and invoke
+`C:\Users\you\Arch\arch.exe`. In Windows PowerShell 5 use `npm.cmd run install:stable -- --destination ...`
+to preserve npm's argument separator. Building the Windows x64 bootstrap requires
+Visual C++ build tools and a complete Windows SDK; `ARCH_WINDOWS_SDK` may select an
+installed SDK explicitly. Nothing installs system software or downloads Node.
 
-Keep the original checkout and Node executable available: current generated routes
-capture both absolute paths. Rebuild with `npm run build` after source changes.
+The destination must not exist and its parent must already be a real directory.
+Installation does not edit PATH, profiles or project configuration. Use a full
+entrypoint path or explicitly choose your own PATH configuration. `ARCH_NODE` is an
+absolute executable override; otherwise the first eligible PATH Node must satisfy
+**>=24.15.0 <25**. Arch never changes the native CLI's Node/PATH to match its own.
+See the [installation contract](docs/runtime-portability.md#stable-installation-contract).
+
+For checkout-based development, `npm link` and `arch --help` remain supported.
+Alternatively, use [mise](https://mise.jdx.dev/installing-mise.html) and
+`mise run bootstrap` before linking. The package stays private; nothing is published.
+Development npm shims require npm's executable directory on PATH; Windows execution
+policy may require `arch.cmd`.
+
+Development-generated routes still capture the checkout and initializing Node;
+keep both available for those routes. Stable-generated routes point to the installed
+bootstrap and survive source relocation and explicit Arch Node replacement.
+Keep the stable snapshot available while projects reference it. Rebuild with `npm run build` after source changes.
 The direct invocation also works: `node /absolute/path/to/arch/dist/cli.js --help`.
 Switching Node/npm prefixes can hide the development link; it is not a stable install.
 
@@ -97,7 +113,9 @@ npm run test:wizard
 ```
 
 Tests need mise on PATH (or an absolute `MISE_BIN`). Windows fixtures need the .NET
-Framework C# compiler. No AI CLI or credentials are used. The mandatory portability
+Framework C# compiler; stable bootstrap tests also require the Visual C++ build above.
+`npm run test:stable` exercises installation, relocation, runtime isolation and real
+installer interruption. No AI CLI or credentials are used. The mandatory portability
 CI provisions additional real runtimes; normal local tests skip those opt-in cases.
 
 - [Architecture and ownership contracts](docs/architecture.md)

@@ -167,6 +167,18 @@ totals must match the actual assertion records; totals alone cannot hide omissio
 
 ## Completion evidence
 
+B2 adds `npm run test:mutation:stable` to relevant quality measurements and source
+completeness validation. The whole installer, stable-layout and runtime-version
+modules are included; existing pilots/thresholds remain intact. Its initial
+numerical targets remain nonblocking pending reviewed platform evidence, rather
+than treating timeout-inclusive Stryker scores as assertion success. The Windows
+pilot took approximately four minutes, including real filesystem/subprocess costs;
+the hosted measurement job retains its existing budget and publishes counts.
+The mandatory portability matrix additionally runs stable installation, public
+npm command, source relocation and real interruption contracts on all three OSes.
+Its summary rejects missing, skipped, truncated or incomplete stable reports.
+`M2.2 runtime portability required` and branch protection are unchanged.
+
 `npm run check:reliability` rejects missing, malformed, truncated, duplicate or
 failing first-attempt uninstall evidence. Four profiles must contain all 96
 operations and completed teardown. CI also requires the integration JSON report

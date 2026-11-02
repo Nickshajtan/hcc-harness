@@ -315,7 +315,16 @@ export function example(): ArchMiddleware {
 Register `['example', example]`; factories must create execution-local state.
 Programmatic consumers may pass a registry and observe the per-execution bus through
 `execute()`. Current APIs, not the retired milestone spec, define the contract.
-M2.2 B1 is verified feasibility; B2 remains planned and requires separate approval.
+M2.2 B1 is verified feasibility. B2 adds explicit stable installation and independent
+entrypoints, with acceptance evidence recorded separately in the quality baseline.
+`installation/stable-install.ts` owns destination reservation, npm production
+materialization, verification and readiness publication; it retains failed trees.
+`installation/stable-layout.ts` selects stable rendering only for completed
+same-platform snapshots. Renderer hashes and historical ownership rules remain
+separate. `cli.ts` checks the actual executing engine before importing `cli/main.ts`;
+Core and native process policy are unchanged. POSIX entrypoints exec the selected
+runtime; Windows builds the existing narrow native bootstrap with its stable entry.
+See the [installation layout and safety boundary](runtime-portability.md#stable-installation-contract).
 The [active portability design](runtime-portability.md) records those boundaries.
 Provider SDKs/loops, dynamic downloads, remote events, storage, MCP/skills/context,
 sandbox/DLP/budget systems, persistence and orchestration remain outside this MVP.
