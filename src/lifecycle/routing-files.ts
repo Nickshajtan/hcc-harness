@@ -44,7 +44,7 @@ export async function publishExclusive(root: string, stage: string, target: stri
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code ?? 'unknown error';
     throw new Error(
-      `Unable to publish ${target} exclusively (${code}). Routing reconciliation requires hard-link support; exFAT does not provide it, and other filesystems or mounts may also lack it. Use a hard-link-capable local filesystem such as NTFS, APFS, or ext4 where supported and configured appropriately. Also check destination collisions and permissions. No fallback was attempted; existing owned files were not overwritten. Preserve any staging/journal files and use status to inspect recovery`,
+      `Unable to publish ${target} exclusively (${code}). Project-local publication requires hard-link support; exFAT does not provide it, and other filesystems or mounts may also lack it. Use a hard-link-capable local filesystem such as NTFS, APFS, or ext4 where supported and configured appropriately. Also check destination collisions and permissions. No fallback was attempted; existing owned files were not overwritten. Preserve any staging/journal files and use status to inspect recovery`,
       { cause: error },
     );
   }

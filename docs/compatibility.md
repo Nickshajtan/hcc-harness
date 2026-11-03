@@ -44,14 +44,15 @@ the already-owned manifest is replaced with same-directory staged rename after
 validation. Ordinary rename has no portable no-replace guarantee; exclusive copy
 can expose incomplete bytes. No copy, exclusive-write or alternate fallback is used.
 
-**exFAT is unsupported for route reconciliation.** Other filesystems, mounts,
+**exFAT is unsupported for initial setup and route reconciliation.** Other filesystems, mounts,
 permissions or configurations can also prevent hard links. Arch attempts the
 capability rather than inferring support from OS/volume names. Prefer a local NTFS,
 APFS or ext4 filesystem where supported and configured appropriately. EPERM alone
 does not prove a filesystem lacks hard links: check collisions and permissions too.
 
-Initial M1-style init, unchanged desired routes and ordinary deinit do not inherently
-need hard links. Pending routing recovery is different: deinit completes the update
+Initial setup now uses the same staged publication boundary; see
+[setup publication safety](fs-1.0a-setup-publication.md). Unchanged desired routes
+and ordinary deinit do not inherently need hard links. Pending routing recovery is different: deinit completes the update
 first and may need links. npm CLI installation is separate from these operations.
 
 If initial journal publication fails, old routes and ownership remain intact; an
@@ -88,6 +89,6 @@ CLI integration are separate milestones.
 Stable installation does not need hard links: exclusive destination reservation
 and completion-directory publication provide its no-clobber boundary. The parent
 must be trusted and free of symlinks. Failed/incomplete trees are retained for
-inspection, never recursively rolled back. Routing reconciliation still requires
+inspection, never recursively rolled back. Initial project setup and routing reconciliation still require
 hard links, including when initiated from a stable snapshot; no fallback was added.
 No power-loss durability or adversarial same-user filesystem-race protection is claimed.

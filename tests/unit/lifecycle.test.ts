@@ -39,6 +39,7 @@ beforeEach(async () => {
   await mkdir('.test-state', { recursive: true });
   root = await mkdtemp(join(tmpdir(), 'arch-lifecycle-'));
   await setup(root, ['tool', 'other']);
+  vi.clearAllMocks();
 });
 afterEach(async () => {
   await rm(root, { recursive: true, force: true });
@@ -122,7 +123,7 @@ it.each(['ENOTSUP', 'EOPNOTSUPP', 'ENOSYS', 'EPERM'])(
     await writeFile(join(root, 'unrelated.txt'), 'keep');
     vi.mocked(link).mockRejectedValue(Object.assign(new Error('hard links unsupported'), { code }));
     await expect(reconcileRoutes(root, ['newtool'])).rejects.toThrow(
-      `exclusively (${code}). Routing reconciliation requires hard-link support; exFAT`,
+      `exclusively (${code}). Project-local publication requires hard-link support; exFAT`,
     );
     expect(link).toHaveBeenCalledTimes(1);
     expect(rename).not.toHaveBeenCalled();
@@ -142,12 +143,13 @@ it.each(['ENOTSUP', 'EOPNOTSUPP', 'ENOSYS', 'EPERM'])(
   },
 );
 
-it('initializes and deinitializes without calling hard-link publication', async () => {
+it('deinitializes without hard links and fails closed on fresh setup', async () => {
   vi.mocked(link).mockRejectedValue(new Error('unsupported'));
   await deinitialize(root);
-  await setup(root, ['tool']);
-  await deinitialize(root);
   expect(link).not.toHaveBeenCalled();
+  await expect(setup(root, ['tool'])).rejects.toThrow('requires hard-link support');
+  await expect(readFile(stateFile())).rejects.toMatchObject({ code: 'ENOENT' });
+  expect((await inspectInstallation(root)).state).toBe('uninitialized');
 });
 
 it('preserves recovery evidence and all old routes when capability fails after journal publication', async () => {
