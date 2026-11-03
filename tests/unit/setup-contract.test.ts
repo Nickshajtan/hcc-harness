@@ -19,7 +19,7 @@ import { setup, uninstall, configText } from '../../src/setup.js';
 // Native consuming publication is covered separately, without this override.
 vi.mock('../../src/lifecycle/native-publication.js', async (original) => ({
   ...(await original<typeof import('../../src/lifecycle/native-publication.js')>()),
-  nativePublication: false,
+  usesNativePublication: () => false,
 }));
 
 vi.mock('node:fs/promises', async (original) => {

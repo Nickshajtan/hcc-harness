@@ -54,6 +54,9 @@ the source name must be absent. Both NTFS and exFAT handle probes demonstrated
 this attribution, including cross-directory moves. Matching foreign bytes alone
 never qualify. A lost reply can be resolved only with this object provenance.
 The returned final identity updates setup's rollback evidence.
+Resolved helper failures remain attached to the publication result and are emitted
+as `ARCH_PUBLICATION_RESPONSE` warnings with the original cause; a successful
+filesystem attribution does not silently erase transport failure evidence.
 
 If provenance or inspection is indeterminate, the adapter raises an unknown-outcome
 error. Setup preserves **all** resources and private stages, without retry or
@@ -88,6 +91,9 @@ No generated executable is committed.
 The existing `build:bootstrap` preparation also builds this independent resource;
 the bootstrap executable has no publication verb or dependency on the helper.
 Build provenance records protocol, binary/source hashes, SDK and compiler flags.
+It records the actual MSVC toolset/SDK reported by vcvars and refuses a requested
+SDK mismatch. The local verified toolset is 14.16.27023 with SDK 10.0.17763.0;
+two `/Brepro` builds produced the identical helper SHA-256.
 The stable installer copies the built helper/provenance into the application
 vendor closure, verifies the binary hash, and performs an actual protocol/move
 probe before hashing resources and publishing `.arch-ready`. Installation hashes

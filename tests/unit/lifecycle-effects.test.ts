@@ -27,7 +27,7 @@ import { stage, removeOptional, publishExclusive } from '../../src/lifecycle/rou
 
 vi.mock('../../src/lifecycle/native-publication.js', async (original) => ({
   ...(await original<typeof import('../../src/lifecycle/native-publication.js')>()),
-  nativePublication: false,
+  usesNativePublication: () => false,
 }));
 
 vi.mock('node:fs/promises', async (original) => {

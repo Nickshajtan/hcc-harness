@@ -29,7 +29,11 @@ it('passes absolute paths and literal arguments without a shell', async () => {
 it('refuses PATH lookup for the helper', async () => {
   await expect(
     invokePublicationHelper('node', join(root, 'stage'), join(root, 'target')),
-  ).rejects.toMatchObject({ kind: 'invalid-input', outcome: 'not-published' });
+  ).rejects.toMatchObject({
+    kind: 'invalid-input',
+    outcome: 'not-published',
+    message: 'Publication helper path must be absolute',
+  });
 });
 it.each([
   ['malformed', `console.log('invalid output');`, 'protocol'],

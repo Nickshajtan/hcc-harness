@@ -5,7 +5,9 @@ import { isAbsolute, toNamespacedPath } from 'node:path';
 import { digest } from './manifest.js';
 import { installationKind, snapshotRoot } from '../installation/stable-layout.js';
 
-export const nativePublication = 'win32' === process.platform;
+export function usesNativePublication(): boolean {
+  return 'win32' === process.platform;
+}
 
 export type PublicationFailure =
   | 'collision'

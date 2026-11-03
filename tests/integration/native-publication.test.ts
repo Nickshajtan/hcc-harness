@@ -68,7 +68,16 @@ describe.skipIf('win32' !== process.platform || 'x64' !== process.arch)(
           renameNoReplace(join(root, 'stage'), join(root, 'target')),
         ).rejects.toMatchObject({ kind: 'collision', outcome: 'not-published', win32: 183 });
         expect(await readFile(join(root, 'stage'), 'utf8')).toBe('complete');
-        expect((await lstat(join(root, 'target'), { bigint: true })).ino).toBe(before.ino);
+        expect(await lstat(join(root, 'target'), { bigint: true })).toMatchObject({
+          dev: before.dev,
+          ino: before.ino,
+          mode: before.mode,
+          uid: before.uid,
+          gid: before.gid,
+          birthtimeNs: before.birthtimeNs,
+          mtimeNs: before.mtimeNs,
+          ctimeNs: before.ctimeNs,
+        });
         if ('directory' !== kind) {
           expect(await readFile(join(root, 'target'), 'utf8')).toBe(
             'same' === kind ? 'complete' : 'foreign',
@@ -77,6 +86,10 @@ describe.skipIf('win32' !== process.platform || 'x64' !== process.arch)(
       },
     );
     it('retains original missing-source and invalid-input errors', async () => {
+      await mkdir(join(root, 'source-directory'));
+      await expect(
+        renameNoReplace(join(root, 'source-directory'), join(root, 'target')),
+      ).rejects.toMatchObject({ kind: 'invalid-input', outcome: 'not-published', win32: 87 });
       await expect(renameNoReplace('relative', join(root, 'target'))).rejects.toMatchObject({
         kind: 'invalid-input',
         outcome: 'not-published',
@@ -152,6 +165,7 @@ describe.skipIf('win32' !== process.platform || 'x64' !== process.arch)(
       await writeFile(join(root, 'stage'), bytes);
       const source = `import {readFile} from 'node:fs/promises';
         const path=process.argv[1];
+        setTimeout(()=>{console.error('Publication reader deadline exceeded');process.exit(2);},15000).unref();
         try{await readFile(path);throw new Error('Target already exists');}catch(e){if(e.code!=='ENOENT')throw e;}
         process.send('ready');process.once('message',async()=>{
           for(;;){try{const bytes=await readFile(path);if(bytes.length!==4*1024*1024 || bytes.some(b=>b!==0x5a))throw new Error('Partial target');process.exit(0);}catch(e){if(e.code!=='ENOENT')throw e;}}
@@ -240,10 +254,22 @@ describe.skipIf('win32' !== process.platform || 'x64' !== process.arch)(
         try {
           await Promise.all(children.map((c) => c.ready));
           children.forEach((c) => c.child.send('go'));
-          expect((await Promise.all(children.map((c) => c.closed))).sort()).toEqual([0, 1]);
-          expect(['first', 'identical' === kind ? 'first' : 'second', 'external']).toContain(
-            await readFile(target, 'utf8'),
-          );
+          const results = await Promise.all(children.map((c) => c.closed));
+          expect([...results].sort()).toEqual([0, 1]);
+          let winner = 'first';
+          if (0 !== results[0] && 'identical' !== kind) {
+            winner = 'external' === kind ? 'external' : 'second';
+          }
+          expect(await readFile(target, 'utf8')).toBe(winner);
+          if (0 === results[0]) {
+            await expect(lstat(first)).rejects.toMatchObject({ code: 'ENOENT' });
+            expect(await readFile(second, 'utf8')).toBe('identical' === kind ? 'first' : 'second');
+          } else {
+            expect(await readFile(first, 'utf8')).toBe('first');
+            if ('external' !== kind) {
+              await expect(lstat(second)).rejects.toMatchObject({ code: 'ENOENT' });
+            }
+          }
         } finally {
           for (const c of children) {
             if (null === c.child.exitCode) {

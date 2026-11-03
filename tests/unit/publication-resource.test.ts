@@ -3,7 +3,11 @@ import { mkdtemp, mkdir, writeFile, rm, symlink, readFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { publicationHelper, renameNoReplace } from '../../src/lifecycle/native-publication.js';
+import {
+  publicationHelper,
+  renameNoReplace,
+  usesNativePublication,
+} from '../../src/lifecycle/native-publication.js';
 import { installationKind } from '../../src/installation/stable-layout.js';
 import { digest } from '../../src/lifecycle/manifest.js';
 
@@ -17,6 +21,7 @@ let root: string;
 const originalPlatform = process.platform,
   originalArch = process.arch;
 beforeEach(async () => {
+  vi.clearAllMocks();
   vi.mocked(readFile).mockImplementation(actual.readFile);
   root = await mkdtemp(join(tmpdir(), 'arch-publication-resource-'));
   // Resource-layout validation is platform-independent I/O; only capability
@@ -24,6 +29,20 @@ beforeEach(async () => {
   Object.defineProperty(process, 'platform', { value: 'win32' });
   Object.defineProperty(process, 'arch', { value: 'x64' });
 });
+it.each(['source', 'destination', 'same-file'])(
+  'rejects invalid %s arguments before helper lookup',
+  async (kind) => {
+    const source = 'source' === kind ? 'relative' : join(root, 'stage');
+    const target =
+      'destination' === kind ? 'relative' : join(root, 'same-file' === kind ? 'stage' : 'target');
+    await expect(renameNoReplace(source, target)).rejects.toMatchObject({
+      kind: 'invalid-input',
+      outcome: 'not-published',
+      message: 'Native publication requires distinct absolute source and destination paths',
+    });
+    expect(readFile).not.toHaveBeenCalled();
+  },
+);
 it('classifies helper resource access failure before process invocation with its original cause', async () => {
   const failure = new Error('package metadata unavailable');
   vi.mocked(readFile).mockRejectedValueOnce(failure);
@@ -31,6 +50,7 @@ it('classifies helper resource access failure before process invocation with its
     kind: 'execution',
     outcome: 'not-published',
     cause: failure,
+    message: 'Publication helper unavailable or invalid; rebuild/install the packaged helper',
   });
 });
 afterEach(async () => {
@@ -65,6 +85,9 @@ it('locates and verifies a relocated stable helper without source paths', async 
 });
 it.each([
   null,
+  true,
+  42,
+  'metadata',
   {},
   { kind: 'wrong', platform: 'win32' },
   { kind: installationKind, platform: 'linux' },
@@ -158,10 +181,18 @@ it.each(['platform', 'architecture'])(
     await expect(publicationHelper()).rejects.toMatchObject({
       kind: 'unsupported',
       outcome: 'not-published',
+      message: 'Native publication requires Windows x64',
     });
     await expect(renameNoReplace(join(root, 'stage'), join(root, 'target'))).rejects.toMatchObject({
       kind: 'unsupported',
       outcome: 'not-published',
     });
+  },
+);
+it.each(['win32', 'linux', 'darwin'] as const)(
+  'selects the publication implementation for %s',
+  (platform) => {
+    Object.defineProperty(process, 'platform', { value: platform });
+    expect(usesNativePublication()).toBe('win32' === platform);
   },
 );

@@ -1,8 +1,9 @@
 import { chmod, link, unlink, writeFile, lstat, open } from 'node:fs/promises';
 import { join, isAbsolute } from 'node:path';
+import { inspect } from 'node:util';
 import { assertSafePath, readOptional } from './ownership.js';
 import { digest } from './manifest.js';
-import { PublicationError, renameNoReplace, nativePublication } from './native-publication.js';
+import { PublicationError, renameNoReplace, usesNativePublication } from './native-publication.js';
 import type { RoutingJournal } from './routing-journal.js';
 export async function readAt(root: string, path: string) {
   await assertSafePath(root, path);
@@ -68,7 +69,7 @@ export async function publishExclusive(
   if (!original.isFile() || bytes === undefined || digest(bytes) !== expectedHash) {
     throw new Error(`Publication stage changed, missing or incomplete: ${stage}`);
   }
-  if (nativePublication) {
+  if (usesNativePublication()) {
     // exFAT file IDs can change across directories. Keep an open read handle to
     // the prepared object, then compare its *post-move* ID with the final name.
     // The writer is already closed; libuv permits delete-sharing on this handle.
@@ -105,6 +106,24 @@ export async function publishExclusive(
           digest((await readAt(root, target)) ?? Buffer.alloc(0)) === expectedHash &&
           (await readAt(root, stage)) === undefined
         ) {
+          if (failure !== undefined) {
+            process.emitWarning(
+              Object.assign(
+                new Error(
+                  `Published ${target} by verified source identity, but the native helper response failed; retain this diagnostic`,
+                  { cause: failure },
+                ),
+                {
+                  name: 'PublicationHelperWarning',
+                  code: 'ARCH_PUBLICATION_RESPONSE',
+                  detail:
+                    inspect(failure, { depth: 4, maxStringLength: 2048 }).slice(0, 8192) +
+                    '\n[bounded diagnostic excerpt; original cause retained]',
+                },
+              ),
+            );
+            return { dev: final.dev, ino: final.ino, helperFailure: failure };
+          }
           return { dev: final.dev, ino: final.ino };
         }
       } catch (error) {

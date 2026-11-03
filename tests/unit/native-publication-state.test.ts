@@ -10,7 +10,7 @@ import {
   lstat,
   open,
 } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { publishExclusive } from '../../src/lifecycle/routing-files.js';
 import {
@@ -31,12 +31,13 @@ const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs
 
 vi.mock('../../src/lifecycle/native-publication.js', async (original) => ({
   ...(await original<typeof import('../../src/lifecycle/native-publication.js')>()),
-  nativePublication: true,
+  usesNativePublication: () => true,
   renameNoReplace: vi.fn(),
 }));
 let root: string;
 const lost = () => new PublicationError('execution', 'response lost', 'unknown');
 beforeEach(async () => {
+  vi.clearAllMocks();
   vi.mocked(open).mockImplementation(actual.open);
   root = await mkdtemp(join(tmpdir(), 'arch-native-state-'));
   vi.mocked(renameNoReplace).mockImplementation(async (source, target) => {
@@ -131,6 +132,9 @@ it.each([
   '',
   'garbage',
   'null',
+  'true',
+  '42',
+  '"text"',
   '[]',
   '{}',
   '{"protocol":2,"win32":0}',
@@ -165,13 +169,38 @@ it('requires OS failure and exit 1 to agree, preserving original OS evidence', (
   const error = Object.assign(new Error('OS failure'), { code: 1 });
   expect(() => {
     verifyPublicationResponse(error, '{"protocol":1,"win32":32}', '');
-  }).toThrow(expect.objectContaining({ kind: 'sharing', outcome: 'not-published', win32: 32 }));
+  }).toThrow(
+    expect.objectContaining({
+      kind: 'sharing',
+      outcome: 'not-published',
+      win32: 32,
+      message: 'Native exclusive publication failed (Win32 32)',
+      cause: { error, stdout: '{"protocol":1,"win32":32}', stderr: '' },
+    }),
+  );
   expect(() => {
     verifyPublicationResponse(null, '{"protocol":1,"win32":32}', '');
   }).toThrow(expect.objectContaining({ outcome: 'unknown' }));
   expect(() => {
     verifyPublicationResponse(null, '{"protocol":1,"win32":0}', 'unexpected stderr');
   }).toThrow(expect.objectContaining({ outcome: 'unknown' }));
+});
+it.each([-1, 4294967296])(
+  'rejects out-of-range OS code %s even when process exit agrees',
+  (code) => {
+    const error = Object.assign(new Error('helper refused'), { code: 1 });
+    expect(() => {
+      verifyPublicationResponse(error, JSON.stringify({ protocol: 1, win32: code }), '');
+    }).toThrow(expect.objectContaining({ kind: 'execution', outcome: 'unknown' }));
+  },
+);
+it('retains the maximum valid DWORD OS error without inventing success', () => {
+  const error = Object.assign(new Error('helper refused'), { code: 1 });
+  expect(() => {
+    verifyPublicationResponse(error, '{"protocol":1,"win32":4294967295}', '');
+  }).toThrow(
+    expect.objectContaining({ kind: 'unknown', outcome: 'not-published', win32: 4294967295 }),
+  );
 });
 it.each([{ killed: true }, { signal: 'SIGKILL' }, { code: 'ENOENT' }] as const)(
   'does not trust an OS refusal reply after process failure %j',
@@ -219,6 +248,38 @@ it.each(['normal', 'lost'])(
     await expect(lstat(join(root, 'stage'))).rejects.toMatchObject({ code: 'ENOENT' });
   },
 );
+it('retains the original helper failure when filesystem attribution resolves publication', async () => {
+  await writeFile(join(root, 'stage'), 'complete');
+  const failure = lost(),
+    warnings: Error[] = [];
+  const observe = (warning: Error) => {
+    if (warning.cause === failure) {
+      warnings.push(warning);
+    }
+  };
+  process.on('warning', observe);
+  try {
+    vi.mocked(renameNoReplace).mockImplementation(async (source, target) => {
+      await rename(source, target);
+      throw failure;
+    });
+    const result = await publishExclusive(root, 'stage', 'target', digest('complete'));
+    expect('helperFailure' in result && result.helperFailure).toBe(failure);
+    await new Promise<void>((done) => {
+      setImmediate(done);
+    });
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatchObject({
+      name: 'PublicationHelperWarning',
+      code: 'ARCH_PUBLICATION_RESPONSE',
+      cause: failure,
+    });
+    expect(warnings[0]?.message).toContain('Published target');
+    expect(warnings[0]).toHaveProperty('detail', expect.stringContaining('response lost'));
+  } finally {
+    process.off('warning', observe);
+  }
+});
 it.each(['missing', 'partial', 'directory'])(
   'rejects mandatory %s stage before invocation',
   async (mode) => {
@@ -272,6 +333,17 @@ it('does not treat an unconsumed stage as publication success', async () => {
   );
   expect(await readFile(join(root, 'stage'), 'utf8')).toBe('complete');
 });
+it('refuses success when an attributed complete target still has the source name', async () => {
+  await writeFile(join(root, 'stage'), 'complete');
+  vi.mocked(renameNoReplace).mockImplementation(async (source, target) => {
+    await actual.link(source, target);
+  });
+  await expect(publishExclusive(root, 'stage', 'target', digest('complete'))).rejects.toMatchObject(
+    { outcome: 'unknown' },
+  );
+  expect(await readFile(join(root, 'stage'), 'utf8')).toBe('complete');
+  expect(await readFile(join(root, 'target'), 'utf8')).toBe('complete');
+});
 it('keeps a definite collision distinct and never adopts matching bytes', async () => {
   await writeFile(join(root, 'stage'), 'complete');
   await writeFile(join(root, 'target'), 'complete');
@@ -311,6 +383,31 @@ it('preserves attributable committed setup when bootstrap response is lost', asy
   await setup(root, ['tool']);
   const manifest = await readFile(join(root, '.arch/bootstrap.json'));
   await checkFiles(root, stateFrom(manifest).files);
+  await setup(root, ['tool']);
+  expect(await readFile(join(root, '.arch/bootstrap.json'))).toEqual(manifest);
+});
+it('preserves committed setup and foreign private residue when actual directory cleanup fails', async () => {
+  let residue: string | undefined;
+  vi.mocked(renameNoReplace).mockImplementation(async (source, target) => {
+    await rename(source, target);
+    if (target.endsWith('bootstrap.json')) {
+      residue = join(dirname(source), 'foreign.txt');
+      await writeFile(residue, 'preserve foreign residue', { flag: 'wx' });
+    }
+  });
+  const error: unknown = await setup(root, ['tool']).catch((failure: unknown) => failure);
+  expect(error).toBeInstanceOf(Error);
+  if (!(error instanceof Error)) {
+    throw new Error('Expected cleanup error');
+  }
+  expect(error.message).toContain('setup committed');
+  expect(error.cause).toMatchObject({ code: 'ENOTEMPTY' });
+  const manifest = await readFile(join(root, '.arch/bootstrap.json'));
+  await checkFiles(root, stateFrom(manifest).files);
+  if (undefined === residue) {
+    throw new Error('Expected retained residue');
+  }
+  expect(await readFile(residue, 'utf8')).toBe('preserve foreign residue');
   await setup(root, ['tool']);
   expect(await readFile(join(root, '.arch/bootstrap.json'))).toEqual(manifest);
 });
