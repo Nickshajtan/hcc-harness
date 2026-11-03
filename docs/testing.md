@@ -145,6 +145,13 @@ gate. JSON and Actions summaries show PASS / FAIL / NOT TESTED. Ordinary local r
 explicitly skip provisioned runtime tests without their opt-in variables; those
 skips are not portability evidence. Keep all three workflows and required names.
 
+Arch checks and runtime portability pin the `macos-latest` matrix entry to the
+supported `macos-15` ARM64 image after repeated macOS 26 runner-acquisition
+failures. The matrix/check names remain stable; an explicit architecture check
+requires `arm64`. This changes the tested macOS release, not the CPU coverage or
+test gates. See GitHub's [runner labels](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
+Hosted capacity remains external; an unassigned runner is not a test pass.
+
 Important inspected baseline evidence (feasibility, not production portability):
 
 | Area                                                                                | Result     | CI evidence                                                                                                                                              |

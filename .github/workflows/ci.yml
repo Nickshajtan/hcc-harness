@@ -8,11 +8,19 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+        include:
+          # Keep the check name; avoid the macOS 26 pool that failed runner acquisition.
+          - os: macos-latest
+            runner: macos-15
+    runs-on: ${{ matrix.runner || matrix.os }}
     env:
       ARCH_RELIABILITY_DIRECTORY: reports/uninstall-stress/${{ github.run_id }}-${{ github.run_attempt }}
       ARCH_RELIABILITY_TEST_REPORT: .test-state/m2-integration.json
     steps:
+      - name: Verify macOS ARM64 coverage
+        if: runner.os == 'macOS'
+        shell: bash
+        run: test "$(uname -m)" = arm64
       - uses: actions/checkout@v6
       - uses: jdx/mise-action@v4
         with:
