@@ -43,7 +43,7 @@ is checked again before `publishExclusive()` publishes it. Bootstrap remains las
 There is one shared publication primitive for setup and routing reconciliation.
 
 Before commit, only successfully published resources enter the rollback list.
-Rollback runs in reverse order, checks safe paths, original file identity and exact
+Rollback runs in reverse order, checks safe paths, original file identity (using exact bigint device/inode values) and exact
 intended digest, and stops on the first failure. Changed/replaced resources remain
 untouched. Both errors remain available through `AggregateError([original, cleanup])`
 with the initiating failure as cause. Publication errors retain the original OS

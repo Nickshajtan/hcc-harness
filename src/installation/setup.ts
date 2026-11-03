@@ -20,15 +20,18 @@ interface PreparedFile {
   file: string;
   stage: string;
   hash: string;
-  dev: number;
-  ino: number;
+  dev: bigint;
+  ino: bigint;
 }
 
 // Private stages and published rollback targets need both invocation provenance
 // and unchanged bytes. Matching renderer bytes alone never authorize removal.
 async function verifySetupOwnership(root: string, resource: PreparedFile, path: string) {
   await assertSafePath(root, path);
-  const [identity, bytes] = await Promise.all([lstat(join(root, path)), readAt(root, path)]);
+  const [identity, bytes] = await Promise.all([
+    lstat(join(root, path), { bigint: true }),
+    readAt(root, path),
+  ]);
   if (
     identity.dev !== resource.dev ||
     identity.ino !== resource.ino ||
@@ -114,7 +117,7 @@ export async function setup(root: string, commands: readonly string[]): Promise<
           `Setup staging file changed or incomplete: ${stage}; preserve for inspection`,
         );
       }
-      const { dev, ino } = await lstat(staged);
+      const { dev, ino } = await lstat(staged, { bigint: true });
       prepared.push({ file, stage, hash, dev, ino });
     }
     for (const resource of prepared) {
