@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { mkdir, mkdtemp, readFile, rename, rm, unlink, writeFile } from 'node:fs/promises';
-import { resolve, join } from 'node:path';
+import { mkdtemp, readFile, rename, rm, unlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { setup, uninstall } from '../../src/setup.js';
 
 vi.mock('node:fs/promises', async (importOriginal) => {
@@ -11,8 +12,7 @@ const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs
 let root: string;
 beforeEach(async () => {
   vi.mocked(unlink).mockImplementation(actual.unlink);
-  await mkdir('.test-state', { recursive: true });
-  root = await mkdtemp(resolve('.test-state/uninstall-'));
+  root = await mkdtemp(join(tmpdir(), 'arch-uninstall-'));
   await setup(root, ['tool']);
 });
 afterEach(async () => {

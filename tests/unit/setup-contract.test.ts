@@ -1,5 +1,16 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { mkdir, mkdtemp, readFile, rm, writeFile, unlink, rename } from 'node:fs/promises';
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+  unlink,
+  rename,
+  link,
+  readdir,
+  chmod,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setup, uninstall, configText } from '../../src/setup.js';
@@ -11,6 +22,8 @@ vi.mock('node:fs/promises', async (original) => {
     writeFile: vi.fn(actual.writeFile),
     unlink: vi.fn(actual.unlink),
     rename: vi.fn(actual.rename),
+    link: vi.fn(actual.link),
+    chmod: vi.fn(actual.chmod),
   };
 });
 const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises');
@@ -20,6 +33,8 @@ beforeEach(async () => {
   vi.mocked(writeFile).mockImplementation(actual.writeFile);
   vi.mocked(unlink).mockImplementation(actual.unlink);
   vi.mocked(rename).mockImplementation(actual.rename);
+  vi.mocked(link).mockImplementation(actual.link);
+  vi.mocked(chmod).mockImplementation(actual.chmod);
 });
 afterEach(async () => {
   await rm(root, { recursive: true, force: true });
@@ -30,15 +45,15 @@ it('rolls back only resources created by this initialization and preserves the o
   const harness = join(root, '.arch/harness.toml');
   await actual.writeFile(harness, 'schema=1\n# user configuration\nmiddleware=[]\n');
   await actual.writeFile(join(root, 'user.txt'), 'keep');
-  const failure = new Error('write failure');
+  const failure = new Error('publication failure');
   let writes = 0;
-  vi.mocked(writeFile).mockImplementation(async (...args) => {
+  vi.mocked(link).mockImplementation(async (...args) => {
     if (3 === ++writes) {
       throw failure;
     }
-    await actual.writeFile(...args);
+    await actual.link(...args);
   });
-  await expect(setup(root, ['tool'])).rejects.toBe(failure);
+  await expect(setup(root, ['tool'])).rejects.toMatchObject({ cause: failure });
   expect(vi.mocked(unlink).mock.calls.map(([path]) => path)).toEqual([
     join(root, '.arch/bin/.arch-router'),
     join(root, '.config/mise/conf.d/arch.toml'),
@@ -53,11 +68,11 @@ it('preserves primary and cleanup identities in rollback failure order and retai
   const writeError = new Error('initial write failure');
   const cleanupError = new Error('rollback removal failure');
   let writes = 0;
-  vi.mocked(writeFile).mockImplementation(async (...args) => {
+  vi.mocked(link).mockImplementation(async (...args) => {
     if (3 === ++writes) {
       throw writeError;
     }
-    await actual.writeFile(...args);
+    await actual.link(...args);
   });
   vi.mocked(unlink).mockRejectedValue(cleanupError);
   const result: unknown = await setup(root, ['tool']).catch((error: unknown) => error);
@@ -65,10 +80,9 @@ it('preserves primary and cleanup identities in rollback failure order and retai
   if (!(result instanceof AggregateError)) {
     throw new Error('Expected both setup and cleanup failures');
   }
-  expect(result.errors).toEqual([writeError, cleanupError]);
-  expect(result.errors[0]).toBe(writeError);
+  expect(result.errors[0]).toMatchObject({ cause: writeError });
   expect(result.errors[1]).toBe(cleanupError);
-  expect(result.cause).toBe(writeError);
+  expect(result.cause).toBe(result.errors[0]);
   // The CLI already prints message + cause; retain the cleanup detail there too.
   expect(result.message).toBe(
     'Arch setup and rollback cleanup failed: Error: rollback removal failure',
@@ -84,17 +98,17 @@ it('preserves primary and cleanup identities in rollback failure order and retai
 it('rolls back in reverse creation order when publishing the final manifest fails', async () => {
   const failure = Object.assign(new Error('manifest disk full'), { code: 'ENOSPC' });
   const created: string[] = [];
-  vi.mocked(writeFile).mockImplementation(async (path, bytes, options) => {
+  vi.mocked(link).mockImplementation(async (stage, path) => {
     if (path === join(root, '.arch/bootstrap.json')) {
       throw failure;
     }
-    await actual.writeFile(path, bytes, options);
+    await actual.link(stage, path);
     if ('string' !== typeof path) {
       throw new Error('Setup must use an explicit managed path');
     }
     created.push(path);
   });
-  await expect(setup(root, ['tool'])).rejects.toBe(failure);
+  await expect(setup(root, ['tool'])).rejects.toMatchObject({ cause: failure });
   expect(vi.mocked(unlink).mock.calls.map(([path]) => path)).toEqual([...created].reverse());
   for (const path of created) {
     await expect(readFile(path)).rejects.toMatchObject({ code: 'ENOENT' });
@@ -109,7 +123,9 @@ it('retains owned resources if uninstall cannot persist its checkpoint', async (
     message: `Unable to start uninstall: ${join(root, '.arch/bootstrap.json')}`,
     cause: failure,
   });
-  expect(unlink).not.toHaveBeenCalled();
+  expect(
+    vi.mocked(unlink).mock.calls.filter(([path]) => !String(path).includes('.setup-')),
+  ).toEqual([]);
   expect(await readFile(join(root, '.arch/bootstrap.json'))).toEqual(before);
   expect(await readFile(join(root, '.arch/harness.toml'), 'utf8')).toBe(configText);
 });
@@ -119,4 +135,198 @@ it('refuses invalid preexisting middleware before creating routing files', async
   await expect(setup(root, ['tool'])).rejects.toThrow();
   expect(writeFile).not.toHaveBeenCalled();
   expect(await readFile(join(root, '.arch/harness.toml'), 'utf8')).toBe('broken = [');
+});
+
+it.each(['partial', 'invalid', 'throw'])(
+  'never exposes final bytes after a %s stage write',
+  async (mode) => {
+    const failure = new Error('stage interrupted');
+    vi.mocked(writeFile).mockImplementation(async (path, bytes, options) => {
+      await expect(readFile(join(root, '.config/mise/conf.d/arch.toml'))).rejects.toMatchObject({
+        code: 'ENOENT',
+      });
+      if ('throw' === mode) {
+        throw failure;
+      }
+      await actual.writeFile(path, 'partial' === mode ? '# G' : 'invalid', options);
+    });
+    if ('throw' === mode) {
+      await expect(setup(root, ['tool'])).rejects.toBe(failure);
+    } else {
+      await expect(setup(root, ['tool'])).rejects.toThrow('staging file changed or incomplete');
+    }
+    await expect(readFile(join(root, '.arch/bootstrap.json'))).rejects.toMatchObject({
+      code: 'ENOENT',
+    });
+    expect(link).not.toHaveBeenCalled();
+    expect((await readdir(join(root, '.arch'))).some((name) => name.startsWith('.setup-'))).toBe(
+      true,
+    );
+  },
+);
+
+it('checks every staged payload and permissions before any final path becomes visible', async () => {
+  const expected = new Map<string, Buffer>();
+  vi.mocked(writeFile).mockImplementation(async (path, bytes, options) => {
+    expect(typeof path).toBe('string');
+    if ('string' !== typeof path) {
+      throw new Error('Expected stage path');
+    }
+    expect(path).toContain('.setup-');
+    await actual.writeFile(path, bytes, options);
+  });
+  vi.mocked(link).mockImplementation(async (stage, target) => {
+    const bytes = await readFile(stage);
+    expected.set(String(target), bytes);
+    await expect(readFile(target)).rejects.toMatchObject({ code: 'ENOENT' });
+    await actual.link(stage, target);
+    expect(await readFile(target)).toEqual(bytes);
+    if ('win32' !== process.platform && String(target).includes(join('.arch', 'bin'))) {
+      expect((await actual.stat(target)).mode & 0o777).toBe(0o755);
+    }
+  });
+  await setup(root, ['tool']);
+  expect(expected.size).toBe('win32' === process.platform ? 6 : 5);
+  expect([...expected.keys()].at(-1)).toBe(join(root, '.arch/bootstrap.json'));
+  const manifest = await readFile(join(root, '.arch/bootstrap.json'));
+  await setup(root, ['tool']);
+  expect(await readFile(join(root, '.arch/bootstrap.json'))).toEqual(manifest);
+  expect((await readdir(join(root, '.arch'))).filter((name) => name.startsWith('.setup-'))).toEqual(
+    [],
+  );
+});
+
+it.skipIf('win32' === process.platform)(
+  'prepares permissions before publication and preserves a chmod failure',
+  async () => {
+    const failure = Object.assign(new Error('chmod denied'), { code: 'EACCES' });
+    vi.mocked(chmod).mockRejectedValue(failure);
+    await expect(setup(root, ['tool'])).rejects.toBe(failure);
+    expect(link).not.toHaveBeenCalled();
+  },
+);
+
+it('refuses a stage changed after preparation', async () => {
+  vi.mocked(link).mockImplementation(async (stage, target) => {
+    await actual.link(stage, target);
+    const directory = String(stage).replace(/[\\/]0$/, '');
+    await actual.writeFile(join(directory, '1'), 'modified stage');
+  });
+  await expect(setup(root, ['tool'])).rejects.toThrow('staging file changed or incomplete');
+  await expect(readFile(join(root, '.config/mise/conf.d/arch.toml'))).rejects.toMatchObject({
+    code: 'ENOENT',
+  });
+  expect(link).toHaveBeenCalledTimes(1);
+});
+
+it('preserves a substituted target during rollback even when its bytes match', async () => {
+  let published: string | undefined;
+  vi.mocked(link).mockImplementation(async (stage, target) => {
+    if (published !== undefined) {
+      const bytes = await readFile(published);
+      await actual.unlink(published);
+      await actual.writeFile(published, bytes);
+      throw new Error('late failure');
+    }
+    await actual.link(stage, target);
+    published = String(target);
+  });
+  await expect(setup(root, ['tool'])).rejects.toThrow('rollback cleanup failed');
+  expect(await readFile(join(root, '.config/mise/conf.d/arch.toml'), 'utf8')).toContain(
+    'Generated by Arch',
+  );
+});
+
+it('retains committed resources and reports cleanup failure after bootstrap publication', async () => {
+  const failure = new Error('stage cleanup locked');
+  vi.mocked(unlink).mockRejectedValue(failure);
+  const result: unknown = await setup(root, ['tool']).catch((error: unknown) => error);
+  expect(result).toBeInstanceOf(Error);
+  if (!(result instanceof Error) || !(result.cause instanceof Error)) {
+    throw new Error('Expected cleanup failure');
+  }
+  expect(result.message).toContain('setup committed');
+  expect(result.cause.cause).toBe(failure);
+  const manifest = await readFile(join(root, '.arch/bootstrap.json'));
+  await setup(root, ['tool']);
+  expect(await readFile(join(root, '.arch/bootstrap.json'))).toEqual(manifest);
+});
+
+it('preserves identical foreign bytes without adopting them', async () => {
+  await mkdir(join(root, '.config/mise/conf.d'), { recursive: true });
+  const path = join(root, '.config/mise/conf.d/arch.toml');
+  const bytes = '# Generated by Arch.\n[env]\n_.path = ["{{config_root}}/.arch/bin"]\n';
+  await actual.writeFile(path, bytes);
+  const before = await actual.stat(path);
+  await expect(setup(root, ['tool'])).rejects.toThrow('Refusing to overwrite');
+  expect(await readFile(path, 'utf8')).toBe(bytes);
+  expect((await actual.stat(path)).ino).toBe(before.ino);
+  expect(link).not.toHaveBeenCalled();
+});
+
+it('preserves a stage write permission failure without publishing anything', async () => {
+  const failure = Object.assign(new Error('stage permission denied'), { code: 'EACCES' });
+  vi.mocked(writeFile).mockRejectedValue(failure);
+  await expect(setup(root, ['tool'])).rejects.toBe(failure);
+  expect(link).not.toHaveBeenCalled();
+});
+
+it('refuses a missing prepared stage before exposing its target', async () => {
+  vi.mocked(link).mockImplementation(async (stage, target) => {
+    await actual.link(stage, target);
+    await actual.unlink(String(stage).replace(/[\\/]0$/, '/1'));
+  });
+  await expect(setup(root, ['tool'])).rejects.toThrow('staging file changed or incomplete');
+  await expect(readFile(join(root, '.arch/bin/.arch-router'))).rejects.toMatchObject({
+    code: 'ENOENT',
+  });
+  await expect(readFile(join(root, '.config/mise/conf.d/arch.toml'))).rejects.toMatchObject({
+    code: 'ENOENT',
+  });
+});
+
+it('preserves edited published bytes when rollback cannot prove ownership', async () => {
+  let count = 0;
+  vi.mocked(link).mockImplementation(async (stage, target) => {
+    if (1 === count++) {
+      await actual.writeFile(join(root, '.config/mise/conf.d/arch.toml'), 'foreign edit');
+      throw new Error('publication interrupted');
+    }
+    await actual.link(stage, target);
+  });
+  await expect(setup(root, ['tool'])).rejects.toThrow('rollback cleanup failed');
+  expect(await readFile(join(root, '.config/mise/conf.d/arch.toml'), 'utf8')).toBe('foreign edit');
+});
+
+it('preserves a foreign replacement of a private stage during committed cleanup', async () => {
+  let firstStage: string | undefined;
+  vi.mocked(link).mockImplementation(async (stage, target) => {
+    firstStage ??= String(stage);
+    await actual.link(stage, target);
+    if (String(target).endsWith('bootstrap.json')) {
+      const bytes = await readFile(firstStage);
+      await actual.unlink(firstStage);
+      await actual.writeFile(firstStage, bytes);
+    }
+  });
+  await expect(setup(root, ['tool'])).rejects.toThrow('setup committed');
+  if (firstStage === undefined) {
+    throw new Error('Expected stage');
+  }
+  expect(await readFile(firstStage, 'utf8')).toContain('Generated by Arch');
+  expect(await readFile(join(root, '.config/mise/conf.d/arch.toml'), 'utf8')).toContain(
+    'Generated by Arch',
+  );
+});
+
+it('tolerates a consuming shared publication primitive without changing setup ownership', async () => {
+  vi.mocked(link).mockImplementation(async (stage, target) => {
+    await actual.link(stage, target);
+    await actual.unlink(stage);
+  });
+  await setup(root, ['tool']);
+  expect(await readFile(join(root, '.arch/bootstrap.json'), 'utf8')).toContain('files');
+  expect((await readdir(join(root, '.arch'))).filter((name) => name.startsWith('.setup-'))).toEqual(
+    [],
+  );
 });

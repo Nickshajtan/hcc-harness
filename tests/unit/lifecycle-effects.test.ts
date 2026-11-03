@@ -50,6 +50,7 @@ beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), 'arch-effect-contract-'));
   await setup(root, ['retained', 'removed']);
   await actual.writeFile(file('user.txt'), 'unrelated');
+  vi.clearAllMocks();
 });
 afterEach(async () => {
   await rm(root, { recursive: true, force: true });
@@ -413,13 +414,13 @@ it('preserves initial exclusive creation against a late destination collision', 
   const fresh = file('fresh');
   await mkdir(fresh);
   const collision = join(fresh, '.config/mise/conf.d/arch.toml');
-  vi.mocked(writeFile).mockImplementation(async (target, bytes, options) => {
+  vi.mocked(link).mockImplementation(async (stage, target) => {
     if (target === collision) {
       await actual.writeFile(target, 'unowned integration', { flag: 'wx' });
     }
-    await actual.writeFile(target, bytes, options);
+    await actual.link(stage, target);
   });
-  await expect(setup(fresh, ['tool'])).rejects.toMatchObject({ code: 'EEXIST' });
+  await expect(setup(fresh, ['tool'])).rejects.toMatchObject({ cause: { code: 'EEXIST' } });
   expect(await readFile(collision, 'utf8')).toBe('unowned integration');
   await expect(readFile(join(fresh, '.arch/bootstrap.json'))).rejects.toMatchObject({
     code: 'ENOENT',

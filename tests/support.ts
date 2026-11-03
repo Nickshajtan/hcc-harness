@@ -9,6 +9,7 @@ import {
   lstat,
   readdir,
 } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { resolve, join, dirname, delimiter } from 'node:path';
@@ -235,7 +236,7 @@ export function stop(child: ChildProcess) {
   child.kill('SIGTERM');
 }
 
-export async function world(temporary = resolve('.test-state/fixtures')) {
+export async function world(temporary = tmpdir()) {
   await mkdir(temporary, { recursive: true });
   const root = await mkdtemp(join(temporary, 'arch-fixture-'));
   try {
