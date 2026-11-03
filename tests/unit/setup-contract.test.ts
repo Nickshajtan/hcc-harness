@@ -159,6 +159,7 @@ it.each(['partial', 'invalid', 'throw'])(
       code: 'ENOENT',
     });
     expect(link).not.toHaveBeenCalled();
+    expect(writeFile).toHaveBeenCalledTimes(1);
     expect((await readdir(join(root, '.arch'))).some((name) => name.startsWith('.setup-'))).toBe(
       true,
     );
@@ -294,7 +295,18 @@ it('preserves edited published bytes when rollback cannot prove ownership', asyn
     }
     await actual.link(stage, target);
   });
-  await expect(setup(root, ['tool'])).rejects.toThrow('rollback cleanup failed');
+  const result: unknown = await setup(root, ['tool']).catch((error: unknown) => error);
+  expect(result).toBeInstanceOf(AggregateError);
+  if (!(result instanceof AggregateError)) {
+    throw new Error('Expected rollback refusal');
+  }
+  const cleanup: unknown = result.errors[1];
+  if (!(cleanup instanceof Error)) {
+    throw new Error('Expected cleanup diagnostic');
+  }
+  expect(cleanup.message).toBe(
+    'Setup cleanup ownership changed: .config/mise/conf.d/arch.toml; preserve for inspection',
+  );
   expect(await readFile(join(root, '.config/mise/conf.d/arch.toml'), 'utf8')).toBe('foreign edit');
 });
 

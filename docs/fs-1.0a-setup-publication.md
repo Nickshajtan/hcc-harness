@@ -126,3 +126,52 @@ works; no SDK discovery/build code is changed. Run `npm run build:bootstrap` bef
 runtime integration. The ordinary coverage run leaves explicitly optional runtime
 profiles skipped; the mandatory runtime CI workflow supplies their prerequisites.
 POSIX chmod fault injection is exercised on Linux/macOS, not claimed as a Windows test.
+
+## Validation evidence
+
+Windows x64 / Node 24.19.0, local NTFS consumer projects:
+
+- PASS `npm run check` with the SDK override above: 601 passed, 33 explicitly
+  skipped tests; typecheck, strict lint, zero-warning ratchet, formatting,
+  dependency checks, build/bootstrap and 24 quality-tooling tests passed.
+- PASS complete coverage run: 600 passed / 33 skipped at the production snapshot;
+  the subsequent private-stage collision test also passed. Setup coverage was
+  98.61% lines / 92.10% branches, above unchanged 95% / 90% gates.
+- PASS final focused setup contracts: 19 passed / one POSIX chmod case skipped.
+  The five real interruption/concurrency contracts passed separately and in the
+  ordinary suite. Identical and conflicting independent publishers are covered.
+- PASS reliability: 26 passed / one POSIX-only npm case skipped; a fresh evidence
+  directory validated four profiles, 32 sequences and 96 first-attempt operations.
+  Real Windows sharing refusal is an expected assertion, not a hidden retry.
+- PASS actual exFAT fail-closed probe: original `EISDIR`; foreign harness unchanged;
+  no bootstrap or first target; status `uninitialized`. Foreign-stage and final-path
+  collisions also have deterministic byte-preservation tests.
+- PASS Stryker 10.1.1 full effect pilot (15m11s), followed by supported incremental
+  reruns after test strengthening (2m41s and 1m45s). Final setup: 126 killed, seven
+  survived, one no-coverage, zero timeouts/errors; assertion-only **94.03%**. All
+  five complete-file 85% gates passed. The shared routing-file scope has three
+  timeouts, which earn no credit; its assertion-only result still passes (90.91%).
+
+Reviewed remaining setup mutants: cross-device identity and disappearance between
+`lstat`/read are defensive checks beyond the supported same-filesystem/non-hostile
+mutation assumptions; uppercase versus lowercase normalization is equivalent for
+Windows ASCII route identity; forcing Windows normalization is distinguishable on
+POSIX; the remaining permission-condition mutants and uncovered chmod body need
+POSIX execution. No mutant was excluded. The hosted POSIX effect pilot also passed.
+
+At commit `1db952f` (production source unchanged by later assertion/document edits):
+[Windows/Linux/macOS regression matrix](https://github.com/Nickshajtan/hcc-harness/actions/runs/41690093732),
+[all-platform runtime matrix and required aggregate](https://github.com/Nickshajtan/hcc-harness/actions/runs/41690093738),
+[quality and effect mutation jobs](https://github.com/Nickshajtan/hcc-harness/actions/runs/41690099189),
+and [dedicated Windows reliability](https://github.com/Nickshajtan/hcc-harness/actions/runs/41690099196)
+passed. A duplicate PR runtime attempt failed to acquire a macOS hosted runner;
+that infrastructure failure is retained, not called a test PASS. Final-head CI status
+is recorded in the PR rather than inferred from these earlier runs.
+
+Earlier failures were retained: checkout-local tests hit exFAT as intended once
+setup required links; old POSIX assertions expected chmod on final paths; Windows
+TEMP used an 8.3 alias while mise reported canonical cwd. Fixtures now use canonical
+system temporary paths and assert staged permissions plus final file modes. Local
+reliability validation initially encountered mixed old reports; fresh isolated
+reports passed. No expectation, threshold or production failure was suppressed.
+Raw local mutation/coverage/reliability evidence is retained outside the repository.
