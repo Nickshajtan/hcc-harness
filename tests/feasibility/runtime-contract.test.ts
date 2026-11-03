@@ -36,6 +36,11 @@ describe.skipIf('1' !== process.env.ARCH_RUNTIME_CONTRACT)('M2.2 shared runtime 
     await mkdir(directory);
     await cp(resolve('dist'), join(directory, 'dist'), { recursive: true });
     await cp(resolve('vendor'), join(directory, 'vendor'), { recursive: true });
+    if (windows) {
+      await cp(resolve('.tools/publication'), join(directory, '.tools/publication'), {
+        recursive: true,
+      });
+    }
     await copyFile(resolve('package.json'), join(directory, 'package.json'));
     await symlink(
       resolve('node_modules'),

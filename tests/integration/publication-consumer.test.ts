@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { mkdir, mkdtemp, readFile, rm, writeFile, rename } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile, rename, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -15,7 +15,7 @@ describe.skipIf('win32' !== process.platform || 'x64' !== process.arch)(
     beforeAll(async () => {
       f = await world(tmpdir());
       consumer = await mkdtemp(
-        join(process.env.ARCH_PUBLICATION_TEST_ROOT ?? tmpdir(), 'arch-consumer-'),
+        join(await realpath(process.env.ARCH_PUBLICATION_TEST_ROOT ?? tmpdir()), 'arch-consumer-'),
       );
       stable = join(f.root, 'independent-install');
       await installStable({

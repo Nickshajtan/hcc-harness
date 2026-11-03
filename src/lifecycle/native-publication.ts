@@ -1,7 +1,7 @@
 import { execFile, type ExecFileException } from 'node:child_process';
 import { readFile, lstat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { toNamespacedPath } from 'node:path';
+import { isAbsolute, toNamespacedPath } from 'node:path';
 import { digest } from './manifest.js';
 import { installationKind, snapshotRoot } from '../installation/stable-layout.js';
 
@@ -108,7 +108,7 @@ export function verifyPublicationResponse(
 
 // The binary is internal, absolute and checked before execution. Stable installs
 // include it in their existing resource hash closure, never in user PATH.
-export async function publicationHelper(): Promise<string> {
+export async function publicationHelper(moduleUrl = new URL(import.meta.url)): Promise<string> {
   if ('win32' !== process.platform || 'x64' !== process.arch) {
     throw new PublicationError(
       'unsupported',
@@ -117,17 +117,17 @@ export async function publicationHelper(): Promise<string> {
     );
   }
   const metadata: unknown = JSON.parse(
-    await readFile(new URL('../../package.json', import.meta.url), 'utf8'),
+    await readFile(new URL('../../package.json', moduleUrl), 'utf8'),
   );
-  const root = snapshotRoot(metadata, new URL(import.meta.url));
+  const root = snapshotRoot(metadata, moduleUrl);
   const helper = root
     ? new URL('application/vendor/arch-publication-v1.exe', root)
-    : new URL('../../.tools/publication/arch-publication-v1.exe', import.meta.url);
+    : new URL('../../.tools/publication/arch-publication-v1.exe', moduleUrl);
   const record: unknown = JSON.parse(
     await readFile(
       root
         ? new URL('installation.json', root)
-        : new URL('../../.tools/publication/provenance.json', import.meta.url),
+        : new URL('../../.tools/publication/provenance.json', moduleUrl),
       'utf8',
     ),
   );
@@ -174,6 +174,13 @@ export async function publicationHelper(): Promise<string> {
 }
 
 export async function renameNoReplace(stage: string, target: string): Promise<void> {
+  if (!isAbsolute(stage) || !isAbsolute(target) || stage.toLowerCase() === target.toLowerCase()) {
+    throw new PublicationError(
+      'invalid-input',
+      'Native publication requires distinct absolute source and destination paths',
+      'not-published',
+    );
+  }
   let helper: string;
   try {
     helper = await publicationHelper();

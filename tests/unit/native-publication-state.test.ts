@@ -1,5 +1,15 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { mkdtemp, mkdir, writeFile, readFile, rename, rm, unlink, lstat } from 'node:fs/promises';
+import {
+  mkdtemp,
+  mkdir,
+  writeFile,
+  readFile,
+  rename,
+  rm,
+  unlink,
+  lstat,
+  open,
+} from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { publishExclusive } from '../../src/lifecycle/routing-files.js';
@@ -13,6 +23,12 @@ import { setup } from '../../src/installation/setup.js';
 import { digest, stateFrom } from '../../src/lifecycle/manifest.js';
 import { checkFiles } from '../../src/lifecycle/ownership.js';
 
+vi.mock('node:fs/promises', async (original) => {
+  const actual = await original<typeof import('node:fs/promises')>();
+  return { ...actual, open: vi.fn(actual.open) };
+});
+const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises');
+
 vi.mock('../../src/lifecycle/native-publication.js', async (original) => ({
   ...(await original<typeof import('../../src/lifecycle/native-publication.js')>()),
   nativePublication: true,
@@ -21,10 +37,86 @@ vi.mock('../../src/lifecycle/native-publication.js', async (original) => ({
 let root: string;
 const lost = () => new PublicationError('execution', 'response lost', 'unknown');
 beforeEach(async () => {
+  vi.mocked(open).mockImplementation(actual.open);
   root = await mkdtemp(join(tmpdir(), 'arch-native-state-'));
   vi.mocked(renameNoReplace).mockImplementation(async (source, target) => {
     await rename(source, target);
   });
+});
+
+it.each(['identity', 'bytes'])(
+  'rechecks held-source %s before invoking the native operation',
+  async (kind) => {
+    await writeFile(join(root, 'stage'), 'complete');
+    vi.mocked(open).mockImplementation(async (...args) => {
+      if ('identity' === kind) {
+        await rename(join(root, 'stage'), join(root, 'original'));
+      }
+      await writeFile(join(root, 'stage'), 'identity' === kind ? 'complete' : 'partial');
+      return actual.open(...args);
+    });
+    await expect(publishExclusive(root, 'stage', 'target', digest('complete'))).rejects.toThrow(
+      'source identity changed',
+    );
+    expect(renameNoReplace).not.toHaveBeenCalled();
+    expect(await readFile(join(root, 'stage'), 'utf8')).toBe(
+      'identity' === kind ? 'complete' : 'partial',
+    );
+  },
+);
+it.each(['published', 'refused'])(
+  'retains primary and handle-close evidence after %s operation',
+  async (mode) => {
+    await writeFile(join(root, 'stage'), 'complete');
+    const cleanup = new Error('handle close failed');
+    const primary = new PublicationError('permission', 'permission denied', 'not-published', 5);
+    vi.mocked(open).mockImplementation(async (...args) => {
+      const held = await actual.open(...args),
+        close = held.close.bind(held);
+      held.close = async () => {
+        await close();
+        throw cleanup;
+      };
+      return held;
+    });
+    if ('refused' === mode) {
+      vi.mocked(renameNoReplace).mockRejectedValue(primary);
+    }
+    const error: unknown = await publishExclusive(
+      root,
+      'stage',
+      'target',
+      digest('complete'),
+    ).catch((value: unknown) => value);
+    expect(error).toBeInstanceOf(PublicationError);
+    if (!(error instanceof PublicationError)) {
+      throw new Error('Expected close failure');
+    }
+    expect(error.outcome).toBe('unknown');
+    if ('published' === mode) {
+      expect(error.cause).toBe(cleanup);
+      expect(await readFile(join(root, 'target'), 'utf8')).toBe('complete');
+    } else {
+      expect(error.cause).toBeInstanceOf(AggregateError);
+      if (!(error.cause instanceof AggregateError)) {
+        throw new Error('Expected both failures');
+      }
+      expect(error.cause.errors).toEqual([primary, cleanup]);
+      expect(error.cause.cause).toBe(primary);
+    }
+  },
+);
+it('preserves an attributed target whose bytes changed instead of declaring completion', async () => {
+  await writeFile(join(root, 'stage'), 'complete');
+  vi.mocked(renameNoReplace).mockImplementation(async (source, target) => {
+    await rename(source, target);
+    await writeFile(target, 'modified');
+    throw lost();
+  });
+  await expect(publishExclusive(root, 'stage', 'target', digest('complete'))).rejects.toMatchObject(
+    { outcome: 'unknown' },
+  );
+  expect(await readFile(join(root, 'target'), 'utf8')).toBe('modified');
 });
 afterEach(async () => {
   await rm(root, { recursive: true, force: true });

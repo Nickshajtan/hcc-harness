@@ -48,6 +48,7 @@ describe.skipIf(!enabled)(
       await copyFile(resolve('package.json'), join(app, 'package.json'));
       await symlink(resolve('node_modules'), join(app, 'node_modules'), 'junction');
       await cp(resolve('vendor'), join(app, 'vendor'), { recursive: true });
+      await cp(resolve('.tools/publication'), join(app, '.tools/publication'), { recursive: true });
       entry = join(app, 'arch-bootstrap.exe');
       cli = join(app, 'dist/cli.js');
       await copyFile(requiredEnvironment('ARCH_B1_BOOTSTRAP'), entry);

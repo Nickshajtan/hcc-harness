@@ -77,6 +77,13 @@ describe.skipIf('win32' !== process.platform || 'x64' !== process.arch)(
       },
     );
     it('retains original missing-source and invalid-input errors', async () => {
+      await expect(renameNoReplace('relative', join(root, 'target'))).rejects.toMatchObject({
+        kind: 'invalid-input',
+        outcome: 'not-published',
+      });
+      await expect(renameNoReplace(join(root, 'stage'), join(root, 'stage'))).rejects.toMatchObject(
+        { kind: 'invalid-input', outcome: 'not-published' },
+      );
       await expect(
         renameNoReplace(join(root, 'missing'), join(root, 'target')),
       ).rejects.toMatchObject({ kind: 'missing-source', win32: 2 });
