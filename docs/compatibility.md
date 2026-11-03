@@ -33,6 +33,11 @@ tool's responsibility. Automated TTY tests do not validate every emulator or AI 
 
 ## Hard-link publication
 
+The [FS-1 investigation and decision](fs-1-publication.md) is **DESIGN BLOCKED**:
+the supported Node API has no hard-link-free primitive that preserves both atomic
+no-clobber and complete-file visibility at the existing final paths. Real Windows
+NTFS/exFAT baseline probes confirm the limitation; no weaker fallback was introduced.
+
 M2 reconciliation (`configure`, `route add/remove`) publishes complete staged files
 with exclusive hard links. It never replaces a newly appearing destination. Only
 the already-owned manifest is replaced with same-directory staged rename after
