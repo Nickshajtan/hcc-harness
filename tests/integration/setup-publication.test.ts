@@ -103,9 +103,23 @@ it.each(['partial', 'before', 'after'])(
         });
       }
     }
-    expect((await readdir(join(root, '.arch'))).some((name) => name.startsWith('.setup-'))).toBe(
-      true,
+    const directory = (await readdir(join(root, '.arch'))).find((name) =>
+      name.startsWith('.setup-'),
     );
+    expect(directory).toBeDefined();
+    if (directory === undefined) {
+      throw new Error('Expected retained stages');
+    }
+    if ('partial' === boundary) {
+      expect(await readFile(join(root, '.arch', directory, '0'), 'utf8')).toBe('partial');
+    }
+    if ('before' === boundary) {
+      const names = await readdir(join(root, '.arch', directory));
+      const privateManifest = stateFrom(
+        await readFile(join(root, '.arch', directory, String(names.length - 1))),
+      );
+      await checkFiles(root, privateManifest.files);
+    }
   },
 );
 

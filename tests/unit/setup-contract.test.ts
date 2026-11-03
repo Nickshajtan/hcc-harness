@@ -330,3 +330,21 @@ it('tolerates a consuming shared publication primitive without changing setup ow
     [],
   );
 });
+
+it('never overwrites an unexpected file at the private stage path', async () => {
+  let collision: string | undefined;
+  vi.mocked(writeFile).mockImplementation(async (path, bytes, options) => {
+    if ('string' !== typeof path) {
+      throw new Error('Expected private stage path');
+    }
+    collision = path;
+    await actual.writeFile(path, 'foreign stage');
+    await actual.writeFile(path, bytes, options);
+  });
+  await expect(setup(root, ['tool'])).rejects.toMatchObject({ code: 'EEXIST' });
+  if (collision === undefined) {
+    throw new Error('Expected stage collision');
+  }
+  expect(await readFile(collision, 'utf8')).toBe('foreign stage');
+  expect(link).not.toHaveBeenCalled();
+});

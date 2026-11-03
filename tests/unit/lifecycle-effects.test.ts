@@ -489,13 +489,16 @@ it('applies installation permissions only to POSIX bin resources', async () => {
   await mkdir(fresh);
   vi.mocked(chmod).mockClear();
   await setup(fresh, ['tool']);
-  const paths = vi.mocked(chmod).mock.calls.map(([path, mode]) => ({ path, mode }));
-  expect(paths).toEqual(
-    'win32' === process.platform
-      ? []
-      : [
-          { path: join(fresh, '.arch/bin/.arch-router'), mode: 0o755 },
-          { path: join(fresh, '.arch/bin/tool'), mode: 0o755 },
-        ],
-  );
+  const calls = vi.mocked(chmod).mock.calls;
+  expect(calls.map(([, mode]) => mode)).toEqual('win32' === process.platform ? [] : [0o755, 0o755]);
+  for (const [path] of calls) {
+    expect(relative(fresh, String(path)).split(sep).join('/')).toMatch(
+      /^\.arch\/\.setup-[^/]+\/[12]$/,
+    );
+  }
+  if ('win32' !== process.platform) {
+    expect((await stat(join(fresh, '.arch/bin/.arch-router'))).mode & 0o777).toBe(0o755);
+    expect((await stat(join(fresh, '.arch/bin/tool'))).mode & 0o777).toBe(0o755);
+    expect((await stat(join(fresh, '.config/mise/conf.d/arch.toml'))).mode & 0o111).toBe(0);
+  }
 });

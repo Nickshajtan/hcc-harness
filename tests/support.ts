@@ -8,6 +8,7 @@ import {
   writeFile,
   lstat,
   readdir,
+  realpath,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
@@ -238,6 +239,8 @@ export function stop(child: ChildProcess) {
 
 export async function world(temporary = tmpdir()) {
   await mkdir(temporary, { recursive: true });
+  // Windows TEMP may use an 8.3 alias; native tools report the canonical cwd.
+  temporary = await realpath(temporary);
   const root = await mkdtemp(join(temporary, 'arch-fixture-'));
   try {
     const paths = {
