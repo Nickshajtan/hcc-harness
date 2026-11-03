@@ -3,10 +3,19 @@
 const [moduleUrl, root, commands, stop] = process.argv.slice(2);
 // Test-only filesystem boundaries cover interruption points without adding production checkpoints.
 import fs from 'node:fs/promises';
+import childProcess from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
 const pause = async (checkpoint) => {
   process.send({ checkpoint });
   await new Promise((resolve) => process.once('message', resolve));
+};
+const originalExecFile = childProcess.execFile;
+childProcess.execFile = (file, args, options, callback) => {
+  if ('fs:before-journal' === stop && String(args[1]).endsWith('routing.json')) {
+    void pause(stop).then(() => originalExecFile(file, args, options, callback));
+    return;
+  }
+  return originalExecFile(file, args, options, callback);
 };
 for (const operation of ['link', 'writeFile', 'unlink']) {
   const original = fs[operation];

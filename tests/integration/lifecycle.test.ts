@@ -184,12 +184,18 @@ it.each(checkpoints)(
           done();
         });
       });
-      // At a publication checkpoint both names refer to the same complete bytes.
+      // Publication exposes complete bytes; Windows consumes the private stage.
       if (checkpoint === `published:${executable('gemini')}`) {
         const journal = journalFrom(await readFile(join(root, '.arch/routing.json')));
         const addition = journal.additions[executable('gemini')];
         assert('string' === typeof addition);
-        expect((await stat(join(root, executable('gemini')))).nlink).toBeGreaterThanOrEqual(2);
+        if ('win32' === process.platform) {
+          await expect(
+            readFile(join(root, `.arch/.routing-${journal.id}-0.stage`)),
+          ).rejects.toMatchObject({ code: 'ENOENT' });
+        } else {
+          expect((await stat(join(root, executable('gemini')))).nlink).toBeGreaterThanOrEqual(2);
+        }
         expect(await readFile(join(root, executable('gemini')))).toEqual(
           Buffer.from(addition, 'base64'),
         );
@@ -283,7 +289,9 @@ it.each(checkpoints)(
       }
     }
   },
-  30000,
+  // Native publication adds bounded child processes; use the suite's ordinary
+  // 120-second budget rather than the old hard-link-only 30-second budget.
+  120000,
 );
 
 it('implements non-interactive lifecycle, legacy uninstall and confirmation-based deinit', async () => {

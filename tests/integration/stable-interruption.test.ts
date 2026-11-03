@@ -33,6 +33,13 @@ it.each(['reserved', 'materialized', 'verified', 'published'])(
       }
       await copyFile(resolve('runtime/arch'), join(source, 'runtime/arch'));
       if ('win32' === process.platform) {
+        await mkdir(join(source, '.tools/publication'), { recursive: true });
+        for (const file of ['arch-publication-v1.exe', 'provenance.json']) {
+          await copyFile(
+            resolve('.tools/publication', file),
+            join(source, '.tools/publication', file),
+          );
+        }
         await mkdir(join(source, '.tools/stable-bootstrap'), { recursive: true });
         await copyFile(
           resolve('.tools/stable-bootstrap/arch-bootstrap.exe'),

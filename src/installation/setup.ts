@@ -13,6 +13,7 @@ import {
 import { readOptional, checkFiles, assertSafePath } from '../lifecycle/ownership.js';
 
 import { publishExclusive, readAt, removeOptional } from '../lifecycle/routing-files.js';
+import { PublicationError } from '../lifecycle/native-publication.js';
 
 import { renderFiles } from './renderer.js';
 
@@ -127,7 +128,11 @@ export async function setup(root: string, commands: readonly string[]): Promise<
       if (bytes === undefined || digest(bytes) !== resource.hash) {
         throw new Error(`Setup staging file changed or incomplete: ${resource.stage}`);
       }
-      await publishExclusive(root, resource.stage, resource.file);
+      await verifySetupOwnership(root, resource, resource.stage);
+      const published = await publishExclusive(root, resource.stage, resource.file, resource.hash);
+      // A native move across exFAT directories can change the object's file ID.
+      resource.dev = published.dev;
+      resource.ino = published.ino;
       created.push(resource);
     }
     // Bootstrap is last. Cleanup failure after this point must not undo a committed setup.
@@ -140,6 +145,12 @@ export async function setup(root: string, commands: readonly string[]): Promise<
     }
     await rmdir(directory);
   } catch (error) {
+    if (error instanceof PublicationError && 'unknown' === error.outcome) {
+      throw new Error(
+        'Setup publication outcome is indeterminate; preserve all resources and inspect bootstrap and private stages before any cleanup',
+        { cause: error },
+      );
+    }
     if (committed) {
       throw new Error(
         `Arch setup committed but staging cleanup failed; inspect ${relative(root, directory)}`,

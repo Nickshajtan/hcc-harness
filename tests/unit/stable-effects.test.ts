@@ -53,6 +53,10 @@ beforeEach(async () => {
   }
   await writeFile(join(source, 'runtime/arch'), '#!/bin/sh\nexit 0\n');
   if ('win32' === process.platform) {
+    await mkdir(join(source, '.tools/publication'), { recursive: true });
+    for (const file of ['arch-publication-v1.exe', 'provenance.json']) {
+      await copyFile(resolve('.tools/publication', file), join(source, '.tools/publication', file));
+    }
     await copyFile(
       resolve('.tools/stable-bootstrap/arch-bootstrap.exe'),
       join(source, '.tools/stable-bootstrap/arch-bootstrap.exe'),
@@ -71,6 +75,23 @@ afterEach(async () => {
 function install(checkpoint?: (stage: InstallCheckpoint) => Promise<void>) {
   return installStable({ source, destination, npm, ...(checkpoint ? { checkpoint } : {}) });
 }
+it.skipIf('win32' !== process.platform)(
+  'refuses an incompatible helper build protocol before readiness',
+  async () => {
+    const path = join(source, '.tools/publication/provenance.json');
+    const metadata: unknown = JSON.parse(await readFile(path, 'utf8'));
+    if (!metadata || 'object' !== typeof metadata) {
+      throw new Error('Expected build provenance');
+    }
+    await writeFile(path, JSON.stringify({ ...metadata, protocol: 2 }));
+    await expect(install()).rejects.toMatchObject({
+      cause: { message: 'Publication helper build integrity failure' },
+    });
+    await expect(readdir(join(destination, '.arch-ready'))).rejects.toMatchObject({
+      code: 'ENOENT',
+    });
+  },
+);
 it('publishes readiness only after verification and records exact installed bytes', async () => {
   const stages: string[] = [];
   await install(async (stage) => {

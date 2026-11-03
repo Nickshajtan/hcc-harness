@@ -15,6 +15,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setup, uninstall, configText } from '../../src/setup.js';
 
+// These contracts retain real hard-link fault injection for the POSIX strategy.
+// Native consuming publication is covered separately, without this override.
+vi.mock('../../src/lifecycle/native-publication.js', async (original) => ({
+  ...(await original<typeof import('../../src/lifecycle/native-publication.js')>()),
+  nativePublication: false,
+}));
+
 vi.mock('node:fs/promises', async (original) => {
   const actual = await original<typeof import('node:fs/promises')>();
   return {

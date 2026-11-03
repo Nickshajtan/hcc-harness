@@ -8,6 +8,8 @@ export default defineConfig({
       'tests/unit/lifecycle.test.ts',
       'tests/unit/lifecycle-contract.test.ts',
       'tests/unit/setup-contract.test.ts',
+      'tests/unit/native-publication-state.test.ts',
+      'tests/integration/native-publication.test.ts',
       'tests/unit/uninstall.test.ts',
     ],
     maxWorkers: 1,

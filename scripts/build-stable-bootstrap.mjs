@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import './build-publication.mjs';
 
 if ('win32' === process.platform) {
   execFileSync(

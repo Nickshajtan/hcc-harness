@@ -31,8 +31,8 @@ export async function applyJournal(
     await stage(root, temporary, bytes, true);
     await options.checkpoint?.(`staged:${path}`);
     if ((await readAt(root, path)) === undefined) {
-      // link is exclusive: unlike rename, it never replaces a destination collision.
-      await publishExclusive(root, temporary, path);
+      // Exclusive publication never replaces a destination collision.
+      await publishExclusive(root, temporary, path, digest(bytes));
     }
     await options.checkpoint?.(`published:${path}`);
   }

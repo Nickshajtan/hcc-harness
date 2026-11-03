@@ -64,6 +64,10 @@ beforeAll(async () => {
     resolve('scripts/build-stable-bootstrap.mjs'),
     join(source, 'scripts/build-stable-bootstrap.mjs'),
   );
+  for (const file of ['build-publication.mjs', 'build-publication.ps1', 'build-publication.cmd']) {
+    await copyFile(resolve('scripts', file), join(source, 'scripts', file));
+  }
+  await cp(resolve('native'), join(source, 'native'), { recursive: true });
   build = start(
     process.execPath,
     [requiredEnvironment('npm_execpath'), 'run', 'install:stable', '--', '--destination', stable],

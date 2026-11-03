@@ -10,6 +10,7 @@ import {
   manifestRoutes,
   equal,
   key,
+  digest,
 } from './manifest.js';
 import { routingPath, journalStage, journalFrom, type RoutingJournal } from './routing-journal.js';
 import { readAt, stage, publishExclusive } from './routing-files.js';
@@ -64,7 +65,7 @@ export async function reconcileRoutes(
   if ((await readAt(root, uninstallPath)) !== undefined) {
     throw new Error('Uninstall started before routing update');
   }
-  await publishExclusive(root, journalStage, routingPath);
+  await publishExclusive(root, journalStage, routingPath, digest(bytes));
   await applyJournal(root, journal, options);
 }
 

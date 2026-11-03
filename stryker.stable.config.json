@@ -4,6 +4,7 @@
   "plugins": ["@stryker-mutator/vitest-runner"],
   "files": [
     ".tools/stable-bootstrap/arch-bootstrap.exe",
+    ".tools/publication/*",
     "package.json",
     "tsconfig.json",
     "vitest.stable-mutation.config.ts",

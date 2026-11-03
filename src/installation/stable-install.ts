@@ -1,8 +1,17 @@
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { constants } from 'node:fs';
-import { chmod, copyFile, lstat, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
-import { dirname, isAbsolute, join, parse, relative, resolve } from 'node:path';
+import {
+  chmod,
+  copyFile,
+  lstat,
+  mkdir,
+  readFile,
+  readdir,
+  writeFile,
+  unlink,
+} from 'node:fs/promises';
+import { dirname, isAbsolute, join, parse, relative, resolve, toNamespacedPath } from 'node:path';
 import { promisify } from 'node:util';
 import { installationKind } from './stable-layout.js';
 
@@ -73,6 +82,18 @@ async function materialize(source: string, destination: string, npm: string) {
   await mkdir(app);
   await copyResources(join(source, 'dist'), join(app, 'dist'), true);
   await copyResources(join(source, 'vendor'), join(app, 'vendor'));
+  if ('win32' === process.platform) {
+    await copyFile(
+      join(source, '.tools/publication/arch-publication-v1.exe'),
+      join(app, 'vendor/arch-publication-v1.exe'),
+      constants.COPYFILE_EXCL,
+    );
+    await copyFile(
+      join(source, '.tools/publication/provenance.json'),
+      join(app, 'vendor/publication-provenance.json'),
+      constants.COPYFILE_EXCL,
+    );
+  }
   for (const file of ['package.json', 'package-lock.json', 'LICENSE']) {
     await copyFile(join(source, file), join(app, file), constants.COPYFILE_EXCL);
   }
@@ -109,6 +130,41 @@ async function materialize(source: string, destination: string, npm: string) {
 }
 
 async function verifySnapshot(source: string, destination: string, app: string) {
+  if ('win32' === process.platform) {
+    const helper = join(app, 'vendor/arch-publication-v1.exe');
+    const provenance: unknown = JSON.parse(
+      await readFile(join(app, 'vendor/publication-provenance.json'), 'utf8'),
+    );
+    if (
+      !provenance ||
+      'object' !== typeof provenance ||
+      !('protocol' in provenance) ||
+      1 !== provenance.protocol ||
+      !('sha256' in provenance) ||
+      provenance.sha256 !==
+        createHash('sha256')
+          .update(await readFile(helper))
+          .digest('hex')
+    ) {
+      throw new Error('Publication helper build integrity failure');
+    }
+    const stage = join(destination, '.publication-probe.stage');
+    const target = join(destination, '.publication-probe.target');
+    await writeFile(stage, 'arch-publication-v1\n', { flag: 'wx' });
+    const result = await execute(helper, [toNamespacedPath(stage), toNamespacedPath(target)], {
+      timeout: 10_000,
+      maxBuffer: 4096,
+      windowsHide: true,
+    });
+    if (
+      '{"protocol":1,"win32":0}' !== result.stdout.trim() ||
+      result.stderr ||
+      'arch-publication-v1\n' !== (await readFile(target, 'utf8'))
+    ) {
+      throw new Error('Publication helper protocol verification failed');
+    }
+    await unlink(target);
+  }
   for (const file of ['dist/cli.js', 'vendor/shim-x64.exe', 'vendor/shim-arm64.exe']) {
     if (!(await lstat(join(app, file))).isFile()) {
       throw new Error(`Missing installation resource: ${file}`);

@@ -31,29 +31,31 @@ targets. Supported console cancellation manages the direct child; POSIX has a
 `0xC000013A`. Force termination cannot run finalizers; descendants remain the native
 tool's responsibility. Automated TTY tests do not validate every emulator or AI TUI.
 
-## Hard-link publication
+## Exclusive publication
 
-The [FS-1 investigation and decision](fs-1-publication.md) is **DESIGN BLOCKED**:
-the supported Node API has no hard-link-free primitive that preserves both atomic
-no-clobber and complete-file visibility at the existing final paths. Real Windows
-NTFS/exFAT baseline probes confirm the limitation; no weaker fallback was introduced.
+The [FS-1 investigation](fs-1-publication.md) established the Node built-in API
+limitation. [FS-1.2](fs-1.2-native-publication.md) supplies a packaged Windows x64
+native no-replace rename helper. Initial setup and route reconciliation use the
+same verified-stage publication boundary. Linux/macOS retain exclusive hard links.
 
 M2 reconciliation (`configure`, `route add/remove`) publishes complete staged files
-with exclusive hard links. It never replaces a newly appearing destination. Only
+with an exclusive native move on Windows x64 or hard links on POSIX. It never replaces a newly appearing destination. Only
 the already-owned manifest is replaced with same-directory staged rename after
 validation. Ordinary rename has no portable no-replace guarantee; exclusive copy
 can expose incomplete bytes. No copy, exclusive-write or alternate fallback is used.
 
-**exFAT is unsupported for initial setup and route reconciliation.** Other filesystems, mounts,
-permissions or configurations can also prevent hard links. Arch attempts the
-capability rather than inferring support from OS/volume names. Prefer a local NTFS,
-APFS or ext4 filesystem where supported and configured appropriately. EPERM alone
-does not prove a filesystem lacks hard links: check collisions and permissions too.
+Windows x64 NTFS and exFAT consumer lifecycle validation uses the packaged helper;
+its installation may be independently located on NTFS. Stages and final files must
+share a volume. POSIX filesystems still require hard links (for example supported
+local APFS/ext4 configurations). No filesystem-type detection or weaker fallback
+is used. Other filesystems, mounts and architectures are not certified by these
+results. Errors preserve original OS information; sharing errors are not evidence
+that a filesystem lacks the required capability.
 
 Initial setup now uses the same staged publication boundary; see
 [setup publication safety](fs-1.0a-setup-publication.md). Unchanged desired routes
 and ordinary deinit do not inherently need hard links. Pending routing recovery is different: deinit completes the update
-first and may need links. npm CLI installation is separate from these operations.
+first and may need publication. npm CLI installation is separate from these operations.
 
 If initial journal publication fails, old routes and ownership remain intact; an
 unreferenced stage may remain. If publication fails later, additions can already be
@@ -89,6 +91,8 @@ CLI integration are separate milestones.
 Stable installation does not need hard links: exclusive destination reservation
 and completion-directory publication provide its no-clobber boundary. The parent
 must be trusted and free of symlinks. Failed/incomplete trees are retained for
-inspection, never recursively rolled back. Initial project setup and routing reconciliation still require
-hard links, including when initiated from a stable snapshot; no fallback was added.
+inspection, never recursively rolled back. Windows project setup and reconciliation
+use the packaged helper included in the stable resource integrity closure; POSIX
+still requires hard links. Unknown helper outcomes require filesystem/object
+attribution or preservation for inspection, never a blind retry or cleanup.
 No power-loss durability or adversarial same-user filesystem-race protection is claimed.

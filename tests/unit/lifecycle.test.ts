@@ -24,6 +24,10 @@ import {
   manifestRoutes,
 } from '../../src/lifecycle.js';
 
+vi.mock('../../src/lifecycle/native-publication.js', async (original) => ({
+  ...(await original<typeof import('../../src/lifecycle/native-publication.js')>()),
+  nativePublication: false,
+}));
 vi.mock('node:fs/promises', async (original) => {
   const actual = await original<typeof import('node:fs/promises')>();
   return { ...actual, link: vi.fn(actual.link), rename: vi.fn(actual.rename) };
