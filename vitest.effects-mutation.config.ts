@@ -12,6 +12,7 @@ export default defineConfig({
       'tests/unit/setup-contract.test.ts',
       'tests/unit/native-publication-state.test.ts',
       'tests/unit/publication-resource.test.ts',
+      'tests/unit/publication-process.test.ts',
       'tests/integration/native-publication.test.ts',
       'tests/unit/uninstall.test.ts',
     ],

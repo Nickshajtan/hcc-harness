@@ -196,12 +196,30 @@ export async function renameNoReplace(stage: string, target: string): Promise<vo
       { cause },
     );
   }
+  await invokePublicationHelper(helper, toNamespacedPath(stage), toNamespacedPath(target));
+}
+
+// Process/protocol boundary, separate from packaged-resource selection so faults
+// can be exercised on every CI platform. Production passes only the verified
+// internal executable. This function never performs shell or PATH resolution.
+export async function invokePublicationHelper(
+  helper: string,
+  stage: string,
+  target: string,
+): Promise<void> {
+  if (!isAbsolute(helper)) {
+    throw new PublicationError(
+      'invalid-input',
+      'Publication helper path must be absolute',
+      'not-published',
+    );
+  }
   await new Promise<void>((resolve, reject) => {
     // execFile callback runs after close, including timeout termination. No retry:
     // a terminated helper may already have completed the namespace operation.
     execFile(
       helper,
-      [toNamespacedPath(stage), toNamespacedPath(target)],
+      [stage, target],
       {
         shell: false,
         windowsHide: true,

@@ -96,8 +96,9 @@ deinitialize projects first or use a working direct Node invocation afterward.
 
 ## Limits and development
 
-Route reconciliation requires hard links: exFAT is unsupported, and other mounts
-may also lack support. There is no fallback publication algorithm. Updates are
+Windows x64 setup and route reconciliation use a packaged native no-replace
+publication helper, validated on NTFS and exFAT. Linux/macOS still require hard
+links. Unsupported capabilities fail closed without a weaker fallback. Updates are
 recoverable checkpoints, not atomic route-set switches or power-loss guarantees.
 Run only one project mutator at a time. See [compatibility](docs/compatibility.md).
 

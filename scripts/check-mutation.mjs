@@ -108,6 +108,7 @@ export function enforceMutation(scopes, expectedFiles = []) {
     'src/installation/setup.ts': 85,
     'src/lifecycle/routing-plan.ts': 85,
     'src/lifecycle/routing-files.ts': 85,
+    'src/lifecycle/native-publication.ts': 85,
     'src/lifecycle/recovery.ts': 85,
     'src/lifecycle/removal.ts': 85,
     'src/cli/parsing.ts': 85,

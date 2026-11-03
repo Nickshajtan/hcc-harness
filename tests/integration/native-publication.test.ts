@@ -93,6 +93,24 @@ describe.skipIf('win32' !== process.platform || 'x64' !== process.arch)(
         stdout: '{"protocol":1,"win32":87}\r\n',
       });
     });
+    it.skipIf(!process.env.ARCH_PUBLICATION_OTHER_VOLUME)(
+      'refuses a real cross-volume request without copying',
+      async () => {
+        const other = await mkdtemp(
+          join(process.env.ARCH_PUBLICATION_OTHER_VOLUME!, 'arch-native-other-'),
+        );
+        try {
+          await writeFile(join(root, 'stage'), 'complete');
+          await expect(
+            renameNoReplace(join(root, 'stage'), join(other, 'target')),
+          ).rejects.toMatchObject({ kind: 'cross-volume', outcome: 'not-published', win32: 17 });
+          expect(await readFile(join(root, 'stage'), 'utf8')).toBe('complete');
+          await expect(lstat(join(other, 'target'))).rejects.toMatchObject({ code: 'ENOENT' });
+        } finally {
+          await rm(other, { recursive: true, force: true });
+        }
+      },
+    );
     it('preserves a source held without delete sharing and its original Win32 error', async () => {
       const holder = join(root, 'holder.exe');
       await execute(

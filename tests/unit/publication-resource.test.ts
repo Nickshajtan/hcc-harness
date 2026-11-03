@@ -1,21 +1,37 @@
-import { afterEach, beforeEach, expect, it } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { mkdtemp, mkdir, writeFile, rm, symlink, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { publicationHelper } from '../../src/lifecycle/native-publication.js';
+import { publicationHelper, renameNoReplace } from '../../src/lifecycle/native-publication.js';
 import { installationKind } from '../../src/installation/stable-layout.js';
 import { digest } from '../../src/lifecycle/manifest.js';
+
+vi.mock('node:fs/promises', async (original) => {
+  const actual = await original<typeof import('node:fs/promises')>();
+  return { ...actual, readFile: vi.fn(actual.readFile) };
+});
+const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises');
 
 let root: string;
 const originalPlatform = process.platform,
   originalArch = process.arch;
 beforeEach(async () => {
+  vi.mocked(readFile).mockImplementation(actual.readFile);
   root = await mkdtemp(join(tmpdir(), 'arch-publication-resource-'));
   // Resource-layout validation is platform-independent I/O; only capability
   // selection is forced. This does not execute or simulate a Windows syscall.
   Object.defineProperty(process, 'platform', { value: 'win32' });
   Object.defineProperty(process, 'arch', { value: 'x64' });
+});
+it('classifies helper resource access failure before process invocation with its original cause', async () => {
+  const failure = new Error('package metadata unavailable');
+  vi.mocked(readFile).mockRejectedValueOnce(failure);
+  await expect(renameNoReplace(join(root, 'stage'), join(root, 'target'))).rejects.toMatchObject({
+    kind: 'execution',
+    outcome: 'not-published',
+    cause: failure,
+  });
 });
 afterEach(async () => {
   Object.defineProperty(process, 'platform', { value: originalPlatform });
@@ -140,6 +156,10 @@ it.each(['platform', 'architecture'])(
       value: 'architecture' === unsupported ? 'arm64' : 'x64',
     });
     await expect(publicationHelper()).rejects.toMatchObject({
+      kind: 'unsupported',
+      outcome: 'not-published',
+    });
+    await expect(renameNoReplace(join(root, 'stage'), join(root, 'target'))).rejects.toMatchObject({
       kind: 'unsupported',
       outcome: 'not-published',
     });

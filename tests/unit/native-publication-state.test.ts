@@ -173,6 +173,15 @@ it('requires OS failure and exit 1 to agree, preserving original OS evidence', (
     verifyPublicationResponse(null, '{"protocol":1,"win32":0}', 'unexpected stderr');
   }).toThrow(expect.objectContaining({ outcome: 'unknown' }));
 });
+it.each([{ killed: true }, { signal: 'SIGKILL' }, { code: 'ENOENT' }] as const)(
+  'does not trust an OS refusal reply after process failure %j',
+  (details) => {
+    const error = Object.assign(new Error('process failed'), { code: 1 }, details);
+    expect(() => {
+      verifyPublicationResponse(error, '{"protocol":1,"win32":32}', '');
+    }).toThrow(expect.objectContaining({ outcome: 'unknown', kind: 'execution' }));
+  },
+);
 
 it.each([
   [183, 'collision'],

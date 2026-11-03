@@ -124,6 +124,28 @@ helper integrity. Legacy fault-injection unit suites explicitly select the POSIX
 hard-link strategy; native state tests and real Windows subprocess suites cover
 the consuming implementation. Link counts are asserted only for POSIX.
 
+`ARCH_PUBLICATION_OTHER_VOLUME` optionally enables actual cross-volume refusal;
+point it to a disposable parent on the other already-existing volume. It never
+creates partitions. The process/protocol boundary has separate portable subprocess
+tests for malformed/incompatible replies, bounded output, lost replies, launch
+failure and actual timeout termination. These use controlled Node test programs,
+not simulated evidence of the Windows filesystem primitive. The real Windows
+contracts still invoke the production native executable.
+
+## Complexity review
+
+The analysis profile reports setup at 126 nonblank lines / complexity 26 (FS-1.0a:
+117 / 24), shared publication at 110 / 28, helper resource resolution at 64 / 28,
+and snapshot verification at 76 / 15. The Win32 classification switch and protocol
+schema checks also exceed the analysis-only complexity target; the structured error
+constructor has five parameters. No suppression or warning baseline is changed.
+Publication keeps open-handle provenance, syscall outcome, filesystem inspection
+and close-error precedence together so ownership authority remains reviewable.
+Process invocation is extracted specifically to test transport failures on POSIX
+without pretending those tests prove Windows rename semantics. Setup's ordering
+and reverse rollback remain explicit. No transaction class or numeric-only split
+is introduced; these diagnostics remain visible for independent review.
+
 Executed results, first-attempt failures, performance and inspected CI links are
 recorded in the PR. Raw evidence remains outside the repository. A local Windows
 pass does not establish Ubuntu/macOS CI, Windows ARM64 or untested filesystem support.

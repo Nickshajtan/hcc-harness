@@ -9,6 +9,7 @@ const files = [
   'src/installation/setup.ts',
   'src/lifecycle/routing-plan.ts',
   'src/lifecycle/routing-files.ts',
+  'src/lifecycle/native-publication.ts',
   'src/lifecycle/recovery.ts',
   'src/lifecycle/removal.ts',
 ];
