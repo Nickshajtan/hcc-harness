@@ -145,7 +145,7 @@ gate. JSON and Actions summaries show PASS / FAIL / NOT TESTED. Ordinary local r
 explicitly skip provisioned runtime tests without their opt-in variables; those
 skips are not portability evidence. Keep all three workflows and required names.
 
-Runtime portability pins its `macos-latest` matrix entry to the supported
+Arch checks, Wizard and runtime portability pin their `macos-latest` matrix entries to the supported
 `macos-15` ARM64 image after repeated macOS 26 hosted-runner acquisition failures.
 The check names and three-platform test gates remain unchanged; an explicit
 architecture check requires `arm64`. This changes the tested macOS release,
