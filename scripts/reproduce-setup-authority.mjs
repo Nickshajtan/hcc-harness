@@ -174,15 +174,27 @@ async function main() {
   ) {
     throw new Error('Reproducer did not preserve the independent foreign file identity');
   }
+  const managed = new Map();
+  for (const path of Object.keys(JSON.parse(originalBytes).files)) {
+    managed.set(path, await readFile(join(root, path)));
+  }
   const status = await lifecycle.inspectInstallation(root, {});
   let repeatedSetupAccepted = false,
     repeatError,
+    routingError,
     deinitError;
+  let routingAccepted = false;
   try {
     await lifecycle.setup(root, ['tool']);
     repeatedSetupAccepted = true;
   } catch (error) {
     repeatError = inspect(error, { depth: 4 });
+  }
+  try {
+    await lifecycle.reconcileRoutes(root, ['tool', 'other']);
+    routingAccepted = true;
+  } catch (error) {
+    routingError = inspect(error, { depth: 4 });
   }
   try {
     await lifecycle.deinitialize(root);
@@ -204,9 +216,24 @@ async function main() {
     }
     foreignBootstrapRemoved = true;
   }
+  let managedResourcesPreserved = true;
+  for (const [path, bytes] of managed) {
+    try {
+      if (!bytes.equals(await readFile(join(root, path)))) {
+        managedResourcesPreserved = false;
+      }
+    } catch (error) {
+      if ('ENOENT' !== error.code) {
+        throw error;
+      }
+      managedResourcesPreserved = false;
+    }
+  }
   const failed =
     'initialized' === status.state ||
     repeatedSetupAccepted ||
+    routingAccepted ||
+    !managedResourcesPreserved ||
     foreignBootstrapRemoved ||
     foreignBootstrapChanged;
   const result = {
@@ -218,9 +245,12 @@ async function main() {
     status: status.state,
     integrity: status.integrity,
     repeatedSetupAccepted,
+    routingAccepted,
+    managedResourcesPreserved,
     foreignBootstrapRemoved,
     foreignBootstrapChanged,
     repeatError,
+    routingError,
     deinitError,
     proof,
   };

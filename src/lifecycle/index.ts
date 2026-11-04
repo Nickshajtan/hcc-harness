@@ -1,3 +1,4 @@
+import { assertBootstrapAuthority } from './setup-claim.js';
 import { resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { setup } from '../installation/setup.js';
@@ -27,6 +28,7 @@ export async function reconcileRoutes(
   options: LifecycleOptions = {},
 ): Promise<void> {
   root = resolve(root);
+  await assertBootstrapAuthority(root);
   validateCommands(commands);
   const existing = await readAt(root, routingPath);
   if (existing !== undefined) {
@@ -71,6 +73,7 @@ export async function reconcileRoutes(
 
 export async function deinitialize(root: string): Promise<void> {
   root = resolve(root);
+  await assertBootstrapAuthority(root);
   const text = await readAt(root, routingPath);
   if (text) {
     await applyJournal(root, journalFrom(text), {});

@@ -98,8 +98,8 @@ deinitialize projects first or use a working direct Node invocation afterward.
 
 Windows x64 setup and route reconciliation use a packaged native no-replace
 publication helper, exercised on NTFS and exFAT. This draft is **not release-ready**:
-the [FS-1.2 validation record](docs/fs-1.2-native-publication.md#blocking-setup-authority-gap)
-records a reproduced bootstrap ownership failure and unresolved Windows execution/sharing failures. Linux/macOS still require hard
+the [FS-1.2 validation record](docs/fs-1.2-native-publication.md#durable-setup-authority)
+describes the durable setup-authority guard and unresolved Windows execution/sharing failures. Linux/macOS still require hard
 links. Unsupported capabilities fail closed without a weaker fallback. Updates are
 recoverable checkpoints, not atomic route-set switches or power-loss guarantees.
 Run only one project mutator at a time. See [compatibility](docs/compatibility.md).

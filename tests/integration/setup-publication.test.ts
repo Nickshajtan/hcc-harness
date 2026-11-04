@@ -37,6 +37,9 @@ function start(boundary: string, command = 'tool') {
       'import fs from "node:fs"; const original = fs.promises; ' +
       'const barrier = async () => { process.send("ready"); await new Promise(resolve => process.once("message", resolve)); }; ' +
       exports.map(name => {
+        if (name === 'mkdir' && boundary === 'claim') return 'export async function mkdir(path, options) { await original.mkdir(path, options); if (String(path).endsWith("setup-claim")) await barrier(); }';
+        if (name === 'rmdir' && boundary === 'claim-released') return 'export async function rmdir(path, options) { await original.rmdir(path, options); if (String(path).endsWith("setup-claim")) await barrier(); }';
+        if (name === 'rmdir' && boundary === 'claim-cleanup') return 'export async function rmdir(path, options) { if (String(path).endsWith("setup-claim")) await barrier(); return original.rmdir(path, options); }';
         if (name === 'link') return 'export async function link(stage, target) {' +
           (boundary === 'first' ? 'if (String(target).endsWith("arch.toml")) await barrier();' : '') +
           (boundary === 'before' ? 'if (String(target).endsWith("bootstrap.json")) await barrier();' : '') +
@@ -92,6 +95,8 @@ function start(boundary: string, command = 'tool') {
       reject(new Error(`Setup exited before barrier: ${stderr}`));
     });
   });
+  // A competing invocation can now be rejected by the guard before its barrier.
+  void ready.catch(() => undefined);
   children.push({ child, closed });
   return { child, closed, ready };
 }
@@ -135,7 +140,7 @@ it.skipIf('win32' !== process.platform).each(['late', 'late-bootstrap'])(
   },
 );
 
-it.each(['partial', 'before', 'after'])(
+it.each(['partial', 'before', 'after', 'claim', 'claim-cleanup', 'claim-released'])(
   'inspects real termination at %s bootstrap boundary',
   async (boundary) => {
     const running = start(boundary);
@@ -143,19 +148,26 @@ it.each(['partial', 'before', 'after'])(
     running.child.kill('SIGKILL');
     await running.closed;
     const status = await inspectInstallation(root);
-    if ('after' === boundary) {
+    if ('claim-released' === boundary) {
       expect(status.state).toBe('initialized');
       const manifest = stateFrom(await readFile(join(root, '.arch/bootstrap.json')));
       await checkFiles(root, manifest.files);
       await setup(root, ['tool']);
+      return;
+    }
+    if ('after' === boundary || 'claim-cleanup' === boundary) {
+      expect(status.state).toBe('invalid_state');
+      const manifest = stateFrom(await readFile(join(root, '.arch/bootstrap.json')));
+      await checkFiles(root, manifest.files);
+      await expect(setup(root, ['tool'])).rejects.toThrow('Unresolved setup claim');
     } else {
-      expect(status.state).toBe('uninitialized');
+      expect(status.state).toBe('invalid_state');
       await expect(readFile(join(root, '.arch/bootstrap.json'))).rejects.toMatchObject({
         code: 'ENOENT',
       });
       if ('before' === boundary) {
         const before = await readFile(join(root, '.config/mise/conf.d/arch.toml'));
-        await expect(setup(root, ['tool'])).rejects.toThrow('Refusing to overwrite');
+        await expect(setup(root, ['tool'])).rejects.toThrow('Unresolved setup claim');
         expect(await readFile(join(root, '.config/mise/conf.d/arch.toml'))).toEqual(before);
       } else {
         await expect(readFile(join(root, '.config/mise/conf.d/arch.toml'))).rejects.toMatchObject({
@@ -166,6 +178,11 @@ it.each(['partial', 'before', 'after'])(
     const directory = (await readdir(join(root, '.arch'))).find((name) =>
       name.startsWith('.setup-'),
     );
+    if ('claim' === boundary || 'claim-cleanup' === boundary) {
+      expect(directory).toBeUndefined();
+      await expect(setup(root, ['tool'])).rejects.toThrow('Unresolved setup claim');
+      return;
+    }
     expect(directory).toBeDefined();
     if (directory === undefined) {
       throw new Error('Expected retained stages');
@@ -189,10 +206,10 @@ it.each(['tool', 'other'])(
   'allows one independent competing setup owner with second route %s',
   async (command) => {
     const first = start('first');
+    await first.ready;
     const second = start('first', command);
-    await Promise.all([first.ready, second.ready]);
+    expect(await second.closed).toBe(1);
     first.child.send('go');
-    second.child.send('go');
     expect((await Promise.all([first.closed, second.closed])).sort()).toEqual([0, 1]);
     expect((await inspectInstallation(root)).state).toBe('initialized');
     const manifest = stateFrom(await readFile(join(root, '.arch/bootstrap.json')));

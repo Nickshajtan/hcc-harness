@@ -1,3 +1,4 @@
+import { assertBootstrapAuthority, claimSetup } from '../lifecycle/setup-claim.js';
 import { mkdir, mkdtemp, writeFile, unlink, chmod, lstat, rmdir } from 'node:fs/promises';
 import { join, dirname, resolve, relative, sep } from 'node:path';
 import { parseConfiguration } from '../config.js';
@@ -43,8 +44,20 @@ async function verifySetupOwnership(root: string, resource: PreparedFile, path: 
   }
 }
 
+async function cleanupSetupStages(root: string, prepared: PreparedFile[], directory: string) {
+  for (const resource of prepared) {
+    if ((await readAt(root, resource.stage)) !== undefined) {
+      await verifySetupOwnership(root, resource, resource.stage);
+      await removeOptional(root, resource.stage);
+    }
+  }
+  // An unrecorded partial stage or foreign residue keeps the directory and claim.
+  await rmdir(directory);
+}
+
 export async function setup(root: string, commands: readonly string[]): Promise<void> {
   root = resolve(root);
+  await assertBootstrapAuthority(root);
   for (const file of [statePath, uninstallPath, '.arch/routing.json', '.arch/harness.toml']) {
     await assertSafePath(root, file);
   }
@@ -89,6 +102,7 @@ export async function setup(root: string, commands: readonly string[]): Promise<
     }
   }
   await mkdir(join(root, '.arch'), { recursive: true });
+  const releaseClaim = await claimSetup(root);
   const directory = await mkdtemp(join(root, '.arch/.setup-'));
   const prepared: PreparedFile[] = [];
   const created: typeof prepared = [];
@@ -137,13 +151,11 @@ export async function setup(root: string, commands: readonly string[]): Promise<
     }
     // Bootstrap is last. Cleanup failure after this point must not undo a committed setup.
     committed = true;
-    for (const resource of prepared) {
-      if ((await readAt(root, resource.stage)) !== undefined) {
-        await verifySetupOwnership(root, resource, resource.stage);
-        await removeOptional(root, resource.stage);
-      }
+    await cleanupSetupStages(root, prepared, directory);
+    for (const resource of created) {
+      await verifySetupOwnership(root, resource, resource.file);
     }
-    await rmdir(directory);
+    await releaseClaim();
   } catch (error) {
     if (error instanceof PublicationError && 'unknown' === error.outcome) {
       throw new Error(
@@ -162,6 +174,8 @@ export async function setup(root: string, commands: readonly string[]): Promise<
         await verifySetupOwnership(root, resource, resource.file);
         await unlink(join(root, resource.file));
       }
+      await cleanupSetupStages(root, prepared, directory);
+      await releaseClaim();
     } catch (cleanupError) {
       // Keep the initiating failure authoritative without concealing the cleanup
       // failure. Stop at the same first failed removal and preserve its evidence.

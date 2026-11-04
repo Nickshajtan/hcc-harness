@@ -1,9 +1,11 @@
+import { assertBootstrapAuthority } from './setup-claim.js';
 import { unlink, rename } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { statePath, uninstallPath, stateFrom, configText } from './manifest.js';
 import { readOptional, checkFiles, assertSafePath } from './ownership.js';
 export async function uninstall(root: string): Promise<void> {
   root = resolve(root);
+  await assertBootstrapAuthority(root);
   for (const file of [statePath, uninstallPath, '.arch/routing.json', '.arch/harness.toml']) {
     await assertSafePath(root, file);
   }

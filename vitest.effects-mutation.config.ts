@@ -10,6 +10,7 @@ export default defineConfig({
       'tests/unit/lifecycle.test.ts',
       'tests/unit/lifecycle-contract.test.ts',
       'tests/unit/setup-contract.test.ts',
+      'tests/unit/setup-claim.test.ts',
       'tests/unit/native-publication-state.test.ts',
       'tests/unit/publication-resource.test.ts',
       'tests/unit/publication-process.test.ts',

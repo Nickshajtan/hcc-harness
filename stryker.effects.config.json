@@ -13,6 +13,7 @@
     "tests/unit/lifecycle.test.ts",
     "tests/unit/lifecycle-contract.test.ts",
     "tests/unit/setup-contract.test.ts",
+    "tests/unit/setup-claim.test.ts",
     "tests/unit/native-publication-state.test.ts",
     "tests/unit/publication-resource.test.ts",
     "tests/unit/publication-process.test.ts",
@@ -23,6 +24,7 @@
   ],
   "mutate": [
     "src/installation/setup.ts",
+    "src/lifecycle/setup-claim.ts",
     "src/lifecycle/routing-plan.ts",
     "src/lifecycle/routing-files.ts",
     "src/lifecycle/native-publication.ts",

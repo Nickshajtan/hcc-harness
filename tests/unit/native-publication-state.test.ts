@@ -449,6 +449,6 @@ it('preserves committed setup and foreign private residue when actual directory 
     throw new Error('Expected retained residue');
   }
   expect(await readFile(residue, 'utf8')).toBe('preserve foreign residue');
-  await setup(root, ['tool']);
+  await expect(setup(root, ['tool'])).rejects.toThrow('Unresolved setup claim');
   expect(await readFile(join(root, '.arch/bootstrap.json'))).toEqual(manifest);
 });

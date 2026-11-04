@@ -1,3 +1,4 @@
+import { assertBootstrapAuthority } from './setup-claim.js';
 import { join, resolve, delimiter } from 'node:path';
 import { nativeEnvironment, resolveExecutable } from '../process.js';
 import { parseConfiguration } from '../config.js';
@@ -99,6 +100,7 @@ async function inspectMiddlewareConfiguration(root: string, status: Installation
 
 // This read-only operation classifies recorded ownership; it never repairs an incomplete state.
 async function inspectOwnership(root: string, status: InstallationStatus) {
+  await assertBootstrapAuthority(root);
   const [bootstrap, removal, routing] = await Promise.all(
     [statePath, uninstallPath, routingPath].map((path) => readAt(root, path)),
   );

@@ -25,6 +25,8 @@ it.skipIf('win32' !== process.platform || 'x64' !== process.arch)(
     expect(JSON.parse(result.stdout)).toMatchObject({
       result: 'PASS',
       repeatedSetupAccepted: false,
+      routingAccepted: false,
+      managedResourcesPreserved: true,
       foreignBootstrapRemoved: false,
       foreignBootstrapChanged: false,
     });

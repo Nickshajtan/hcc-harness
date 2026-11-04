@@ -46,8 +46,8 @@ can expose incomplete bytes. No copy, exclusive-write or alternate fallback is u
 
 Windows x64 NTFS and exFAT publication tests use the packaged helper; its
 installation may be independently located on NTFS. FS-1.2 is not release-ready:
-an actual interrupted bootstrap collision can lead to adoption/deletion of foreign
-metadata, including on NTFS. Full exFAT acceptance is also
+the durable setup claim now blocks interrupted bootstrap adoption and destructive
+lifecycle APIs, with local regression evidence. Full exFAT acceptance remains
 blocked by unresolved launcher execution stalls and sharing-test cleanup failures;
 see the [validation record](fs-1.2-native-publication.md#validation-status).
 Stages and final files must
