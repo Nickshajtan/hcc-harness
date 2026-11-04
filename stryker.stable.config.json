@@ -11,7 +11,8 @@
     "src/**/*.ts",
     "tests/unit/stable-install.test.ts",
     "tests/unit/stable-layout.test.ts",
-    "tests/unit/stable-effects.test.ts"
+    "tests/unit/stable-effects.test.ts",
+    "tests/fixtures/publication-invalid-response.cs"
   ],
   "mutate": [
     "src/runtime-version.ts",

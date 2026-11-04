@@ -1,4 +1,6 @@
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import {
   copyFile,
   mkdir,
@@ -75,6 +77,107 @@ afterEach(async () => {
 function install(checkpoint?: (stage: InstallCheckpoint) => Promise<void>) {
   return installStable({ source, destination, npm, ...(checkpoint ? { checkpoint } : {}) });
 }
+describe.skipIf('win32' !== process.platform)('Windows helper readiness', () => {
+  it.each(['arch-publication-v1.exe', 'provenance.json'])(
+    'refuses missing %s before readiness',
+    async (file) => {
+      await rm(join(source, '.tools/publication', file));
+      await expect(install()).rejects.toMatchObject({ cause: { code: 'ENOENT' } });
+      await expect(readdir(join(destination, '.arch-ready'))).rejects.toMatchObject({
+        code: 'ENOENT',
+      });
+    },
+  );
+  it.each([null, 42, { protocol: 1 }, { protocol: 1, sha256: 'incorrect' }])(
+    'refuses invalid build provenance %j',
+    async (record) => {
+      await writeFile(join(source, '.tools/publication/provenance.json'), JSON.stringify(record));
+      await expect(install()).rejects.toMatchObject({
+        cause: { message: 'Publication helper build integrity failure' },
+      });
+      await expect(readdir(join(destination, '.arch-ready'))).rejects.toMatchObject({
+        code: 'ENOENT',
+      });
+    },
+  );
+  it('refuses changed executable bytes before invoking the helper', async () => {
+    const helper = join(source, '.tools/publication/arch-publication-v1.exe');
+    const changed = Buffer.concat([await readFile(helper), Buffer.from('unexpected overlay')]);
+    await writeFile(helper, changed);
+    await expect(install()).rejects.toMatchObject({
+      cause: { message: 'Publication helper build integrity failure' },
+    });
+    expect(await readFile(join(destination, 'application/vendor/arch-publication-v1.exe'))).toEqual(
+      changed,
+    );
+    await expect(readFile(join(destination, '.publication-probe.target'))).rejects.toMatchObject({
+      code: 'ENOENT',
+    });
+    await expect(readdir(join(destination, '.arch-ready'))).rejects.toMatchObject({
+      code: 'ENOENT',
+    });
+  });
+  it.each(['protocol', 'stderr'])(
+    'refuses %s after an actual completed probe move',
+    async (kind) => {
+      const helper = join(source, '.tools/publication/arch-publication-v1.exe');
+      await promisify(execFile)(
+        join(
+          process.env.SystemRoot ?? 'C:/Windows',
+          'Microsoft.NET/Framework64/v4.0.30319/csc.exe',
+        ),
+        [
+          '/nologo',
+          '/platform:x64',
+          ...('protocol' === kind ? ['/define:WRONG_PROTOCOL'] : []),
+          `/out:${helper}`,
+          resolve('tests/fixtures/publication-invalid-response.cs'),
+        ],
+        { timeout: 15000, windowsHide: true, maxBuffer: 4096 },
+      );
+      // Trust this controlled producer's bytes to reach the response check.
+      await writeFile(
+        join(source, '.tools/publication/provenance.json'),
+        JSON.stringify({
+          protocol: 1,
+          sha256: createHash('sha256')
+            .update(await readFile(helper))
+            .digest('hex'),
+        }),
+      );
+      await expect(install()).rejects.toMatchObject({
+        cause: { message: 'Publication helper protocol verification failed' },
+      });
+      expect(await readFile(join(destination, '.publication-probe.target'), 'utf8')).toBe(
+        'arch-publication-v1\n',
+      );
+      await expect(readFile(join(destination, '.publication-probe.stage'))).rejects.toMatchObject({
+        code: 'ENOENT',
+      });
+      await expect(readdir(join(destination, '.arch-ready'))).rejects.toMatchObject({
+        code: 'ENOENT',
+      });
+    },
+  );
+  it('refuses incomplete probe bytes without publishing readiness', async () => {
+    vi.mocked(writeFile).mockImplementation(async (...args) => {
+      if (args[0] === join(destination, '.publication-probe.stage')) {
+        await actual.writeFile(args[0], 'incomplete', args[2]);
+      } else {
+        await actual.writeFile(...args);
+      }
+    });
+    await expect(install()).rejects.toMatchObject({
+      cause: { message: 'Publication helper protocol verification failed' },
+    });
+    expect(await readFile(join(destination, '.publication-probe.target'), 'utf8')).toBe(
+      'incomplete',
+    );
+    await expect(readdir(join(destination, '.arch-ready'))).rejects.toMatchObject({
+      code: 'ENOENT',
+    });
+  });
+});
 it.skipIf('win32' !== process.platform)(
   'refuses an incompatible helper build protocol before readiness',
   async () => {
