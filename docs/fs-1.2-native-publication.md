@@ -7,7 +7,7 @@ from this main. That exact commit's decision record and native prototype were
 reviewed directly. FS-1.0a's staged setup and exact identity checks are retained.
 The existing macOS 15 ARM64 runner pins and architecture assertions remain intact.
 
-**Draft; external exFAT acceptance remains unresolved.** The durable setup-authority
+**Draft; historical external exFAT reliability remains unresolved.** The durable setup-authority
 amendment below is implemented. Its real collision/termination regression passes
 locally; cross-platform CI and the separate external executable/sharing acceptance
 must pass before release. Earlier green CI did not establish these guarantees.
@@ -244,7 +244,7 @@ contracts still invoke the production native executable.
 
 ## Complexity review
 
-The analysis profile reports setup at 128 nonblank lines / complexity 25 (FS-1.0a:
+The analysis profile reports setup at 133 nonblank lines / complexity 26 (FS-1.0a:
 117 / 24), shared publication at 128 / 29 with maximum nesting 5, helper resource
 resolution at 64 / 28, and snapshot verification at 68 / 13. The Win32 classification
 switch (15) and protocol schema checks (21) also exceed the analysis-only complexity target; the structured error
@@ -256,8 +256,8 @@ without pretending those tests prove Windows rename semantics. Setup's ordering
 and reverse rollback remain explicit. No transaction class or numeric-only split
 is introduced; these diagnostics remain visible for independent review.
 
-The authority reproducer has three explicit roles: publisher, owned-child
-supervision, and authority observation. Its IPC termination and error-preserving teardown stay together; it is a
+The authority reproducer has three explicit roles: publisher (70 nonblank lines),
+owned-child supervision (70), and authority observation (106 / complexity 28). Its IPC termination and error-preserving teardown stay together; it is a
 diagnostic/regression driver, not a second production publication algorithm.
 Its static checks pass without suppression despite these analysis-only findings.
 
@@ -267,7 +267,7 @@ pass does not establish Ubuntu/macOS CI, Windows ARM64 or untested filesystem su
 
 ## Validation status
 
-**Authority amendment implemented; external exFAT acceptance remains blocked.** Positive runs
+**Authority amendment verified; historical external reliability remains unresolved.** Positive runs
 do not erase historical unexplained failures. The earlier positive/failing runs
 used the same production source; the new amendment does not change CLI transport. Raw JSON, original errors
 and retained failing fixtures remain outside the source repository.
@@ -282,22 +282,56 @@ with Arch execution trace assertions proving project-scoped routing.
 
 | Check                                               | Observed result                                                                                                                                                                                      |
 | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Local `npm run check`                               | PASS after authority amendment: 762 passed, 35 platform skips; strict lint/zero-warning baseline, typecheck, build, formatting, dependency rules and quality tooling.                                |
-| Full coverage after authority amendment             | PASS: 759 passed / 35 skipped; all thresholds met, including new claim scope 100% lines/branches. Setup 98.82% lines / 92.85% branches.                                                              |
+| Local `npm run check`                               | PASS after authority amendment: 763 passed, 35 platform skips; strict lint/zero-warning baseline, typecheck, build, formatting, dependency rules and quality tooling.                                |
+| Full coverage after authority amendment             | PASS: 763 passed / 35 skipped; all thresholds met, including new claim scope 100% lines/branches. Setup 98.85% lines / 93.18% branches.                                                              |
 | Bootstrap authority interruption regression         | Local PASS after amendment: actual helper Win32 183, independent writer and SIGKILL; status/setup/reconcile/deinit refuse and preserve foreign bootstrap plus managed resources. Updated CI pending. |
-| Source-matching Windows effect mutation             | PASS: six 85% assertion-only gates. Native adapter 90.20%, publication 86.67%, setup 95.24%; no ignored/error mutants. Five timeouts earn no assertion credit                                        |
+| Pre-amendment Windows effect mutation               | PASS: six 85% assertion-only gates. Native adapter 90.20%, publication 86.67%, setup 95.24%; no ignored/error mutants. Five timeouts earn no assertion credit                                        |
 | NTFS install / NTFS consumer at `701299c`           | PASS: same 24-case native/setup/independent-consumer suite, no skips, including real native version and mise activation                                                                              |
 | NTFS install / external exFAT consumer at `701299c` | FAIL: 20 passed / 4 failed. Setup's eight cases passed; sharing-holder cleanup failed and consumer tests timed out/cascaded                                                                          |
 | Subsequent bounded external-consumer diagnosis      | FAIL: one passed / two failed. Real Claude version passed; fixture CLI through mise and explicit project launcher stalled with no captured output; owned-child teardown also failed                  |
 
-After the authority amendment, the external exFAT matrix passed 24/24 with no
-skips, including native sharing/cross-volume/concurrency, setup interruption and
-the real foreign-bootstrap collision/SIGKILL regression. The independent NTFS
-installation/external exFAT consumer passed all three cases, including real CLI
-`--version`, genuine mise activation, argument/cwd/exit forwarding, route recovery,
-foreign resources and helper integrity. These are fresh acceptance observations,
-not proof of a correction for the earlier stalls. No transport/native operation,
-retry, antivirus policy or timeout was changed by this amendment.
+At final production commit `88c39fd`, the full external exFAT matrix passed
+**28/28 with no skips**: native sharing/cross-volume/concurrency, setup interruption,
+the real foreign-bootstrap collision/SIGKILL regression, and all three independently
+installed consumer cases. These include real CLI `--version`, genuine mise
+activation, argument/cwd/exit forwarding, route recovery, foreign files/configuration
+and helper integrity. They are fresh acceptance observations, not proof of a
+correction for the earlier stalls. No transport/native operation, retry, antivirus
+policy or timeout was changed by this amendment.
+
+The [Windows CI job](https://github.com/Nickshajtan/hcc-harness/actions/runs/41852300687/job/126651522037)
+was inspected: the mandatory real-process authority regression ran and passed;
+659 unit tests passed / four skipped, 102 integration tests passed / five skipped,
+and acceptance passed. Windows, Ubuntu and macOS regression jobs passed at this
+production commit. Windows/Ubuntu runtime and Windows reliability also passed;
+macOS runtime jobs remained queued at observation, **NOT TESTED** for that run.
+
+The [hosted effect mutation job](https://github.com/Nickshajtan/hcc-harness/actions/runs/41852300622/job/126656193627)
+completed in 4m05s and validated current production source with all seven 85%
+assertion-only gates passing: setup 144 kills / 154 (93.51%), claim 25/28 (89.29%),
+native adapter 221/245 (90.20%), publication 157/180 (87.22%), routing plan 44/48
+(91.67%), recovery 39/39 and removal 59/59. Five adapter timeouts earn zero assertion
+credit; there are no compile/runtime errors or ignored mutants. The claim's error-
+classification survivor was killed by the inspection-error regression. Its three
+remaining survivors weaken directory/device predicates while retaining differing
+inode rejection; the defensive checks remain. Same-volume local identities are
+tested; hostile mount/path substitution remains outside the contract.
+
+Lifecycle mutation source validation also passed: 385 assertion kills / 397,
+10 survivors, two uncovered, no timeouts/errors/ignored. Ownership and recovery
+validation were 100%; all unchanged gates passed.
+
+A local mutation-evidence command incorrectly shared its incremental-cache and
+JSON-reporter path. Two Stryker writers produced a malformed report; that file and
+the parse failure were preserved, not repaired or accepted. Regeneration with
+separate cache/report paths completed in 8m46s, using supported reuse of 644/753
+results from a validated earlier snapshot. Current-source validation passed:
+697 assertion kills, five timeouts, 47 survivors, four uncovered, no errors/ignored.
+All seven gates passed: setup 147/154 (95.45%), claim 25/28 (89.29%), adapter
+221/245 (90.20%), publication 158/180 (87.78%), and plan/recovery/removal 100%.
+Timeout-inclusive score was 93.23%; timeouts earned no assertion credit. The
+original malformed report was not trimmed, merged or used as passing evidence.
+This tooling failure is separate from publication/ownership behavior.
 
 A separate read-only [Restart Manager query](https://learn.microsoft.com/en-us/windows/win32/api/restartmanager/nf-restartmanager-rmgetlist)
 reported no current resource users for the retained stalled launcher and both
