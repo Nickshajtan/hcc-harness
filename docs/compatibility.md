@@ -45,7 +45,9 @@ validation. Ordinary rename has no portable no-replace guarantee; exclusive copy
 can expose incomplete bytes. No copy, exclusive-write or alternate fallback is used.
 
 Windows x64 NTFS and exFAT publication tests use the packaged helper; its
-installation may be independently located on NTFS. Full exFAT acceptance remains
+installation may be independently located on NTFS. FS-1.2 is not release-ready:
+an actual interrupted bootstrap collision can lead to adoption/deletion of foreign
+metadata, including on NTFS. Full exFAT acceptance is also
 blocked by unresolved launcher execution stalls and sharing-test cleanup failures;
 see the [validation record](fs-1.2-native-publication.md#validation-status).
 Stages and final files must

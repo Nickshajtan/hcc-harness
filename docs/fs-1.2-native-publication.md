@@ -7,6 +7,80 @@ from this main. That exact commit's decision record and native prototype were
 reviewed directly. FS-1.0a's staged setup and exact identity checks are retained.
 The existing macOS 15 ARM64 runner pins and architecture assertions remain intact.
 
+**DESIGN BLOCKED for setup authority; do not merge.** Native publication and
+packaging are implemented, but the reproduced ownership failure below violates
+FS-1.2 D/F. Earlier green CI did not establish acceptance. The authority amendment
+is not implemented; this draft must not be released.
+
+## Blocking setup authority gap
+
+This is a real failure, separate from the Windows execution/sharing incidents.
+It was reproduced on NTFS with Node 24.19.0 at
+`1fe333a4cbf4de3df51deecaac72f1a926a46f22`, using the production native helper:
+
+1. Setup prepares complete files and publishes its non-bootstrap resources.
+2. An independent ordinary writer exclusively creates an identical **foreign**
+   bootstrap. It does not modify or delete the private source stage.
+3. The real helper correctly refuses publication with Win32 183; the source
+   remains present and has a different identity from the foreign target.
+4. At an IPC barrier after that syscall and before response delivery, the setup
+   process is physically terminated with SIGKILL. No timing-based sleep is used.
+5. A separate, uninstrumented process reports `initialized` / `valid`, accepts
+   repeated setup, and deinit **deletes the foreign bootstrap**.
+
+A separate response-loss injection with the caller still alive also reproduced
+this: setup raises its indeterminate-outcome diagnostic and preserves the files,
+but subsequent authority readers accept the same manifest. The held-handle proof
+prevents immediate adoption inside publication; it cannot preserve an authority
+decision after the originating process has gone away.
+
+The exact gap is that a syntactically valid bootstrap plus matching resource
+hashes is the existing persistent ownership authority. It contains no evidence
+that this setup invocation published it. In-memory success flags, another helper
+response parser or an in-process check of the unconsumed source cannot cover the
+termination window demonstrated above. Retrying or deleting the ambiguous target
+would violate the contract.
+
+Reproduce with built resources on Windows x64:
+
+```powershell
+$env:ARCH_WINDOWS_SDK = '10.0.17763.0' # a complete installed SDK
+npm run build
+npm run build:bootstrap
+$env:GITHUB_SHA = git rev-parse HEAD
+node scripts/reproduce-setup-authority.mjs
+```
+
+**Current result: FAIL, exit 1.** The script creates only a unique disposable
+project under TEMP (or `ARCH_PUBLICATION_TEST_ROOT`), retains its proof/result
+files and prints its location. Its only response hook is inside the test-owned
+publisher process; subsequent status/setup/deinit run unmodified production code
+in the parent. It verifies real foreign identity, intact source and actual
+SIGKILL. No paid CLI, partitioning, antivirus changes or production retry.
+This combined scenario is now an ordinary Windows integration regression in
+`tests/integration/setup-authority.test.ts`. It currently fails against this
+implementation and blocks Windows CI. Do not skip or invert its expected foreign
+resource preservation to obtain a green result.
+
+### Smallest proposed amendment, not implemented
+
+Persist a narrow, private per-invocation setup claim **before the first final
+resource publication**. Bootstrap authority readers (including status, repeated
+setup, reconciliation and removal) must honor an unresolved claim before accepting
+the manifest. The claim must tie the verified bootstrap stage and expected payload
+to the invocation and support post-crash attribution of a legitimate completed
+publication, including exFAT's changing file IDs and POSIX's retained hard links.
+Ambiguous claims must block ownership/destructive actions and preserve evidence.
+Commit cleanup must verify claim bytes/identity and retain compound failures.
+
+This need not change the routing journal or ownership-manifest schema, and is not
+a generic transaction framework. It **does** amend the current bootstrap-alone
+authority contract and requires a concrete recovery proof plus compatibility tests
+for historical setups, abandoned pre-bootstrap stages and committed cleanup
+failure. Existing `invalid_state` diagnostics may suffice for ambiguous ownership;
+do not assume a new public status schema is necessary. This unsafe portion is
+stopped here, as required when the existing authority contract is insufficient.
+
 ## Shared operation and assumptions
 
 `publishExclusive(root, stage, target, expectedHash)` is the only publication
@@ -67,11 +141,13 @@ Compound cleanup failures retain both errors. A source-handle cleanup failure al
 fails closed and preserves prior failure evidence.
 
 Bootstrap remains last and is setup's effective ownership commit point, not a
-multi-file transaction. Pre-bootstrap crash residue is not automatically adopted
-or deleted. A valid bootstrap remains the existing status authority; an explicit
-indeterminate-outcome diagnostic requires inspection rather than inferring new
-ownership from matching bytes. Post-commit stage cleanup failures preserve the
-committed installation. Repeated setup uses historical hashes.
+multi-file transaction. With no bootstrap, pre-bootstrap crash residue is not
+automatically adopted or deleted. A valid bootstrap remains the existing status
+authority. That rule is insufficient in the reproduced collision/termination case:
+the indeterminate diagnostic does not prevent a later process accepting foreign
+metadata. Post-commit stage cleanup failures preserve the committed installation;
+ordinary repeated setup uses historical hashes. The blocking amendment above is
+required before claiming the full unknown-outcome contract.
 
 Routing journals remain the recovery authority. Missing consumed stages are
 normal. Recovery may recreate an addition stage for an already-published matching
@@ -155,13 +231,19 @@ without pretending those tests prove Windows rename semantics. Setup's ordering
 and reverse rollback remain explicit. No transaction class or numeric-only split
 is introduced; these diagnostics remain visible for independent review.
 
+The failing authority reproducer has three explicit roles: publisher (70 nonblank
+lines), owned-child supervision (70), and authority observation (76 / complexity
+20). Its IPC termination and error-preserving teardown stay together; it is a
+diagnostic/regression driver, not a second production publication algorithm.
+Its static checks pass without suppression despite these analysis-only findings.
+
 Executed results, first-attempt failures, performance and inspected CI links are
 recorded in the PR. Raw evidence remains outside the repository. A local Windows
 pass does not establish Ubuntu/macOS CI, Windows ARM64 or untested filesystem support.
 
 ## Validation status
 
-**Implementation delivered; exFAT acceptance/readiness blocked.** Positive runs
+**Partial implementation delivered; setup authority and exFAT acceptance blocked.** Positive runs
 do not erase subsequent unexplained failures. The production source is unchanged
 between the positive and failing filesystem runs below. Raw JSON, original errors
 and retained failing fixtures remain outside the source repository.
@@ -174,14 +256,15 @@ was on NTFS; the final external exFAT consumer directories were outside the sour
 checkout. Native version checks used Claude Code 2.1.280 and mise 2026.10.11,
 with Arch execution trace assertions proving project-scoped routing.
 
-| Check                                               | Observed result                                                                                                                                                                     |
-| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Local `npm run check`                               | PASS: 733 tests passed, 35 skipped; strict lint/warning baseline, typecheck, build, formatting, dependency rules and quality tooling passed                                         |
-| Full coverage                                       | 733 passed / 35 skipped; all unchanged configured thresholds met. Setup 98.70% lines / 92.85% branches; shared publication 98.33% / 96.49%; native adapter 100% / 98.86%            |
-| Source-matching Windows effect mutation             | PASS: six 85% assertion-only gates. Native adapter 90.20%, publication 86.67%, setup 95.24%; no ignored/error mutants. Five timeouts earn no assertion credit                       |
-| NTFS install / NTFS consumer at `701299c`           | PASS: same 24-case native/setup/independent-consumer suite, no skips, including real native version and mise activation                                                             |
-| NTFS install / external exFAT consumer at `701299c` | FAIL: 20 passed / 4 failed. Setup's eight cases passed; sharing-holder cleanup failed and consumer tests timed out/cascaded                                                         |
-| Subsequent bounded external-consumer diagnosis      | FAIL: one passed / two failed. Real Claude version passed; fixture CLI through mise and explicit project launcher stalled with no captured output; owned-child teardown also failed |
+| Check                                               | Observed result                                                                                                                                                                                          |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Local `npm run check`                               | PASS at `1fe333a`, before adding the failing authority regression: 745 tests passed, 35 skipped; strict lint/warning baseline, typecheck, build, formatting, dependency rules and quality tooling passed |
+| Full coverage                                       | 745 passed / 35 skipped at `1fe333a`; all unchanged configured thresholds met. Setup 98.70% lines / 92.85% branches; shared publication 98.33% / 96.49%; native adapter 100% / 98.86%                    |
+| Bootstrap authority interruption regression         | **FAIL**: actual helper Win32 183, independent writer, SIGKILL; fresh status/setup adopt foreign metadata and deinit deletes it. This blocks Windows CI and acceptance D/F.                              |
+| Source-matching Windows effect mutation             | PASS: six 85% assertion-only gates. Native adapter 90.20%, publication 86.67%, setup 95.24%; no ignored/error mutants. Five timeouts earn no assertion credit                                            |
+| NTFS install / NTFS consumer at `701299c`           | PASS: same 24-case native/setup/independent-consumer suite, no skips, including real native version and mise activation                                                                                  |
+| NTFS install / external exFAT consumer at `701299c` | FAIL: 20 passed / 4 failed. Setup's eight cases passed; sharing-holder cleanup failed and consumer tests timed out/cascaded                                                                              |
+| Subsequent bounded external-consumer diagnosis      | FAIL: one passed / two failed. Real Claude version passed; fixture CLI through mise and explicit project launcher stalled with no captured output; owned-child teardown also failed                      |
 
 Earlier 24-case NTFS/exFAT runs passed with consumer directories under the checkout.
 An earlier outside-checkout run passed all three independent-consumer cases, but
@@ -208,6 +291,16 @@ defensive non-Error parser fallback. Five callback/promise-disabling mutants tim
 out, with zero assertion credit. These are limits of the evidence, not exclusions
 or a claim of exhaustive equivalence. POSIX-only setup permissions remain covered
 by hosted POSIX suites rather than local Windows execution.
+
+The final Windows stable-install measurement also completed with matching source
+after sharing the helper transport: 358 mutants, 307 assertion kills, three
+timeouts, 41 survivors, seven uncovered, no errors/ignored mutants. The supported
+incremental pass reused 326 results and took 3m51s (initial full run: 9m05s).
+Installer assertion-only score is 83.46%; layout 90%, runtime guard 100%.
+Existing stable-pilot numeric targets remain nonblocking; none were lowered.
+The new checksum, response, expected-byte and foreign-probe guards were exercised;
+the shared response/timeout parser retains its separate effect gate. These
+measurements **do not cover or waive** the newly exposed failing authority case.
 
 A preliminary integrated shared-operation probe measured 20 operations at 71.8 ms
 median, 148.7 ms maximum, including process spawn, verification and handle tracking.
