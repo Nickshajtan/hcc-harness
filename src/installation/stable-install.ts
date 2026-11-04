@@ -14,6 +14,7 @@ import {
 import { dirname, isAbsolute, join, parse, relative, resolve, toNamespacedPath } from 'node:path';
 import { promisify } from 'node:util';
 import { installationKind } from './stable-layout.js';
+import { invokePublicationHelper } from '../lifecycle/native-publication.js';
 
 const execute = promisify(execFile);
 export type InstallCheckpoint = 'reserved' | 'materialized' | 'verified' | 'published';
@@ -151,16 +152,10 @@ async function verifySnapshot(source: string, destination: string, app: string) 
     const stage = join(destination, '.publication-probe.stage');
     const target = join(destination, '.publication-probe.target');
     await writeFile(stage, 'arch-publication-v1\n', { flag: 'wx' });
-    const result = await execute(helper, [toNamespacedPath(stage), toNamespacedPath(target)], {
-      timeout: 10_000,
-      maxBuffer: 4096,
-      windowsHide: true,
-    });
-    if (
-      '{"protocol":1,"win32":0}' !== result.stdout.trim() ||
-      result.stderr ||
-      'arch-publication-v1\n' !== (await readFile(target, 'utf8'))
-    ) {
+    // Resource integrity is established above; readiness cannot yet exist. Use
+    // the shared transport directly, without runtime resource lookup.
+    await invokePublicationHelper(helper, toNamespacedPath(stage), toNamespacedPath(target));
+    if ('arch-publication-v1\n' !== (await readFile(target, 'utf8'))) {
       throw new Error('Publication helper protocol verification failed');
     }
     await unlink(target);

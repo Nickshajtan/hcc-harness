@@ -90,7 +90,7 @@ describe.skipIf('win32' !== process.platform)('Windows helper readiness', () => 
         }
       }),
     ).rejects.toMatchObject({
-      cause: 'stage' === kind ? { code: 'EEXIST' } : { code: 1 },
+      cause: 'stage' === kind ? { code: 'EEXIST' } : { kind: 'collision', win32: 183 },
     });
     if (!original) {
       throw new Error('Foreign probe fixture was not prepared');
@@ -172,7 +172,7 @@ describe.skipIf('win32' !== process.platform)('Windows helper readiness', () => 
         }),
       );
       await expect(install()).rejects.toMatchObject({
-        cause: { message: 'Publication helper protocol verification failed' },
+        cause: { kind: 'protocol', outcome: 'unknown' },
       });
       expect(await readFile(join(destination, '.publication-probe.target'), 'utf8')).toBe(
         'arch-publication-v1\n',

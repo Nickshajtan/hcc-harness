@@ -100,6 +100,9 @@ probe before hashing resources and publishing `.arch-ready`. Installation hashes
 include both resources. Runtime publication verifies the packaged helper against
 `installation.json`; missing/corrupt resources fail before invocation. Installed
 consumers need no compiler, new runtime, download, elevation or PATH changes.
+The readiness probe reuses the same bounded invocation and protocol parser as
+runtime publication, after verifying its resource hash, without requiring runtime
+readiness to exist during installation.
 Copying the stable tree preserves relative resource lookup; existing entrypoint
 and readiness contracts remain unchanged.
 
@@ -142,7 +145,7 @@ contracts still invoke the production native executable.
 
 The analysis profile reports setup at 126 nonblank lines / complexity 26 (FS-1.0a:
 117 / 24), shared publication at 128 / 29 with maximum nesting 5, helper resource
-resolution at 64 / 28, and snapshot verification at 76 / 15. The Win32 classification
+resolution at 64 / 28, and snapshot verification at 68 / 13. The Win32 classification
 switch (15) and protocol schema checks (21) also exceed the analysis-only complexity target; the structured error
 constructor has five parameters. No suppression or warning baseline is changed.
 Publication keeps open-handle provenance, syscall outcome, filesystem inspection
