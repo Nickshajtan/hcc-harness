@@ -1,17 +1,70 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { mkdir, mkdtemp, readFile, rm, writeFile, rename, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { spawn } from 'node:child_process';
 import { installStable } from '../../src/installation/stable-install.js';
-import { world, run, records, mise, requiredEnvironment, events } from '../support.js';
+import {
+  world,
+  records,
+  mise,
+  requiredEnvironment,
+  events,
+  start,
+  recordBeforeDisposal,
+  diagnosticStreams,
+  type Result,
+} from '../support.js';
+
+// Preserve the stalled operation's streams before terminating its owned child.
+// A whole-suite timeout alone cannot distinguish publication from CLI lifetime.
+async function run(command: string, args: string[], cwd: string, env: NodeJS.ProcessEnv) {
+  const invocation = start(command, args, cwd, env);
+  invocation.child.stdin.end();
+  let result: Result | undefined;
+  await recordBeforeDisposal({
+    record: async () => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        result = await Promise.race([
+          invocation.result,
+          new Promise<never>((_done, fail) => {
+            timer = setTimeout(() => {
+              fail(new Error('Consumer command deadline exceeded'));
+            }, 60000);
+          }),
+        ]);
+      } catch (cause) {
+        throw new Error(
+          JSON.stringify({
+            command,
+            args,
+            cwd,
+            pid: invocation.child.pid,
+            ...diagnosticStreams(invocation.output()),
+            events: invocation.observations(),
+          }),
+          { cause },
+        );
+      } finally {
+        clearTimeout(timer);
+      }
+    },
+    dispose: () => invocation.dispose(),
+  });
+  if (!result) {
+    throw new Error('Consumer command produced no result');
+  }
+  return result;
+}
 
 describe.skipIf('win32' !== process.platform || 'x64' !== process.arch)(
   'independent native publication consumer',
   () => {
     let f: Awaited<ReturnType<typeof world>>;
     let consumer: string, stable: string, entry: string, env: NodeJS.ProcessEnv;
+    let failed = false;
     beforeAll(async () => {
       f = await world(tmpdir());
       consumer = await mkdtemp(
@@ -31,7 +84,16 @@ describe.skipIf('win32' !== process.platform || 'x64' !== process.arch)(
         MISE_CEILING_PATHS: dirname(consumer),
       };
     });
+    afterEach((context) => {
+      failed = failed || 'fail' === context.task.result?.state;
+    });
     afterAll(async () => {
+      if (failed) {
+        console.error(
+          `Retained failed consumer and independent installation: ${consumer}; ${f.root}`,
+        );
+        return;
+      }
       if (consumer) {
         await rm(consumer, { recursive: true, force: true });
       }
@@ -82,18 +144,47 @@ describe.skipIf('win32' !== process.platform || 'x64' !== process.arch)(
           done();
         });
       });
+      let checkpointTimer: ReturnType<typeof setTimeout> | undefined;
+      let childStderr = '';
+      child.stderr?.on('data', (bytes: Buffer) => {
+        childStderr = (childStderr + bytes.toString()).slice(-65536);
+      });
       try {
         await new Promise<void>((done, fail) => {
-          child.once('message', () => {
-            done();
+          checkpointTimer = setTimeout(() => {
+            fail(
+              new Error(
+                `Installed recovery child did not reach publication checkpoint: ${childStderr}`,
+              ),
+            );
+          }, 30000);
+          child.once('message', (message) => {
+            if ('ready' === message) {
+              done();
+            } else {
+              fail(new Error('Unexpected recovery checkpoint', { cause: message }));
+            }
           });
           child.once('exit', () => {
-            fail(new Error('Recovery child exited before checkpoint'));
+            fail(new Error(`Recovery child exited before checkpoint: ${childStderr}`));
           });
         });
       } finally {
+        clearTimeout(checkpointTimer);
         child.kill('SIGKILL');
-        await closed;
+        let closeTimer: ReturnType<typeof setTimeout> | undefined;
+        try {
+          await Promise.race([
+            closed,
+            new Promise<never>((_done, fail) => {
+              closeTimer = setTimeout(() => {
+                fail(new Error('Installed recovery child did not close'));
+              }, 3000);
+            }),
+          ]);
+        } finally {
+          clearTimeout(closeTimer);
+        }
       }
       const pending = await run(entry, ['status', '--json'], consumer, env);
       expect(JSON.parse(pending.stdout)).toMatchObject({

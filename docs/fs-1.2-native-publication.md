@@ -141,9 +141,9 @@ contracts still invoke the production native executable.
 ## Complexity review
 
 The analysis profile reports setup at 126 nonblank lines / complexity 26 (FS-1.0a:
-117 / 24), shared publication at 110 / 28, helper resource resolution at 64 / 28,
-and snapshot verification at 76 / 15. The Win32 classification switch and protocol
-schema checks also exceed the analysis-only complexity target; the structured error
+117 / 24), shared publication at 128 / 29 with maximum nesting 5, helper resource
+resolution at 64 / 28, and snapshot verification at 76 / 15. The Win32 classification
+switch (15) and protocol schema checks (21) also exceed the analysis-only complexity target; the structured error
 constructor has five parameters. No suppression or warning baseline is changed.
 Publication keeps open-handle provenance, syscall outcome, filesystem inspection
 and close-error precedence together so ownership authority remains reviewable.
@@ -155,3 +155,59 @@ is introduced; these diagnostics remain visible for independent review.
 Executed results, first-attempt failures, performance and inspected CI links are
 recorded in the PR. Raw evidence remains outside the repository. A local Windows
 pass does not establish Ubuntu/macOS CI, Windows ARM64 or untested filesystem support.
+
+## Validation status
+
+**Implementation delivered; exFAT acceptance/readiness blocked.** Positive runs
+do not erase subsequent unexplained failures. The production source is unchanged
+between the positive and failing filesystem runs below. Raw JSON, original errors
+and retained failing fixtures remain outside the source repository.
+
+Local environment: Windows x64 10.0.19045.0, Node 24.19.0, helper protocol 1,
+MSVC 14.16.27023 / SDK 10.0.17763.0. The helper SHA-256 is
+`4b1e1c7b2369c014fb96ec3d0b95383ca69e7b7852aaf4661a65d9b94999ae41`.
+Real volumes were confirmed as NTFS and exFAT. Arch's independent installation
+was on NTFS; the final external exFAT consumer directories were outside the source
+checkout. Native version checks used Claude Code 2.1.280 and mise 2026.10.11,
+with Arch execution trace assertions proving project-scoped routing.
+
+| Check                                               | Observed result                                                                                                                                                                     |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Local `npm run check`                               | PASS: 733 tests passed, 35 skipped; strict lint/warning baseline, typecheck, build, formatting, dependency rules and quality tooling passed                                         |
+| Full coverage                                       | 733 passed / 35 skipped; all unchanged configured thresholds met. Setup 98.70% lines / 92.85% branches; shared publication 98.33% / 96.49%; native adapter 100% / 98.86%            |
+| Source-matching Windows effect mutation             | PASS: six 85% assertion-only gates. Native adapter 90.20%, publication 86.67%, setup 95.24%; no ignored/error mutants. Five timeouts earn no assertion credit                       |
+| NTFS install / NTFS consumer at `701299c`           | PASS: same 24-case native/setup/independent-consumer suite, no skips, including real native version and mise activation                                                             |
+| NTFS install / external exFAT consumer at `701299c` | FAIL: 20 passed / 4 failed. Setup's eight cases passed; sharing-holder cleanup failed and consumer tests timed out/cascaded                                                         |
+| Subsequent bounded external-consumer diagnosis      | FAIL: one passed / two failed. Real Claude version passed; fixture CLI through mise and explicit project launcher stalled with no captured output; owned-child teardown also failed |
+
+Earlier 24-case NTFS/exFAT runs passed with consumer directories under the checkout.
+An earlier outside-checkout run passed all three independent-consumer cases, but
+failed the sharing test's teardown (`EBUSY`, stage unlink). A stronger release
+handshake also failed outside the checkout: after disposing its own FileStream,
+the holder's one attempted `File.Delete` received a sharing exception. Its
+publication assertions had required Win32 32, unchanged stage bytes and no target.
+No retry, timeout increase, antivirus change or production workaround was added.
+
+The consumer diagnostic identifies stalls during native launcher execution, after
+initialization/status, rather than a reported publication-helper failure. One
+test-owned Arch process survived launcher teardown; its identity was recorded and
+it was explicitly terminated. Failed installation/project fixtures were retained.
+These incidents remain **UNRESOLVED**: neither exFAT nor antivirus is established
+as the cause. General Windows executable-lifetime remediation remains outside FS-1.2.
+They block a stability/readiness recommendation and acceptance gate G even when CI
+and separate repetitions pass.
+
+The effect run took 14m20s using Stryker's supported incremental reuse (538 of 718
+mutants); original source matching was enforced. Remaining adapter survivors
+include redundant validation predicates, fail-closed metadata guard variants,
+message/encoding variants and `windowsHide`; two uncovered mutants are the
+defensive non-Error parser fallback. Five callback/promise-disabling mutants timed
+out, with zero assertion credit. These are limits of the evidence, not exclusions
+or a claim of exhaustive equivalence. POSIX-only setup permissions remain covered
+by hosted POSIX suites rather than local Windows execution.
+
+A preliminary integrated shared-operation probe measured 20 operations at 71.8 ms
+median, 148.7 ms maximum, including process spawn, verification and handle tracking.
+It used the development helper path and NTFS targets, not an isolated installed
+exFAT performance benchmark. Publication is a lifecycle cost, not a per-command
+cost; no optimization or native addon is introduced.

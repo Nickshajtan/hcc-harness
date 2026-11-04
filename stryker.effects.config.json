@@ -17,6 +17,7 @@
     "tests/unit/publication-resource.test.ts",
     "tests/unit/publication-process.test.ts",
     "tests/integration/native-publication.test.ts",
+    "tests/support.ts",
     "tests/fixtures/publication-holder.cs",
     "tests/unit/uninstall.test.ts"
   ],
