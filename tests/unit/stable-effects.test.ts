@@ -8,6 +8,7 @@ import {
   readFile,
   readdir,
   realpath,
+  lstat,
   rm,
   symlink,
   writeFile,
@@ -78,6 +79,31 @@ function install(checkpoint?: (stage: InstallCheckpoint) => Promise<void>) {
   return installStable({ source, destination, npm, ...(checkpoint ? { checkpoint } : {}) });
 }
 describe.skipIf('win32' !== process.platform)('Windows helper readiness', () => {
+  it.each(['stage', 'target'])('preserves a late foreign probe %s', async (kind) => {
+    const file = join(destination, `.publication-probe.${kind}`);
+    let original: { dev: bigint; ino: bigint } | undefined;
+    await expect(
+      install(async (phase) => {
+        if ('materialized' === phase) {
+          await writeFile(file, 'foreign');
+          original = await lstat(file, { bigint: true });
+        }
+      }),
+    ).rejects.toMatchObject({
+      cause: 'stage' === kind ? { code: 'EEXIST' } : { code: 1 },
+    });
+    if (!original) {
+      throw new Error('Foreign probe fixture was not prepared');
+    }
+    expect(await readFile(file, 'utf8')).toBe('foreign');
+    expect(await lstat(file, { bigint: true })).toMatchObject({
+      dev: original.dev,
+      ino: original.ino,
+    });
+    await expect(readdir(join(destination, '.arch-ready'))).rejects.toMatchObject({
+      code: 'ENOENT',
+    });
+  });
   it.each(['arch-publication-v1.exe', 'provenance.json'])(
     'refuses missing %s before readiness',
     async (file) => {
