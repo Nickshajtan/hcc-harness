@@ -1,12 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
+import { once } from 'node:events';
 import { mkdtemp, writeFile, readFile, lstat, rm, mkdir, open } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, toNamespacedPath } from 'node:path';
 import { publicationHelper, renameNoReplace } from '../../src/lifecycle/native-publication.js';
 import { publishExclusive } from '../../src/lifecycle/routing-files.js';
 import { digest } from '../../src/lifecycle/manifest.js';
+import { start, recordBeforeDisposal } from '../support.js';
 
 const execute = promisify(execFile);
 describe.skipIf('win32' !== process.platform || 'x64' !== process.arch)(
@@ -134,31 +136,70 @@ describe.skipIf('win32' !== process.platform || 'x64' !== process.arch)(
         ['/nologo', `/out:${holder}`, resolve('tests/fixtures/publication-holder.cs')],
       );
       await writeFile(join(root, 'stage'), 'complete');
-      const child = spawn(holder, [join(root, 'stage')], { stdio: ['pipe', 'pipe', 'pipe'] });
-      const closed = new Promise<void>((done, fail) => {
-        child.once('error', fail);
-        child.once('close', () => {
-          done();
+      const holding = start(holder, [join(root, 'stage')], root, process.env);
+      let inputError: Error | undefined;
+      const inputFailure = new Promise<never>((_done, fail) => {
+        holding.child.stdin.on('error', (error) => {
+          inputError = error;
+          fail(error);
         });
       });
-      try {
-        await new Promise<void>((done, fail) => {
-          child.stdout.once('data', () => {
-            done();
-          });
-          child.once('exit', () => {
-            fail(new Error('Holder exited before ready'));
-          });
-        });
-        await expect(
-          publishExclusive(root, 'stage', 'target', digest('complete')),
-        ).rejects.toMatchObject({ kind: 'sharing', win32: 32, outcome: 'not-published' });
-        expect(await readFile(join(root, 'stage'), 'utf8')).toBe('complete');
-        await expect(lstat(join(root, 'target'))).rejects.toMatchObject({ code: 'ENOENT' });
-      } finally {
-        child.stdin.end('\n');
-        await closed;
+      async function phase(name: string) {
+        const signal = AbortSignal.timeout(15000);
+        await Promise.race([
+          inputFailure,
+          (async () => {
+            while (!holding.output().stdout.split(/\r?\n/).includes(name)) {
+              await once(holding.child.stdout, 'data', { signal });
+            }
+          })(),
+          holding.result.then((result) => {
+            throw new Error(
+              `Holder exited before ${name}: ${JSON.stringify({ pid: holding.child.pid, ...result, events: holding.observations() })}`,
+            );
+          }),
+        ]);
       }
+      await recordBeforeDisposal({
+        record: async () => {
+          await phase('ready');
+          let assertionFailure: { error: unknown } | undefined;
+          try {
+            await expect(
+              publishExclusive(root, 'stage', 'target', digest('complete')),
+            ).rejects.toMatchObject({ kind: 'sharing', win32: 32, outcome: 'not-published' });
+            expect(await readFile(join(root, 'stage'), 'utf8')).toBe('complete');
+            await expect(lstat(join(root, 'target'))).rejects.toMatchObject({ code: 'ENOENT' });
+          } catch (error) {
+            assertionFailure = { error };
+          }
+          try {
+            const released = phase('released');
+            holding.child.stdin.write('release\n');
+            await released;
+            await expect(lstat(join(root, 'stage'))).rejects.toMatchObject({ code: 'ENOENT' });
+            holding.child.stdin.end('exit\n');
+            const result = await holding.result;
+            if (inputError) {
+              throw inputError;
+            }
+            expect(result, result.stderr).toMatchObject({ code: 0, signal: null });
+          } catch (cleanupError) {
+            if (assertionFailure) {
+              throw new AggregateError(
+                [assertionFailure.error, cleanupError],
+                'Publication assertion and holder release failed',
+                { cause: assertionFailure.error },
+              );
+            }
+            throw cleanupError;
+          }
+          if (assertionFailure) {
+            throw assertionFailure.error;
+          }
+        },
+        dispose: () => holding.dispose(),
+      });
     });
     it('never exposes partial bytes to an independent reader', async () => {
       const bytes = Buffer.alloc(4 * 1024 * 1024, 0x5a);
