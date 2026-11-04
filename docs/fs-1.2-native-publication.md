@@ -54,6 +54,16 @@ committed resources and leaves the blocking guard. Claim removal is not a public
 recovery operation: matching bootstrap bytes alone are insufficient evidence to
 manually clear one. Preserve the complete project state for provenance review.
 
+Private-directory preparation (`mkdtemp`) is inside the same guarded error path.
+If it rejects before a stage writer or publisher is reached, there is no returned
+stage-directory path to clean. Rollback still verifies bootstrap absence, then
+releases only the invocation-owned empty claim through its identity-checked,
+non-recursive cleanup. A substituted/nonempty claim or any cleanup/verification
+failure remains blocking and preserves both errors. Unknown publication outcomes
+still bypass rollback entirely. Deterministic tests cover preparation failure,
+claim-removal failure, identity substitution and a foreign bootstrap appearing
+while preparation fails; none permit adoption or unsafe cleanup.
+
 Historical installations without claims retain their documented manifest/hash
 contract; no legacy migration or abandonment adoption is introduced. Normal
 successful setup leaves no claim. This is process-crash safety, not power-loss

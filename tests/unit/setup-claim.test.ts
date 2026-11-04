@@ -1,5 +1,15 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { mkdtemp, mkdir, writeFile, readFile, rm, lstat, rmdir, rename } from 'node:fs/promises';
+import {
+  mkdtemp,
+  mkdir,
+  writeFile,
+  readFile,
+  rm,
+  lstat,
+  rmdir,
+  rename,
+  readdir,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setup, uninstall } from '../../src/setup.js';
@@ -20,14 +30,96 @@ import { applyJournal } from '../../src/lifecycle/recovery.js';
 
 vi.mock('node:fs/promises', async (original) => {
   const actual = await original<typeof import('node:fs/promises')>();
-  return { ...actual, rmdir: vi.fn(actual.rmdir), lstat: vi.fn(actual.lstat) };
+  return {
+    ...actual,
+    mkdtemp: vi.fn(actual.mkdtemp),
+    rmdir: vi.fn(actual.rmdir),
+    lstat: vi.fn(actual.lstat),
+  };
 });
 const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises');
 let root: string;
 beforeEach(async () => {
+  vi.clearAllMocks();
+  vi.mocked(mkdtemp).mockImplementation(actual.mkdtemp);
   vi.mocked(rmdir).mockImplementation(actual.rmdir);
   vi.mocked(lstat).mockImplementation(actual.lstat);
-  root = await mkdtemp(join(tmpdir(), 'arch-claim-'));
+  root = await actual.mkdtemp(join(tmpdir(), 'arch-claim-'));
+});
+
+it('releases its empty claim after private-directory preparation fails without publication', async () => {
+  await mkdir(join(root, '.arch'));
+  const harness = 'schema=1\nmiddleware=[]\n# existing user configuration\n';
+  await writeFile(join(root, '.arch/harness.toml'), harness);
+  const failure = Object.assign(new Error('private directory denied'), { code: 'EACCES' });
+  vi.mocked(mkdtemp).mockRejectedValue(failure);
+  await expect(setup(root, ['tool'])).rejects.toBe(failure);
+  expect(await readdir(join(root, '.arch'))).toEqual(['harness.toml']);
+  expect(await readFile(join(root, '.arch/harness.toml'), 'utf8')).toBe(harness);
+  await expect(lstat(join(root, '.config'))).rejects.toMatchObject({ code: 'ENOENT' });
+  expect((await inspectInstallation(root, {})).state).toBe('uninitialized');
+  vi.mocked(mkdtemp).mockImplementation(actual.mkdtemp);
+  await setup(root, ['tool']);
+  expect((await inspectInstallation(root, {})).state).toBe('initialized');
+});
+
+it('preserves preparation and claim-cleanup errors and leaves the empty blocking guard', async () => {
+  const failure = Object.assign(new Error('private directory denied'), { code: 'EACCES' });
+  const cleanup = Object.assign(new Error('claim removal denied'), { code: 'EPERM' });
+  vi.mocked(mkdtemp).mockRejectedValue(failure);
+  vi.mocked(rmdir).mockRejectedValue(cleanup);
+  const result: unknown = await setup(root, ['tool']).catch((error: unknown) => error);
+  expect(result).toBeInstanceOf(AggregateError);
+  if (!(result instanceof AggregateError)) {
+    throw new Error('Expected preparation and cleanup failures');
+  }
+  expect(result.cause).toBe(failure);
+  expect(result.errors).toEqual([failure, cleanup]);
+  expect(await readdir(join(root, '.arch'))).toEqual(['setup-claim']);
+  expect(await readdir(join(root, setupClaimPath))).toEqual([]);
+  expect((await inspectInstallation(root, {})).state).toBe('invalid_state');
+  await expect(deinitialize(root)).rejects.toThrow('Unresolved setup claim');
+});
+
+it('preserves a substituted claim after private-directory preparation fails', async () => {
+  const failure = new Error('private directory failure');
+  vi.mocked(mkdtemp).mockImplementation(async () => {
+    await rename(join(root, setupClaimPath), join(root, '.arch/original-claim'));
+    await mkdir(join(root, setupClaimPath));
+    throw failure;
+  });
+  const result: unknown = await setup(root, ['tool']).catch((error: unknown) => error);
+  expect(result).toBeInstanceOf(AggregateError);
+  if (!(result instanceof AggregateError)) {
+    throw new Error('Expected preserved identity failure');
+  }
+  expect(result.cause).toBe(failure);
+  expect(result.errors[1]).toEqual(
+    new Error('Setup claim identity changed; preserve for inspection'),
+  );
+  expect((await readdir(join(root, '.arch'))).sort()).toEqual(['original-claim', 'setup-claim']);
+  await expect(assertBootstrapAuthority(root)).rejects.toThrow('Unresolved setup claim');
+});
+
+it('does not release a claim when foreign bootstrap appears during failed preparation', async () => {
+  const failure = new Error('private directory failure');
+  const foreign = '{"files":{},"createdHarness":false}\n';
+  vi.mocked(mkdtemp).mockImplementation(async () => {
+    await writeFile(join(root, '.arch/bootstrap.json'), foreign, { flag: 'wx' });
+    throw failure;
+  });
+  const result: unknown = await setup(root, ['tool']).catch((error: unknown) => error);
+  expect(result).toBeInstanceOf(AggregateError);
+  if (!(result instanceof AggregateError)) {
+    throw new Error('Expected unresolved bootstrap authority');
+  }
+  expect(result.cause).toBe(failure);
+  expect(result.errors[1]).toEqual(
+    new Error('Bootstrap collision remains after rollback; preserve setup claim for inspection'),
+  );
+  expect(await readFile(join(root, '.arch/bootstrap.json'), 'utf8')).toBe(foreign);
+  await expect(deinitialize(root)).rejects.toThrow('Unresolved setup claim');
+  expect(await readFile(join(root, '.arch/bootstrap.json'), 'utf8')).toBe(foreign);
 });
 afterEach(async () => {
   vi.mocked(rmdir).mockImplementation(actual.rmdir);

@@ -103,11 +103,12 @@ export async function setup(root: string, commands: readonly string[]): Promise<
   }
   await mkdir(join(root, '.arch'), { recursive: true });
   const releaseClaim = await claimSetup(root);
-  const directory = await mkdtemp(join(root, '.arch/.setup-'));
+  let directory: string | undefined;
   const prepared: PreparedFile[] = [];
   const created: typeof prepared = [];
   let committed = false;
   try {
+    directory = await mkdtemp(join(root, '.arch/.setup-'));
     for (const [file, text] of [
       ...contents,
       ...(existingHarness === undefined ? [['.arch/harness.toml', configText] as const] : []),
@@ -165,7 +166,7 @@ export async function setup(root: string, commands: readonly string[]): Promise<
     }
     if (committed) {
       throw new Error(
-        `Arch setup committed but staging cleanup failed; inspect ${relative(root, directory)}`,
+        'Arch setup committed but staging cleanup failed; inspect .arch/setup-claim and private .arch/.setup-* stages',
         { cause: error },
       );
     }
@@ -179,7 +180,9 @@ export async function setup(root: string, commands: readonly string[]): Promise<
           'Bootstrap collision remains after rollback; preserve setup claim for inspection',
         );
       }
-      await cleanupSetupStages(root, prepared, directory);
+      if (directory !== undefined) {
+        await cleanupSetupStages(root, prepared, directory);
+      }
       await releaseClaim();
     } catch (cleanupError) {
       // Keep the initiating failure authoritative without concealing the cleanup
