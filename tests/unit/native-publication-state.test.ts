@@ -280,6 +280,47 @@ it('retains the original helper failure when filesystem attribution resolves pub
     process.off('warning', observe);
   }
 });
+it.each(['fields', 'message'])(
+  'bounds recovered diagnostic %s while retaining the original cause',
+  async (mode) => {
+    await writeFile(join(root, 'stage'), 'complete');
+    const failure = new PublicationError(
+      'execution',
+      'message' === mode ? 'x'.repeat(20000) : 'helper failed',
+      'unknown',
+      undefined,
+      { cause: { stdout: 'o'.repeat(20000), stderr: 's'.repeat(20000) } },
+    );
+    const emit = vi.spyOn(process, 'emitWarning').mockImplementation(() => undefined);
+    try {
+      vi.mocked(renameNoReplace).mockImplementation(async (source, target) => {
+        await rename(source, target);
+        throw failure;
+      });
+      await publishExclusive(root, 'stage', 'target', digest('complete'));
+      expect(emit).toHaveBeenCalledTimes(1);
+      const warning = emit.mock.calls[0]?.[0];
+      if (
+        !(warning instanceof Error) ||
+        !('detail' in warning) ||
+        'string' !== typeof warning.detail
+      ) {
+        throw new Error('Expected structured diagnostic');
+      }
+      expect(warning.cause).toBe(failure);
+      const suffix = '\n[bounded diagnostic excerpt; original cause retained]';
+      expect(warning.detail.length).toBeLessThanOrEqual(8192 + suffix.length);
+      expect(warning.detail.startsWith('PublicationError: ')).toBe(true);
+      expect(warning.detail.endsWith(suffix)).toBe(true);
+      if ('fields' === mode) {
+        expect(warning.detail).toContain('stdout');
+        expect(warning.detail).toContain('stderr');
+      }
+    } finally {
+      emit.mockRestore();
+    }
+  },
+);
 it.each(['missing', 'partial', 'directory'])(
   'rejects mandatory %s stage before invocation',
   async (mode) => {

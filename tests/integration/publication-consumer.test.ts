@@ -5,7 +5,7 @@ import { delimiter, dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { spawn } from 'node:child_process';
 import { installStable } from '../../src/installation/stable-install.js';
-import { world, run, records, mise, requiredEnvironment } from '../support.js';
+import { world, run, records, mise, requiredEnvironment, events } from '../support.js';
 
 describe.skipIf('win32' !== process.platform || 'x64' !== process.arch)(
   'independent native publication consumer',
@@ -60,6 +60,9 @@ describe.skipIf('win32' !== process.platform || 'x64' !== process.arch)(
       const args = ['--version', 'space value', '--literal=quoted"value'];
       const result = await run(mise, ['exec', '--', 'claude', ...args], consumer, routed);
       expect(result.code, result.stderr).toBe(7);
+      const started = events(result).filter((event) => 'execution.started' === event.type);
+      expect(started).toHaveLength(1);
+      expect(started[0]?.payload).toMatchObject({ command: 'claude', projectRoot: consumer });
       expect(await records(log)).toMatchObject([{ args, cwd: consumer }]);
 
       // Import only the independently installed lifecycle; interrupt after a real
@@ -124,6 +127,10 @@ describe.skipIf('win32' !== process.platform || 'x64' !== process.arch)(
         expect(routed.code, routed.stderr).toBe(direct.code);
         expect(routed.stdout).toBe(direct.stdout);
         expect(routed.stdout.trim()).not.toBe('');
+        expect(events(direct)).toEqual([]);
+        const started = events(routed).filter((event) => 'execution.started' === event.type);
+        expect(started).toHaveLength(1);
+        expect(started[0]?.payload).toMatchObject({ command: 'claude', projectRoot: consumer });
         const removed = await run(entry, ['deinit', '--yes'], consumer, env);
         expect(removed.code, removed.stderr).toBe(0);
       },
