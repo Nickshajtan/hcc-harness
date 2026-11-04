@@ -174,6 +174,11 @@ export async function setup(root: string, commands: readonly string[]): Promise<
         await verifySetupOwnership(root, resource, resource.file);
         await unlink(join(root, resource.file));
       }
+      if ((await readAt(root, statePath)) !== undefined) {
+        throw new Error(
+          'Bootstrap collision remains after rollback; preserve setup claim for inspection',
+        );
+      }
       await cleanupSetupStages(root, prepared, directory);
       await releaseClaim();
     } catch (cleanupError) {

@@ -290,6 +290,33 @@ it('preserves identical foreign bytes without adopting them', async () => {
   expect(link).not.toHaveBeenCalled();
 });
 
+it('retains the provenance guard after definite foreign bootstrap collision and verified file rollback', async () => {
+  let foreign: Buffer | undefined;
+  vi.mocked(link).mockImplementation(async (stage, target) => {
+    if (String(target).endsWith('bootstrap.json')) {
+      foreign = await readFile(stage);
+      await actual.writeFile(target, foreign, { flag: 'wx' });
+    }
+    await actual.link(stage, target);
+  });
+  const result: unknown = await setup(root, ['tool']).catch((error: unknown) => error);
+  expect(result).toBeInstanceOf(AggregateError);
+  if (!(result instanceof AggregateError)) {
+    throw new Error('Expected collision plus unresolved rollback authority');
+  }
+  expect(result.errors[0]).toMatchObject({ cause: { code: 'EEXIST' } });
+  expect(result.errors[1]).toEqual(
+    new Error('Bootstrap collision remains after rollback; preserve setup claim for inspection'),
+  );
+  expect(await readFile(join(root, '.arch/bootstrap.json'))).toEqual(foreign);
+  await expect(readFile(join(root, '.config/mise/conf.d/arch.toml'))).rejects.toMatchObject({
+    code: 'ENOENT',
+  });
+  await expect(setup(root, ['tool'])).rejects.toThrow('Unresolved setup claim');
+  await expect(uninstall(root)).rejects.toThrow('Unresolved setup claim');
+  expect(await readFile(join(root, '.arch/bootstrap.json'))).toEqual(foreign);
+});
+
 it('preserves a stage write permission failure without publishing anything', async () => {
   const failure = Object.assign(new Error('stage permission denied'), { code: 'EACCES' });
   vi.mocked(writeFile).mockRejectedValue(failure);

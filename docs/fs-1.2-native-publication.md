@@ -45,7 +45,9 @@ journal schema or ownership-manifest field.
 
 On definite precommit failure, reverse rollback removes only verified invocation-
 owned targets, then verified stages and the private directory. Only a fully
-successful rollback releases the guard. Partial/unrecorded stages, substitution,
+successful rollback with no remaining bootstrap releases the guard. A foreign
+bootstrap collision preserves the guard and private stage evidence even after
+invocation-owned targets were removed. Partial/unrecorded stages, substitution,
 foreign residue or cleanup failure retain it. Original and cleanup failures remain
 `AggregateError([original, cleanup])`. Postcommit cleanup failure never rolls back
 committed resources and leaves the blocking guard. Claim removal is not a public
