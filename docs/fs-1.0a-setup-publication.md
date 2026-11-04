@@ -1,5 +1,9 @@
 # FS-1.0a: initial setup publication
 
+Historical milestone: [FS-1.2](fs-1.2-native-publication.md) subsequently replaces
+Windows publication with a consuming native move and retains the setup guarantees
+below. Its held-source-handle attribution accommodates changing exFAT file IDs.
+
 Baseline: upstream `main` at `368391d` (fetched before implementation).
 This change is independent of FS-1.1 and retains hard-link publication.
 

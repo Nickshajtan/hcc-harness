@@ -110,6 +110,13 @@ it('accepts only before/after bootstrap ownership and legitimate absent addition
     'Bootstrap changed during routing recovery',
   );
 });
+it('refuses bootstrap recovery authority while a durable setup claim exists', async () => {
+  await mkdir(join(root, '.arch/setup-claim'));
+  const bootstrap = await readFile(join(root, statePath));
+  await expect(validateRecovery(root, journal)).rejects.toThrow('Unresolved setup claim');
+  expect(await readFile(join(root, statePath))).toEqual(bootstrap);
+  await checkFiles(root, journal.before.files);
+});
 it.each(['retained', 'added', 'removed'])('refuses modified recovery resource %s', async (name) => {
   await writeFile(join(root, `.arch/bin/${name}`), 'user data');
   await expect(validateRecovery(root, journal)).rejects.toThrow(

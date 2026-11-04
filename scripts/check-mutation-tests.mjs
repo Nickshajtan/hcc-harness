@@ -43,8 +43,10 @@ test('timeouts are visible and cannot substitute for assertion kills at the gate
 test('every effect gate rejects survivor-only and timeout-only evidence', () => {
   for (const file of [
     'src/installation/setup.ts',
+    'src/lifecycle/setup-claim.ts',
     'src/lifecycle/routing-plan.ts',
     'src/lifecycle/routing-files.ts',
+    'src/lifecycle/native-publication.ts',
     'src/lifecycle/recovery.ts',
     'src/lifecycle/removal.ts',
   ]) {

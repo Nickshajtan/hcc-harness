@@ -25,6 +25,11 @@ import {
 import { journalFrom } from '../../src/lifecycle/routing-journal.js';
 import { stage, removeOptional, publishExclusive } from '../../src/lifecycle/routing-files.js';
 
+vi.mock('../../src/lifecycle/native-publication.js', async (original) => ({
+  ...(await original<typeof import('../../src/lifecycle/native-publication.js')>()),
+  usesNativePublication: () => false,
+}));
+
 vi.mock('node:fs/promises', async (original) => {
   const actual = await original<typeof import('node:fs/promises')>();
   return {
@@ -400,9 +405,13 @@ it('preserves routing removal diagnostics and code-less publication causes', asy
   });
   expect(await readFile(file('user.txt'), 'utf8')).toBe('unrelated');
   vi.mocked(link).mockRejectedValue(failure);
-  const error: unknown = await publishExclusive(root, '.arch/complete.stage', route('added')).catch(
-    (value: unknown) => value,
-  );
+  await actual.writeFile(file('.arch/complete.stage'), 'complete');
+  const error: unknown = await publishExclusive(
+    root,
+    '.arch/complete.stage',
+    route('added'),
+    digest('complete'),
+  ).catch((value: unknown) => value);
   if (!(error instanceof Error)) {
     throw new Error('Expected publication refusal');
   }

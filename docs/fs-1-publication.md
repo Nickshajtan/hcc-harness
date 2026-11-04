@@ -1,5 +1,8 @@
 # FS-1: portable exclusive publication decision
 
+Historical Node-API investigation. [FS-1.2](fs-1.2-native-publication.md) subsequently
+adds a native Windows bridge and documents current NTFS/exFAT support.
+
 **Decision: DESIGN BLOCKED.** No evaluated primitive in the supported Node filesystem
 API provides both complete-file visibility and atomic refusal of an existing final
 file without hard links. Keep production behavior unchanged. exFAT reconciliation

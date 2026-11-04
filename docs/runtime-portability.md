@@ -242,8 +242,9 @@ rewrite, runtime acquisition, package manager, updater, daemon or remote service
 - Preserve user-modified middleware byte-for-byte; unchanged generated defaults may
   be removed/recreated. Status availability warnings must not become ownership rules.
   Unknown hash-valid legacy launcher templates remain safely removable.
-- Keep current journals, no-clobber hard-link publication and recovery checks;
-  deinit can require links to finish pending reconciliation. exFAT stays unsupported.
+- Keep current journals, no-clobber publication and recovery checks. FS-1.2 adds
+  the packaged Windows x64 native no-replace helper for NTFS/exFAT; POSIX retains
+  hard links. Deinit can require publication to finish pending reconciliation.
 
 ## Remaining integration gates
 

@@ -18,6 +18,7 @@ export default defineConfig({
       thresholds: {
         'src/installation/renderer.ts': { lines: 95, branches: 90 },
         'src/installation/setup.ts': { lines: 95, branches: 90 },
+        'src/lifecycle/setup-claim.ts': { lines: 95, branches: 90 },
         'src/lifecycle/routing-plan.ts': { lines: 95, branches: 90 },
         'src/lifecycle/routing-files.ts': { lines: 95, branches: 90 },
         'src/lifecycle/recovery.ts': { lines: 95, branches: 90 },

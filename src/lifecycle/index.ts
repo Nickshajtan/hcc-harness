@@ -1,3 +1,4 @@
+import { assertBootstrapAuthority } from './setup-claim.js';
 import { resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { setup } from '../installation/setup.js';
@@ -10,6 +11,7 @@ import {
   manifestRoutes,
   equal,
   key,
+  digest,
 } from './manifest.js';
 import { routingPath, journalStage, journalFrom, type RoutingJournal } from './routing-journal.js';
 import { readAt, stage, publishExclusive } from './routing-files.js';
@@ -26,6 +28,7 @@ export async function reconcileRoutes(
   options: LifecycleOptions = {},
 ): Promise<void> {
   root = resolve(root);
+  await assertBootstrapAuthority(root);
   validateCommands(commands);
   const existing = await readAt(root, routingPath);
   if (existing !== undefined) {
@@ -64,12 +67,13 @@ export async function reconcileRoutes(
   if ((await readAt(root, uninstallPath)) !== undefined) {
     throw new Error('Uninstall started before routing update');
   }
-  await publishExclusive(root, journalStage, routingPath);
+  await publishExclusive(root, journalStage, routingPath, digest(bytes));
   await applyJournal(root, journal, options);
 }
 
 export async function deinitialize(root: string): Promise<void> {
   root = resolve(root);
+  await assertBootstrapAuthority(root);
   const text = await readAt(root, routingPath);
   if (text) {
     await applyJournal(root, journalFrom(text), {});

@@ -1,3 +1,4 @@
+import { assertBootstrapAuthority, claimSetup } from '../lifecycle/setup-claim.js';
 import { mkdir, mkdtemp, writeFile, unlink, chmod, lstat, rmdir } from 'node:fs/promises';
 import { join, dirname, resolve, relative, sep } from 'node:path';
 import { parseConfiguration } from '../config.js';
@@ -13,6 +14,7 @@ import {
 import { readOptional, checkFiles, assertSafePath } from '../lifecycle/ownership.js';
 
 import { publishExclusive, readAt, removeOptional } from '../lifecycle/routing-files.js';
+import { PublicationError } from '../lifecycle/native-publication.js';
 
 import { renderFiles } from './renderer.js';
 
@@ -42,8 +44,20 @@ async function verifySetupOwnership(root: string, resource: PreparedFile, path: 
   }
 }
 
+async function cleanupSetupStages(root: string, prepared: PreparedFile[], directory: string) {
+  for (const resource of prepared) {
+    if ((await readAt(root, resource.stage)) !== undefined) {
+      await verifySetupOwnership(root, resource, resource.stage);
+      await removeOptional(root, resource.stage);
+    }
+  }
+  // An unrecorded partial stage or foreign residue keeps the directory and claim.
+  await rmdir(directory);
+}
+
 export async function setup(root: string, commands: readonly string[]): Promise<void> {
   root = resolve(root);
+  await assertBootstrapAuthority(root);
   for (const file of [statePath, uninstallPath, '.arch/routing.json', '.arch/harness.toml']) {
     await assertSafePath(root, file);
   }
@@ -88,11 +102,13 @@ export async function setup(root: string, commands: readonly string[]): Promise<
     }
   }
   await mkdir(join(root, '.arch'), { recursive: true });
-  const directory = await mkdtemp(join(root, '.arch/.setup-'));
+  const releaseClaim = await claimSetup(root);
+  let directory: string | undefined;
   const prepared: PreparedFile[] = [];
   const created: typeof prepared = [];
   let committed = false;
   try {
+    directory = await mkdtemp(join(root, '.arch/.setup-'));
     for (const [file, text] of [
       ...contents,
       ...(existingHarness === undefined ? [['.arch/harness.toml', configText] as const] : []),
@@ -127,22 +143,30 @@ export async function setup(root: string, commands: readonly string[]): Promise<
       if (bytes === undefined || digest(bytes) !== resource.hash) {
         throw new Error(`Setup staging file changed or incomplete: ${resource.stage}`);
       }
-      await publishExclusive(root, resource.stage, resource.file);
+      await verifySetupOwnership(root, resource, resource.stage);
+      const published = await publishExclusive(root, resource.stage, resource.file, resource.hash);
+      // A native move across exFAT directories can change the object's file ID.
+      resource.dev = published.dev;
+      resource.ino = published.ino;
       created.push(resource);
     }
     // Bootstrap is last. Cleanup failure after this point must not undo a committed setup.
     committed = true;
-    for (const resource of prepared) {
-      if ((await readAt(root, resource.stage)) !== undefined) {
-        await verifySetupOwnership(root, resource, resource.stage);
-        await removeOptional(root, resource.stage);
-      }
+    await cleanupSetupStages(root, prepared, directory);
+    for (const resource of created) {
+      await verifySetupOwnership(root, resource, resource.file);
     }
-    await rmdir(directory);
+    await releaseClaim();
   } catch (error) {
+    if (error instanceof PublicationError && 'unknown' === error.outcome) {
+      throw new Error(
+        'Setup publication outcome is indeterminate; preserve all resources and inspect bootstrap and private stages before any cleanup',
+        { cause: error },
+      );
+    }
     if (committed) {
       throw new Error(
-        `Arch setup committed but staging cleanup failed; inspect ${relative(root, directory)}`,
+        'Arch setup committed but staging cleanup failed; inspect .arch/setup-claim and private .arch/.setup-* stages',
         { cause: error },
       );
     }
@@ -151,6 +175,15 @@ export async function setup(root: string, commands: readonly string[]): Promise<
         await verifySetupOwnership(root, resource, resource.file);
         await unlink(join(root, resource.file));
       }
+      if ((await readAt(root, statePath)) !== undefined) {
+        throw new Error(
+          'Bootstrap collision remains after rollback; preserve setup claim for inspection',
+        );
+      }
+      if (directory !== undefined) {
+        await cleanupSetupStages(root, prepared, directory);
+      }
+      await releaseClaim();
     } catch (cleanupError) {
       // Keep the initiating failure authoritative without concealing the cleanup
       // failure. Stop at the same first failed removal and preserve its evidence.

@@ -196,17 +196,17 @@ existing resources or implement B2. `lifecycle.ts` is an export-only
 compatibility facade over `lifecycle/index.ts`, which coordinates public route operations.
 The internal responsibilities are:
 
-| Module under lifecycle/ | Responsibility                                                                             |
-| ----------------------- | ------------------------------------------------------------------------------------------ |
-| manifest.ts             | Recorded ownership parsing, hashes, route layout/completeness and identity                 |
-| ownership.ts            | Safe component checks, optional reads and recorded-hash verification                       |
-| routing-plan.ts         | Filesystem inspection, route classification and retained-hash planning; no publication     |
-| routing-journal.ts      | Journal header, manifest relationship and addition payload validation                      |
-| routing-files.ts        | Specific stage verification/creation, exclusive hard-link publication and optional removal |
-| recovery-validation.ts  | Read-only verification of allowed before/after states and staging evidence                 |
-| recovery.ts             | Explicit ordered recovery effects and unchanged checkpoint callbacks                       |
-| removal.ts              | Ownership-checked uninstall and its persisted removal checkpoint                           |
-| inspection.ts           | Read-only state classification, activation observations and middleware diagnostics         |
+| Module under lifecycle/ | Responsibility                                                                          |
+| ----------------------- | --------------------------------------------------------------------------------------- |
+| manifest.ts             | Recorded ownership parsing, hashes, route layout/completeness and identity              |
+| ownership.ts            | Safe component checks, optional reads and recorded-hash verification                    |
+| routing-plan.ts         | Filesystem inspection, route classification and retained-hash planning; no publication  |
+| routing-journal.ts      | Journal header, manifest relationship and addition payload validation                   |
+| routing-files.ts        | Specific stage verification/creation, shared exclusive publication and optional removal |
+| recovery-validation.ts  | Read-only verification of allowed before/after states and staging evidence              |
+| recovery.ts             | Explicit ordered recovery effects and unchanged checkpoint callbacks                    |
+| removal.ts              | Ownership-checked uninstall and its persisted removal checkpoint                        |
+| inspection.ts           | Read-only state classification, activation observations and middleware diagnostics      |
 
 Manifest/ownership/journal helpers never import lifecycle coordinators or setup.
 Coordinators compose those helpers; route planning imports the renderer directly,

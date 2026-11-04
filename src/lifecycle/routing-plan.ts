@@ -1,3 +1,4 @@
+import { assertBootstrapAuthority } from './setup-claim.js';
 import { resolve } from 'node:path';
 import { renderFiles } from '../installation/renderer.js';
 import {
@@ -22,6 +23,7 @@ export interface RoutingPlan {
 export async function planRoutes(root: string, commands: readonly string[]): Promise<RoutingPlan> {
   // This plan inspects the filesystem. It never publishes changes or rewrites retained launchers.
   root = resolve(root);
+  await assertBootstrapAuthority(root);
   validateCommands(commands);
   if (
     (await readAt(root, uninstallPath)) !== undefined ||

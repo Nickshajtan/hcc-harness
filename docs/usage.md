@@ -93,7 +93,8 @@ checks. Restore known matching bytes or inspect the reported paths before retryi
 Deinit removes the starter middleware file only when Arch created it and it remains
 unchanged. Edited/preexisting configuration and unrelated files survive; empty
 directories can remain. Refresh the shell prompt after removal. Pending route
-recovery may require hard links even during deinit; see [compatibility](compatibility.md).
+recovery may require publication even during deinit (native helper on Windows x64,
+hard links on POSIX); see [compatibility](compatibility.md).
 
 ## Missing historical Node or moved checkout
 

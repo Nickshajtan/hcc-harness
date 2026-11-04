@@ -7,8 +7,10 @@ const report = JSON.parse(await readFile('reports/mutation-effects/mutation.json
 const scopes = mutationEvidence(report);
 const files = [
   'src/installation/setup.ts',
+  'src/lifecycle/setup-claim.ts',
   'src/lifecycle/routing-plan.ts',
   'src/lifecycle/routing-files.ts',
+  'src/lifecycle/native-publication.ts',
   'src/lifecycle/recovery.ts',
   'src/lifecycle/removal.ts',
 ];

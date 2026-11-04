@@ -15,6 +15,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setup, uninstall, configText } from '../../src/setup.js';
 
+// These contracts retain real hard-link fault injection for the POSIX strategy.
+// Native consuming publication is covered separately, without this override.
+vi.mock('../../src/lifecycle/native-publication.js', async (original) => ({
+  ...(await original<typeof import('../../src/lifecycle/native-publication.js')>()),
+  usesNativePublication: () => false,
+}));
+
 vi.mock('node:fs/promises', async (original) => {
   const actual = await original<typeof import('node:fs/promises')>();
   return {
@@ -27,6 +34,9 @@ vi.mock('node:fs/promises', async (original) => {
   };
 });
 const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises');
+const incompleteStageMessage: unknown = expect.stringContaining(
+  'staging file changed or incomplete',
+);
 let root: string;
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), 'arch-setup-contract-'));
@@ -54,10 +64,12 @@ it('rolls back only resources created by this initialization and preserves the o
     await actual.link(...args);
   });
   await expect(setup(root, ['tool'])).rejects.toMatchObject({ cause: failure });
-  expect(vi.mocked(unlink).mock.calls.map(([path]) => path)).toEqual([
-    join(root, '.arch/bin/.arch-router'),
-    join(root, '.config/mise/conf.d/arch.toml'),
-  ]);
+  expect(
+    vi
+      .mocked(unlink)
+      .mock.calls.filter(([path]) => !String(path).includes('.setup-'))
+      .map(([path]) => path),
+  ).toEqual([join(root, '.arch/bin/.arch-router'), join(root, '.config/mise/conf.d/arch.toml')]);
   await expect(readFile(join(root, '.arch/bootstrap.json'))).rejects.toMatchObject({
     code: 'ENOENT',
   });
@@ -109,7 +121,12 @@ it('rolls back in reverse creation order when publishing the final manifest fail
     created.push(path);
   });
   await expect(setup(root, ['tool'])).rejects.toMatchObject({ cause: failure });
-  expect(vi.mocked(unlink).mock.calls.map(([path]) => path)).toEqual([...created].reverse());
+  expect(
+    vi
+      .mocked(unlink)
+      .mock.calls.filter(([path]) => !String(path).includes('.setup-'))
+      .map(([path]) => path),
+  ).toEqual([...created].reverse());
   for (const path of created) {
     await expect(readFile(path)).rejects.toMatchObject({ code: 'ENOENT' });
   }
@@ -153,7 +170,9 @@ it.each(['partial', 'invalid', 'throw'])(
     if ('throw' === mode) {
       await expect(setup(root, ['tool'])).rejects.toBe(failure);
     } else {
-      await expect(setup(root, ['tool'])).rejects.toThrow('staging file changed or incomplete');
+      await expect(setup(root, ['tool'])).rejects.toMatchObject({
+        cause: { message: incompleteStageMessage },
+      });
     }
     await expect(readFile(join(root, '.arch/bootstrap.json'))).rejects.toMatchObject({
       code: 'ENOENT',
@@ -161,8 +180,11 @@ it.each(['partial', 'invalid', 'throw'])(
     expect(link).not.toHaveBeenCalled();
     expect(writeFile).toHaveBeenCalledTimes(1);
     expect((await readdir(join(root, '.arch'))).some((name) => name.startsWith('.setup-'))).toBe(
-      true,
+      'throw' !== mode,
     );
+    if ('throw' !== mode) {
+      await expect(setup(root, ['tool'])).rejects.toThrow('Unresolved setup claim');
+    }
   },
 );
 
@@ -202,8 +224,9 @@ it.skipIf('win32' === process.platform)(
   async () => {
     const failure = Object.assign(new Error('chmod denied'), { code: 'EACCES' });
     vi.mocked(chmod).mockRejectedValue(failure);
-    await expect(setup(root, ['tool'])).rejects.toBe(failure);
+    await expect(setup(root, ['tool'])).rejects.toMatchObject({ cause: failure });
     expect(link).not.toHaveBeenCalled();
+    await expect(setup(root, ['tool'])).rejects.toThrow('Unresolved setup claim');
   },
 );
 
@@ -213,7 +236,9 @@ it('refuses a stage changed after preparation', async () => {
     const directory = String(stage).replace(/[\\/]0$/, '');
     await actual.writeFile(join(directory, '1'), 'modified stage');
   });
-  await expect(setup(root, ['tool'])).rejects.toThrow('staging file changed or incomplete');
+  await expect(setup(root, ['tool'])).rejects.toMatchObject({
+    cause: { message: incompleteStageMessage },
+  });
   await expect(readFile(join(root, '.config/mise/conf.d/arch.toml'))).rejects.toMatchObject({
     code: 'ENOENT',
   });
@@ -249,7 +274,7 @@ it('retains committed resources and reports cleanup failure after bootstrap publ
   expect(result.message).toContain('setup committed');
   expect(result.cause.cause).toBe(failure);
   const manifest = await readFile(join(root, '.arch/bootstrap.json'));
-  await setup(root, ['tool']);
+  await expect(setup(root, ['tool'])).rejects.toThrow('Unresolved setup claim');
   expect(await readFile(join(root, '.arch/bootstrap.json'))).toEqual(manifest);
 });
 
@@ -263,6 +288,33 @@ it('preserves identical foreign bytes without adopting them', async () => {
   expect(await readFile(path, 'utf8')).toBe(bytes);
   expect((await actual.stat(path)).ino).toBe(before.ino);
   expect(link).not.toHaveBeenCalled();
+});
+
+it('retains the provenance guard after definite foreign bootstrap collision and verified file rollback', async () => {
+  let foreign: Buffer | undefined;
+  vi.mocked(link).mockImplementation(async (stage, target) => {
+    if (String(target).endsWith('bootstrap.json')) {
+      foreign = await readFile(stage);
+      await actual.writeFile(target, foreign, { flag: 'wx' });
+    }
+    await actual.link(stage, target);
+  });
+  const result: unknown = await setup(root, ['tool']).catch((error: unknown) => error);
+  expect(result).toBeInstanceOf(AggregateError);
+  if (!(result instanceof AggregateError)) {
+    throw new Error('Expected collision plus unresolved rollback authority');
+  }
+  expect(result.errors[0]).toMatchObject({ cause: { code: 'EEXIST' } });
+  expect(result.errors[1]).toEqual(
+    new Error('Bootstrap collision remains after rollback; preserve setup claim for inspection'),
+  );
+  expect(await readFile(join(root, '.arch/bootstrap.json'))).toEqual(foreign);
+  await expect(readFile(join(root, '.config/mise/conf.d/arch.toml'))).rejects.toMatchObject({
+    code: 'ENOENT',
+  });
+  await expect(setup(root, ['tool'])).rejects.toThrow('Unresolved setup claim');
+  await expect(uninstall(root)).rejects.toThrow('Unresolved setup claim');
+  expect(await readFile(join(root, '.arch/bootstrap.json'))).toEqual(foreign);
 });
 
 it('preserves a stage write permission failure without publishing anything', async () => {
@@ -353,7 +405,10 @@ it('never overwrites an unexpected file at the private stage path', async () => 
     await actual.writeFile(path, 'foreign stage');
     await actual.writeFile(path, bytes, options);
   });
-  await expect(setup(root, ['tool'])).rejects.toMatchObject({ code: 'EEXIST' });
+  await expect(setup(root, ['tool'])).rejects.toMatchObject({
+    cause: { code: 'EEXIST' },
+    errors: [{ code: 'EEXIST' }, { code: 'ENOTEMPTY' }],
+  });
   if (collision === undefined) {
     throw new Error('Expected stage collision');
   }

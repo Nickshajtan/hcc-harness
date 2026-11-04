@@ -1,8 +1,10 @@
+import { assertBootstrapAuthority } from './setup-claim.js';
 import { statePath, uninstallPath, stateFrom, equal, digest, encode } from './manifest.js';
 import { journalStage, type RoutingJournal } from './routing-journal.js';
 import { readAt, verifyStage, staging } from './routing-files.js';
 // Validation authorizes only states explicitly represented by the recorded before/after plan.
 export async function validateRecovery(root: string, journal: RoutingJournal) {
+  await assertBootstrapAuthority(root);
   if ((await readAt(root, uninstallPath)) !== undefined) {
     throw new Error('Conflicting routing and uninstall journals');
   }
