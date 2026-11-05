@@ -1,3 +1,4 @@
+import { legacyConfigText } from '../../src/lifecycle/manifest.js';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { writeFile, mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -17,6 +18,8 @@ it('accepts the complete A/B/C workflow through normal CLI names, including deni
     logB = join(root, 'b.jsonl'),
     logC = join(root, 'c.jsonl');
   expect(await fixture.init(A)).toMatchObject({ code: 0 });
+  // Middleware contracts opt in explicitly; production starters are empty.
+  await writeFile(join(A, '.arch/harness.toml'), legacyConfigText);
   expect(await fixture.init(B)).toMatchObject({ code: 0 });
   await writeFile(
     join(B, '.arch/harness.toml'),
@@ -55,11 +58,12 @@ it('accepts the complete A/B/C workflow through normal CLI names, including deni
 
   const third = await fixture.invoke(C, 'claude', ['c'], { FAKE_LOG: logC });
   expect(third, third.stderr).toMatchObject({ code: 0 });
-  expect(third.stderr).not.toContain('[arch:');
+  expect(third.stderr).not.toContain('[arch:demo]');
+  expect(events(third).map((e) => e.type)).toEqual(['execution.started', 'execution.completed']);
   expect(await records(logC)).toMatchObject([{ args: ['c'], cwd: C, demo: '' }]);
   const outside = await fixture.invoke(root, 'claude');
   expect(outside).toMatchObject({ code: 0 });
-  expect(events(outside)).toEqual([]);
+  expect(events(outside).map((e) => e.type)).toEqual(['execution.started', 'execution.completed']);
 
   const denied = await fixture.invoke(A, 'claude', [], { ARCH_DEMO_DENY: '1', FAKE_LOG: logA });
   expect(denied.code).toBe(1);
@@ -81,25 +85,26 @@ it('accepts the complete A/B/C workflow through normal CLI names, including deni
   expect(await records(logA)).toHaveLength(2);
   expect(await records(logB)).toHaveLength(2);
   expect(await records(logC)).toHaveLength(2);
-  expect(events(concurrent[2])).toEqual([]);
-  const executionIds = concurrent
-    .filter((_, index) => 2 !== index)
-    .map((result) => {
-      const observed = events(result);
-      expect(new Set(observed.map((e) => e.executionId)).size).toBe(1);
-      for (const e of observed) {
-        expect(e.id).toMatch(/^[0-9a-f-]{36}$/);
-        expect(e.executionId).toMatch(/^[0-9a-f-]{36}$/);
-        expect(e.schemaVersion).toBe(1);
-        expect(Number.isNaN(Date.parse(e.timestamp))).toBe(false);
-      }
-      const first = observed[0];
-      if (!first) {
-        throw new Error('Expected an observed execution');
-      }
-      return first.executionId;
-    });
-  expect(new Set(executionIds).size).toBe(3);
+  expect(events(concurrent[2]).map((e) => e.type)).toEqual([
+    'execution.started',
+    'execution.completed',
+  ]);
+  const executionIds = concurrent.map((result) => {
+    const observed = events(result);
+    expect(new Set(observed.map((e) => e.executionId)).size).toBe(1);
+    for (const e of observed) {
+      expect(e.id).toMatch(/^[0-9a-f-]{36}$/);
+      expect(e.executionId).toMatch(/^[0-9a-f-]{36}$/);
+      expect(e.schemaVersion).toBe(1);
+      expect(Number.isNaN(Date.parse(e.timestamp))).toBe(false);
+    }
+    const first = observed[0];
+    if (!first) {
+      throw new Error('Expected an observed execution');
+    }
+    return first.executionId;
+  });
+  expect(new Set(executionIds).size).toBe(4);
   expect(concurrent[3].stderr).toContain('[arch:demo] cleanup');
 
   const sub = join(A, 'sub');
@@ -116,7 +121,8 @@ it('accepts the complete A/B/C workflow through normal CLI names, including deni
   expect(await run(process.execPath, [cli, 'uninstall'], A, env)).toMatchObject({ code: 0 });
   const removed = await fixture.invoke(A);
   expect(removed).toMatchObject({ code: 0 });
-  expect(events(removed)).toEqual([]);
+  // B's stale PATH launcher still enters Arch; absent middleware retains execution events.
+  expect(events(removed).map((e) => e.type)).toEqual(['execution.started', 'execution.completed']);
   expect(events(await fixture.invoke(B, 'codex'))).toHaveLength(2);
   expect(
     await readFile(join(fixture.native, 'win32' === process.platform ? 'claude.exe' : 'claude')),

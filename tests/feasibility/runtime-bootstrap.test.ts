@@ -1,3 +1,4 @@
+import { legacyConfigText } from '../../src/lifecycle/manifest.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   copyFile,
@@ -67,6 +68,7 @@ describe.skipIf(!enabled)(
       expect((await run(path20, ['--version'], f.C, f.env)).stdout).toMatch(/^v20\./);
       expect((await run(path22, ['--version'], f.C, f.env)).stdout).toMatch(/^v22\./);
       expect(await run(entry, ['init', 'claude'], f.A, environment())).toMatchObject({ code: 0 });
+      await writeFile(join(f.A, '.arch/harness.toml'), legacyConfigText);
       route = join(f.A, '.arch/bin/claude.exe');
       // Opt-in feasibility route: do not modify renderer/ownership formats yet.
       await copyFile(resolve('vendor/shim-x64.exe'), route);

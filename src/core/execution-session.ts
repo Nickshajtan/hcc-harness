@@ -7,6 +7,7 @@ import { ExecutionFailures, type ExecutionStage } from './execution-failures.js'
 
 interface SessionOptions {
   registry?: Registry;
+  onSpawn?: () => void;
   observe?: (bus: EventBus) => void | Promise<void>;
   reportObserverError?: (error: unknown) => void | Promise<void>;
 }
@@ -57,10 +58,15 @@ export class ExecutionSession {
       await this.bus.reportObserverError(error);
     }
     await this.bus.publish(
-      event('execution.started', this.context.executionId, {
-        command: this.context.command,
-        projectRoot: this.context.projectRoot,
-      }),
+      event(
+        'execution.started',
+        this.context.executionId,
+        {
+          command: this.context.command,
+          projectRoot: this.context.projectRoot,
+        },
+        this.context.parentExecutionId,
+      ),
     );
   }
 
@@ -97,7 +103,14 @@ export class ExecutionSession {
       this.pipeline.launchEnv(),
       context.executionId,
     );
-    return launch(native, context.originalArgs, context.cwd, env, context.signal);
+    return launch(
+      native,
+      context.originalArgs,
+      context.cwd,
+      env,
+      context.signal,
+      this.settings.options.onSpawn,
+    );
   }
 
   private async finalize(): Promise<void> {
@@ -119,10 +132,22 @@ export class ExecutionSession {
     try {
       if (this.failures.hasFailures) {
         await this.bus.publish(
-          event('execution.failed', this.context.executionId, { stage: this.failures.stage }),
+          event(
+            'execution.failed',
+            this.context.executionId,
+            { stage: this.failures.stage },
+            this.context.parentExecutionId,
+          ),
         );
       } else if (this.result) {
-        await this.bus.publish(event('execution.completed', this.context.executionId, this.result));
+        await this.bus.publish(
+          event(
+            'execution.completed',
+            this.context.executionId,
+            this.result,
+            this.context.parentExecutionId,
+          ),
+        );
       }
     } finally {
       this.bus.dispose();

@@ -1,3 +1,4 @@
+import { legacyConfigText } from '../../src/lifecycle/manifest.js';
 import { onTestFinished, afterAll, beforeAll, expect, it, onTestFailed } from 'vitest';
 import { mkdir, readFile, readdir, realpath, writeFile, access } from 'node:fs/promises';
 import { delimiter, join } from 'node:path';
@@ -180,6 +181,8 @@ it('keeps explicit initialization and reserves the arch executable name', async 
   expect((await arch(['init'])).code).toBe(2);
   expect((await arch(['init', 'arch'])).code).toBe(1);
   expect((await arch(['init', 'claude', 'codex'])).code).toBe(0);
+  // Middleware contracts opt in explicitly; production starters are empty.
+  await writeFile(join(fixture.A, '.arch/harness.toml'), legacyConfigText);
 });
 
 it('dispatches deterministic reconciliation through the npm executable', async () => {

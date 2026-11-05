@@ -445,11 +445,11 @@ it('keeps concurrent contexts, mutable launch changes, events and cleanup isolat
   expect(new Set(cleaned)).toEqual(new Set(contexts.map((c) => c.executionId)));
 });
 
-it('rejects recursive invocations and aborted launches', async () => {
+it('accepts inherited activity metadata and rejects aborted launches', async () => {
   await configure([]);
-  await expect(execute({ ...launchOptions(), env: { ARCH_ACTIVE: 'existing' } })).rejects.toThrow(
-    'Recursive',
-  );
+  await expect(
+    execute({ ...launchOptions(), env: { ...launchOptions().env, ARCH_ACTIVE: 'existing' } }),
+  ).resolves.toEqual({ exitCode: 7, signal: null });
   await expect(
     execute({ ...launchOptions(), signal: AbortSignal.abort('SIGTERM') }),
   ).rejects.toThrow();
@@ -487,7 +487,7 @@ it('cancels before preflight while still finalizing and cleaning exactly once', 
   expect(calls).toEqual(['finalize', 'cleanup']);
 });
 
-it('passes through without configuration, retaining recursion protection and no event envelope', async () => {
+it('runs an independent event lifecycle without middleware configuration', async () => {
   const file = join(root, 'passthrough-guard');
   const received: ArchEvent[] = [];
   const result = await execute({
@@ -504,7 +504,8 @@ it('passes through without configuration, retaining recursion protection and no 
   });
   expect(result).toEqual({ exitCode: 23, signal: null });
   expect(await readFile(file, 'utf8')).toMatch(/^[a-f0-9-]{36}$/);
-  expect(received).toEqual([]);
+  expect(received).toHaveLength(1);
+  expect(received[0]?.executionId).toBe(await readFile(file, 'utf8'));
 });
 
 it('reports observer initialization errors by identity and continues native execution', async () => {
@@ -773,4 +774,130 @@ it('selects middleware registry after awaited started observers have completed',
   };
   expect((await execute(options)).exitCode).toBe(7);
   expect(calls).toEqual(['observed', 'register', 'preflight']);
+});
+
+it('isolates nested middleware state and correlates every lifecycle event', async () => {
+  await configure(['local']);
+  const contexts: ExecutionContext[] = [];
+  const received: ArchEvent[] = [];
+  const phases: string[] = [];
+  const parent = '11111111-1111-4111-8111-111111111111';
+  const observe = (bus: EventBus) => {
+    for (const type of [
+      'execution.started',
+      'middleware.completed',
+      'execution.completed',
+    ] as const) {
+      bus.subscribe(type, (value) => {
+        received.push(value);
+      });
+    }
+  };
+  const registry: Registry = new Map([
+    [
+      'local',
+      () => {
+        let finalized = false;
+        return {
+          id: 'local',
+          register(api) {
+            contexts.push(api.context);
+            api.on('preflight', async () => {
+              phases.push('before:' + api.context.executionId);
+              if (parent === api.context.parentExecutionId) {
+                const result = await execute({
+                  ...launchOptions(),
+                  registry,
+                  observe,
+                  env: {
+                    ...launchOptions().env,
+                    ARCH_PARENT_EXECUTION_ID: api.context.executionId,
+                  },
+                });
+                expect(result.exitCode).toBe(7);
+                expect(finalized).toBe(false);
+              }
+            });
+            api.on('prepareLaunch', () => {
+              api.setEnv('NESTED_ID', api.context.executionId);
+            });
+            api.on('finalize', () => {
+              expect(finalized).toBe(false);
+              finalized = true;
+              phases.push('after:' + api.context.executionId);
+            });
+            api.cleanup(() => {
+              expect(finalized).toBe(true);
+              phases.push('cleanup:' + api.context.executionId);
+            });
+          },
+        };
+      },
+    ],
+  ]);
+  const env = Object.freeze({
+    ...launchOptions().env,
+    ARCH_ACTIVE: 'spoof',
+    ARCH_PARENT_EXECUTION_ID: parent,
+  });
+  expect((await execute({ ...launchOptions(), env, registry, observe })).exitCode).toBe(7);
+  expect(contexts).toHaveLength(2);
+  const outer = contexts[0]!;
+  const inner = contexts[1]!;
+  expect(inner.executionId).not.toBe(outer.executionId);
+  expect(inner.parentExecutionId).toBe(outer.executionId);
+  expect(outer.parentExecutionId).toBe(parent);
+  expect(env.ARCH_ACTIVE).toBe('spoof');
+  expect(phases).toEqual([
+    'before:' + outer.executionId,
+    'before:' + inner.executionId,
+    'after:' + inner.executionId,
+    'cleanup:' + inner.executionId,
+    'after:' + outer.executionId,
+    'cleanup:' + outer.executionId,
+  ]);
+  for (const context of contexts) {
+    const own = received.filter((e) => e.executionId === context.executionId);
+    expect(own).toHaveLength(5);
+    expect(own.every((e) => e.parentExecutionId === context.parentExecutionId)).toBe(true);
+    expect(own.at(-1)?.payload).toMatchObject({ exitCode: 7, signal: null });
+  }
+});
+
+it.each([
+  'spoofed',
+  'x'.repeat(36),
+  'x11111111-1111-4111-8111-111111111111',
+  '11111111-1111-4111-8111-111111111111x',
+])('ignores malformed parent correlation %s', async (parent) => {
+  const received: ArchEvent[] = [];
+  const result = await execute({
+    ...launchOptions(),
+    env: { ...launchOptions().env, ARCH_PARENT_EXECUTION_ID: parent },
+    observe(bus) {
+      bus.subscribe('execution.started', (value) => {
+        received.push(value);
+      });
+    },
+  });
+  expect(result.exitCode).toBe(7);
+  expect(received).toHaveLength(1);
+  expect(received[0]?.parentExecutionId).toBeUndefined();
+});
+
+it('retains the discovered project root when invoked from a child directory', async () => {
+  await configure([]);
+  const cwd = join(root, 'subdirectory');
+  await mkdir(cwd);
+  const received: ArchEvent[] = [];
+  await execute({
+    ...launchOptions(),
+    cwd,
+    observe(bus) {
+      bus.subscribe('execution.started', (value) => {
+        received.push(value);
+      });
+    },
+  });
+  expect(received[0]?.payload).toMatchObject({ projectRoot: root });
 });

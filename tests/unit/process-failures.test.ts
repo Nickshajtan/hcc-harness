@@ -1,5 +1,17 @@
+import { fileURLToPath } from 'node:url';
+import { isRouterTarget } from '../../src/process/native-environment.js';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { access, readFile, open, mkdtemp, mkdir, writeFile, rm, chmod } from 'node:fs/promises';
+import {
+  access,
+  readFile,
+  realpath,
+  open,
+  mkdtemp,
+  mkdir,
+  writeFile,
+  rm,
+  chmod,
+} from 'node:fs/promises';
 import { resolve, join, delimiter } from 'node:path';
 import { launch, nativeEnvironment, resolveExecutable } from '../../src/process.js';
 
@@ -8,6 +20,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
   return {
     ...actual,
     access: vi.fn(actual.access),
+    realpath: vi.fn(actual.realpath),
     readFile: vi.fn(actual.readFile),
     open: vi.fn(actual.open),
   };
@@ -21,6 +34,7 @@ const platform = Object.getOwnPropertyDescriptor(process, 'platform');
 const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises');
 let root: string;
 beforeEach(async () => {
+  vi.mocked(realpath).mockReset().mockImplementation(actual.realpath);
   vi.mocked(access).mockReset().mockImplementation(actual.access);
   vi.mocked(readFile).mockReset().mockImplementation(actual.readFile);
   vi.mocked(open).mockReset().mockImplementation(actual.open);
@@ -102,3 +116,10 @@ it.each([undefined, 'EACCES'])(
     );
   },
 );
+
+it('refuses the canonical Arch CLI identity before reading or launching it', async () => {
+  const cli = fileURLToPath(new URL('../../src/cli.js', import.meta.url));
+  vi.mocked(realpath).mockResolvedValueOnce(cli);
+  await expect(isRouterTarget('alias-to-cli')).resolves.toBe(true);
+  expect(open).not.toHaveBeenCalled();
+});

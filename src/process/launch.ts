@@ -9,6 +9,7 @@ export async function launch(
   cwd: string,
   env: NodeJS.ProcessEnv,
   signal: AbortSignal,
+  onSpawn?: () => void,
 ): Promise<LaunchResult> {
   signal.throwIfAborted();
   let target = executable;
@@ -23,6 +24,26 @@ export async function launch(
   signal.throwIfAborted();
   return new Promise((resolveResult, reject) => {
     const child = spawn(target, nativeArgs, { cwd, env, stdio: 'inherit', shell: false });
-    new ChildExecution(child, signal, resolveResult, reject).observe();
+    let notificationFailure: Error | undefined;
+    try {
+      onSpawn?.();
+    } catch (error) {
+      notificationFailure =
+        error instanceof Error ? error : new Error('Spawn notification failed', { cause: error });
+    }
+    // A caller's notification failure must never orphan an already-spawned child
+    // or let Core finalize while it is active. Surface it only after settlement.
+    new ChildExecution(
+      child,
+      signal,
+      (result) => {
+        if (notificationFailure) {
+          reject(notificationFailure);
+        } else {
+          resolveResult(result);
+        }
+      },
+      reject,
+    ).observe();
   });
 }

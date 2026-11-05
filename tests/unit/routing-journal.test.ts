@@ -11,6 +11,7 @@ import {
   type State,
   key,
   configText,
+  legacyConfigText,
 } from '../../src/lifecycle/manifest.js';
 import { journalFrom, type RoutingJournal } from '../../src/lifecycle/routing-journal.js';
 
@@ -261,5 +262,6 @@ it('rejects mixed launcher layouts and mismatched Windows pairs', () => {
   ).toThrow('missing exe/shim pair');
 });
 it('retains the generated starter configuration bytes', () => {
-  expect(configText).toBe('schema = 1\n\n[[middleware]]\nid = "demo"\nenabled = true\n');
+  expect(configText).toBe('schema = 1\nmiddleware = []\n');
+  expect(legacyConfigText).toBe('schema = 1\n\n[[middleware]]\nid = "demo"\nenabled = true\n');
 });

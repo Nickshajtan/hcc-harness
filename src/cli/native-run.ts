@@ -4,6 +4,7 @@ import { execute } from '../core.js';
 // Own only CLI signal subscriptions and exit mapping; process policy stays behind Core.
 export async function runCommand(command: string, args: readonly string[]): Promise<void> {
   const controller = new AbortController();
+  let childSpawned = false;
   const handlers = new Map<NodeJS.Signals, () => void>();
   for (const signal of [
     'SIGINT',
@@ -12,6 +13,11 @@ export async function runCommand(command: string, args: readonly string[]): Prom
     ...('win32' === process.platform ? ['SIGBREAK' as const] : []),
   ] as const) {
     const handler = () => {
+      // Foreground POSIX children receive terminal SIGINT directly. A PID-only
+      // SIGINT is deliberately ignored after spawn; use SIGTERM for termination.
+      if ('win32' !== process.platform && 'SIGINT' === signal && childSpawned) {
+        return;
+      }
       controller.abort(signal);
     };
     handlers.set(signal, handler);
@@ -24,6 +30,9 @@ export async function runCommand(command: string, args: readonly string[]): Prom
       args,
       cwd: process.cwd(),
       signal: controller.signal,
+      onSpawn() {
+        childSpawned = true;
+      },
       observe(bus) {
         if ('1' === process.env.ARCH_TRACE) {
           for (const type of [

@@ -77,7 +77,17 @@ it('uses platform-correct identity for differently cased conflicting values', as
 });
 it('preserves invalid/reserved variable restrictions', async () => {
   await prepare((api) => {
-    for (const name of ['PATH', 'Path', 'PATHEXT', 'arch_active', 'NODE_OPTIONS', '', 'BAD=KEY']) {
+    for (const name of [
+      'PATH',
+      'Path',
+      'PATHEXT',
+      'arch_active',
+      'ARCH_PARENT_EXECUTION_ID',
+      'arch_parent_execution_id',
+      'NODE_OPTIONS',
+      '',
+      'BAD=KEY',
+    ]) {
       expect(() => {
         api.setEnv(name, 'value');
       }).toThrow('Invalid');

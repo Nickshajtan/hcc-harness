@@ -381,6 +381,7 @@ export function events(result: Result): {
   id: string;
   type: string;
   executionId: string;
+  parentExecutionId?: string;
   timestamp: string;
   schemaVersion: number;
   payload: Record<string, unknown>;
@@ -405,6 +406,9 @@ export function events(result: Result): {
         id: value.id,
         type: value.type,
         executionId: value.executionId,
+        ...('string' === typeof value.parentExecutionId
+          ? { parentExecutionId: value.parentExecutionId }
+          : {}),
         timestamp: value.timestamp,
         schemaVersion: value.schemaVersion,
         payload: value.payload,

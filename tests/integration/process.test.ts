@@ -1,3 +1,4 @@
+import { legacyConfigText } from '../../src/lifecycle/manifest.js';
 import { onTestFinished, beforeAll, afterAll, expect, it } from 'vitest';
 import {
   writeFile,
@@ -17,6 +18,8 @@ let fixture: Awaited<ReturnType<typeof world>>;
 beforeAll(async () => {
   fixture = await world();
   expect(await fixture.init(fixture.A)).toMatchObject({ code: 0 });
+  // Middleware contracts opt in explicitly; production starters are empty.
+  await writeFile(join(fixture.A, '.arch/harness.toml'), legacyConfigText);
 });
 afterAll(async () => {
   await fixture?.dispose();
@@ -90,6 +93,7 @@ it('resumes interrupted uninstall through the CLI and restores native command ro
     ...fixture.env,
     PATH: [join(project, '.arch/bin'), fixture.native, dirname(process.execPath)].join(delimiter),
   };
+  await writeFile(join(project, '.arch/harness.toml'), legacyConfigText);
   expect((await run('claude', [], project, env)).stderr).toContain('[arch:demo] preflight');
   // Checkpoint and one completed deletion simulate process interruption at that exact boundary.
   await rename(join(project, '.arch/bootstrap.json'), join(project, '.arch/uninstall.json'));
@@ -193,14 +197,15 @@ it('invalid configuration fails explicitly and never launches native', async () 
   }
 });
 
-it('a missing harness config passes through, while missing native binaries fail with cleanup', async () => {
+it('a missing harness config retains execution events without middleware, while missing native binaries fail with cleanup', async () => {
   const config = join(fixture.A, '.arch/harness.toml');
   const original = await readFile(config, 'utf8');
   try {
     await unlink(config);
     const result = await fixture.invoke(fixture.A);
     expect(result).toMatchObject({ code: 0 });
-    expect(events(result)).toEqual([]);
+    expect(events(result).map((e) => e.type)).toEqual(['execution.started', 'execution.completed']);
+    expect(result.stderr).not.toContain('[arch:demo]');
   } finally {
     await writeFile(config, original);
   }
@@ -227,12 +232,12 @@ it('nearest nested configuration overrides middleware without leaking to its par
   expect((await fixture.invoke(fixture.A)).stderr).toContain('[arch:demo] preflight');
 });
 
-it('rejects recursion and wrapper-only resolution', async () => {
+it('accepts inherited ancestry and rejects wrapper-only resolution', async () => {
   const recursive = await fixture.invoke(fixture.A, 'claude', [], {
     ARCH_ACTIVE: 'already-running',
   });
-  expect(recursive.code).toBe(1);
-  expect(recursive.stderr).toContain('Recursive Arch invocation');
+  expect(recursive.code, recursive.stderr).toBe(0);
+  expect(events(recursive).filter((e) => 'execution.started' === e.type)).toHaveLength(1);
   const path = [join(fixture.A, '.arch/bin'), dirname(process.execPath)].join(delimiter);
   const unresolved = await run(process.execPath, [cli, 'run', 'claude', '--'], fixture.A, {
     ...fixture.env,
@@ -242,7 +247,7 @@ it('rejects recursion and wrapper-only resolution', async () => {
   expect(unresolved.stderr).toContain('Native executable not found');
 });
 
-it('prevents external wrappers from re-entering Arch in passthrough and configured projects', async () => {
+it('does not mistake intentional third-party reentry for router identity', async () => {
   const script = join(fixture.native, 'reenter.cjs');
   await writeFile(
     script,
@@ -261,8 +266,8 @@ it('prevents external wrappers from re-entering Arch in passthrough and configur
   }
   for (const project of [fixture.C, fixture.A]) {
     const result = await run(process.execPath, [cli, 'run', 'reenter', '--'], project, fixture.env);
-    expect(result, result.stderr).toMatchObject({ code: 1 });
-    expect(result.stderr).toContain('Recursive Arch invocation');
+    expect(result, result.stderr).toMatchObject({ code: 77 });
+    expect(events(result).filter((e) => 'execution.started' === e.type)).toHaveLength(3);
   }
 });
 
@@ -338,18 +343,19 @@ it.skipIf('win32' !== process.platform)(
 );
 
 it.skipIf('win32' === process.platform)(
-  'forwards SIGINT and SIGTERM and runs cleanup (POSIX process signals)',
+  'ignores PID-only SIGINT after spawn and retains SIGTERM/SIGHUP cleanup',
   async () => {
-    for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+    for (const signal of ['SIGTERM', 'SIGHUP'] as const) {
       const invocation = start(process.execPath, [cli, 'run', 'claude', '--'], fixture.A, {
         ...fixture.env,
         FAKE_WAIT: '1',
       });
       onTestFinished(() => invocation.dispose());
       await waitFor(() => invocation.output().stdout.includes('"pid":'));
+      invocation.child.kill('SIGINT');
       invocation.child.kill(signal);
       const result = await invocation.result;
-      expect(result.code).toBe('SIGINT' === signal ? 130 : 143);
+      expect(result.code).toBe('SIGHUP' === signal ? 129 : 143);
       expect(result.stderr).toContain('[arch:demo] cleanup');
     }
   },

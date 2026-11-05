@@ -1,3 +1,5 @@
+import { lstat, readdir } from 'node:fs/promises';
+import { assertSafePath } from './ownership.js';
 import { assertBootstrapAuthority } from './setup-claim.js';
 import { join, resolve, delimiter } from 'node:path';
 import { nativeEnvironment, resolveExecutable } from '../process.js';
@@ -9,6 +11,13 @@ import { readAt } from './routing-files.js';
 import { validateRecovery } from './recovery-validation.js';
 export interface InstallationStatus {
   schema: 1;
+  setup?: {
+    claimPresent: boolean;
+    bootstrapPresent: boolean;
+    stagingPaths: string[];
+    manualRecoveryRequired: boolean;
+    documentation: string;
+  };
   projectRoot: string;
   state: 'uninitialized' | 'initialized' | 'recovery_pending' | 'invalid_state';
   routes: string[];
@@ -50,6 +59,7 @@ export async function inspectInstallation(
   };
   await observeMise(root, env, status);
   try {
+    await inspectSetup(root, status);
     await inspectOwnership(root, status);
     await inspectMiddlewareConfiguration(root, status);
   } catch (error) {
@@ -144,6 +154,40 @@ async function inspectOwnership(root: string, status: InstallationStatus) {
   if (!routing && (await readAt(root, journalStage)) !== undefined) {
     status.warnings.push(
       'Unreferenced .arch/routing.stage; inspect and move it before another routing update.',
+    );
+  }
+}
+
+// Inspect names and entry presence only. Never read claim/stage contents or follow links.
+async function inspectSetup(root: string, status: InstallationStatus): Promise<void> {
+  await assertSafePath(root, '.arch');
+  let entries: string[];
+  try {
+    entries = await readdir(join(root, '.arch'));
+  } catch (error) {
+    if ('ENOENT' !== (error as NodeJS.ErrnoException).code) {
+      throw error;
+    }
+    entries = [];
+  }
+  const stagingPaths: string[] = [];
+  for (const name of entries.filter((entry) => entry.startsWith('.setup-')).sort()) {
+    const path = join('.arch', name);
+    if ((await lstat(join(root, path))).isDirectory()) {
+      stagingPaths.push('.arch/' + name);
+    }
+  }
+  const claimPresent = entries.includes('setup-claim');
+  status.setup = {
+    claimPresent,
+    bootstrapPresent: entries.includes('bootstrap.json'),
+    stagingPaths,
+    manualRecoveryRequired: claimPresent || 0 < stagingPaths.length,
+    documentation: 'docs/usage.md#recovering-an-interrupted-init',
+  };
+  if (status.setup.manualRecoveryRequired) {
+    status.warnings.push(
+      `Setup inspection: claim ${String(claimPresent)}; bootstrap ${String(status.setup.bootstrapPresent)}; stages ${stagingPaths.join(', ') || '(none)'}. Manual inspection required: ${status.setup.documentation}`,
     );
   }
 }

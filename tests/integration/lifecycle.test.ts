@@ -1,3 +1,4 @@
+import { legacyConfigText } from '../../src/lifecycle/manifest.js';
 import { afterAll, beforeAll, expect, it, onTestFailed } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import assert from 'node:assert/strict';
@@ -36,6 +37,8 @@ async function project() {
   await mkdir(root);
   const initialized = await fixture.init(root);
   expect(initialized, initialized.stderr).toMatchObject({ code: 0 });
+  // Middleware contracts opt in explicitly; production starters are empty.
+  await writeFile(join(root, '.arch/harness.toml'), legacyConfigText);
   return root;
 }
 

@@ -8,6 +8,7 @@
     "vitest.cli-mutation.config.ts",
     "src/**/*.ts",
     "vendor/**",
+    ".tools/publication/*",
     "tests/unit/cli-policy.test.ts",
     "tests/unit/cli-dispatch.test.ts",
     "tests/unit/cli-run.test.ts",

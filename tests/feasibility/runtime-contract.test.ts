@@ -1,3 +1,4 @@
+import { legacyConfigText } from '../../src/lifecycle/manifest.js';
 import { onTestFinished, afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   chmod,
@@ -103,6 +104,7 @@ describe.skipIf('1' !== process.env.ARCH_RUNTIME_CONTRACT)('M2.2 shared runtime 
     ) => Promise<void>;
     await cmdShim(script, join(f.native, 'runtime'));
     expect(await run(entry, ['init', 'runtime'], f.A, env())).toMatchObject({ code: 0 });
+    await writeFile(join(f.A, '.arch/harness.toml'), legacyConfigText);
     // Feasibility fixture only: production launcher/manifest formats stay unchanged.
     if (windows) {
       await writeFile(
@@ -287,9 +289,10 @@ describe.skipIf('1' !== process.env.ARCH_RUNTIME_CONTRACT)('M2.2 shared runtime 
           }
           await new Promise((done) => setTimeout(done, 20));
         }
-        invocation.child.kill(signal);
+        invocation.child.kill('SIGINT');
+        invocation.child.kill('SIGTERM');
         const result = await invocation.result;
-        expect(result.code).toBe(code);
+        expect(result.code).toBe(143);
         expect(result.stderr).toContain('[arch:demo] cleanup');
       }
       const native = await records(log, 'runtime');

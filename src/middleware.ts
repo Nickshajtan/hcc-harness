@@ -4,6 +4,8 @@ import { event } from './events.js';
 
 export interface ExecutionContext {
   readonly executionId: string;
+  /** Untrusted correlation only; never an authorization or ownership credential. */
+  readonly parentExecutionId?: string | undefined;
   readonly projectRoot: string;
   readonly command: string;
   readonly originalArgs: readonly string[];
@@ -47,10 +49,15 @@ export function createPipeline(context: ExecutionContext, bus: EventBus) {
               try {
                 await handler();
                 await bus.publish(
-                  event('middleware.completed', context.executionId, {
-                    middlewareId: middleware.id,
-                    phase: name,
-                  }),
+                  event(
+                    'middleware.completed',
+                    context.executionId,
+                    {
+                      middlewareId: middleware.id,
+                      phase: name,
+                    },
+                    context.parentExecutionId,
+                  ),
                 );
               } catch (error) {
                 if ('finalize' !== name) {
@@ -68,7 +75,7 @@ export function createPipeline(context: ExecutionContext, bus: EventBus) {
               !/^[A-Za-z_][A-Za-z0-9_]*$/.test(name) ||
               'string' !== typeof value ||
               value.includes('\0') ||
-              /^(PATH|PATHEXT|ARCH_ACTIVE|NODE_OPTIONS)$/i.test(name)
+              /^(PATH|PATHEXT|ARCH_ACTIVE|ARCH_PARENT_EXECUTION_ID|NODE_OPTIONS)$/i.test(name)
             ) {
               throw new Error('Invalid or reserved environment variable');
             }

@@ -1,6 +1,7 @@
+import { configText, digest } from '../../src/lifecycle/manifest.js';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { mkdtemp, readFile, rm, readdir } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, readdir, writeFile, unlink, rmdir, lstat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -148,6 +149,10 @@ it.each(['partial', 'before', 'after', 'claim', 'claim-cleanup', 'claim-released
     running.child.kill('SIGKILL');
     await running.closed;
     const status = await inspectInstallation(root);
+    expect(status.setup?.claimPresent).toBe('claim-released' !== boundary);
+    expect(status.setup?.manualRecoveryRequired).toBe('claim-released' !== boundary);
+    expect(status.setup?.documentation).toBe('docs/usage.md#recovering-an-interrupted-init');
+    expect((await inspectInstallation(root)).setup).toEqual(status.setup);
     if ('claim-released' === boundary) {
       expect(status.state).toBe('initialized');
       const manifest = stateFrom(await readFile(join(root, '.arch/bootstrap.json')));
@@ -216,3 +221,52 @@ it.each(['tool', 'other'])(
     await checkFiles(root, manifest.files);
   },
 );
+
+it('manually rolls back a proven fixture-owned interrupted publication and safely reinitializes', async () => {
+  // Independent provenance: this private root has one supervised setup writer.
+  // Expected paths/hashes alone would not establish ownership in a real incident.
+  const foreign = join(root, 'user.txt');
+  await writeFile(foreign, 'preexisting user data');
+  const running = start('before');
+  await running.ready;
+  running.child.kill('SIGKILL');
+  await running.closed;
+  const status = await inspectInstallation(root);
+  expect(status.state).toBe('invalid_state');
+  const directory = status.setup?.stagingPaths[0];
+  if (!directory) {
+    throw new Error('Missing private setup evidence');
+  }
+  const names = (await readdir(join(root, directory))).sort((a, b) => Number(a) - Number(b));
+  const manifestName = names.at(-1);
+  if (!manifestName) {
+    throw new Error('Missing prepared bootstrap');
+  }
+  const bytes = await readFile(join(root, directory, manifestName));
+  const state = stateFrom(bytes);
+  await checkFiles(root, state.files);
+  const harness = join(root, '.arch/harness.toml');
+  expect(state.createdHarness).toBe(true);
+  expect((await lstat(harness)).isSymbolicLink()).toBe(false);
+  expect(await readFile(harness, 'utf8')).toBe(configText);
+  const expected = new Set([...Object.values(state.files), digest(configText), digest(bytes)]);
+  for (const name of names) {
+    expect(name).toMatch(/^\d+$/);
+    expect((await lstat(join(root, directory, name))).isSymbolicLink()).toBe(false);
+    expect(expected.has(digest(await readFile(join(root, directory, name))))).toBe(true);
+  }
+  // All verification precedes effects. Remove only this controlled writer's resources.
+  await unlink(harness);
+  for (const file of Object.keys(state.files).reverse()) {
+    await unlink(join(root, file));
+  }
+  for (const name of names) {
+    await unlink(join(root, directory, name));
+  }
+  await rmdir(join(root, directory));
+  await rmdir(join(root, '.arch/setup-claim'));
+  expect(await readFile(foreign, 'utf8')).toBe('preexisting user data');
+  expect((await inspectInstallation(root)).state).toBe('uninitialized');
+  await setup(root, ['tool']);
+  expect((await inspectInstallation(root)).state).toBe('initialized');
+});
