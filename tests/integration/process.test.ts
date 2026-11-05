@@ -245,6 +245,9 @@ it('accepts inherited ancestry and rejects wrapper-only resolution', async () =>
   });
   expect(unresolved.code).toBe(1);
   expect(unresolved.stderr).toContain('Native executable not found');
+  expect(events(unresolved).filter((event) => 'execution.started' === event.type)).toHaveLength(1);
+  expect(events(unresolved).at(-1)?.type).toBe('execution.failed');
+  expect(unresolved.stderr.match(/\[arch:demo\] cleanup/g)).toHaveLength(1);
 });
 
 it('does not mistake intentional third-party reentry for router identity', async () => {

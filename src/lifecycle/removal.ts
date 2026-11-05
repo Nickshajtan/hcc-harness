@@ -45,9 +45,11 @@ export async function uninstall(root: string): Promise<void> {
     await remove(join(root, file), 'remove managed file');
   }
   const harnessFile = join(root, '.arch/harness.toml');
-  const harness = (await readOptional(harnessFile))?.toString();
-  if (state.createdHarness && (harness === configText || harness === legacyConfigText)) {
-    await remove(harnessFile, 'remove generated configuration');
+  if (state.createdHarness) {
+    const harness = (await readOptional(harnessFile))?.toString();
+    if (harness === configText || harness === legacyConfigText) {
+      await remove(harnessFile, 'remove generated configuration');
+    }
   }
   await remove(journalFile, 'remove uninstall state');
 }

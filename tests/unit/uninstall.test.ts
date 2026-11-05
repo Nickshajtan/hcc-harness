@@ -7,12 +7,13 @@ import { setup, uninstall } from '../../src/setup.js';
 
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs/promises')>();
-  return { ...actual, unlink: vi.fn(actual.unlink) };
+  return { ...actual, unlink: vi.fn(actual.unlink), readFile: vi.fn(actual.readFile) };
 });
 const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises');
 let root: string;
 beforeEach(async () => {
   vi.mocked(unlink).mockImplementation(actual.unlink);
+  vi.mocked(readFile).mockImplementation(actual.readFile);
   root = await mkdtemp(join(tmpdir(), 'arch-uninstall-'));
   await setup(root, ['tool']);
 });
@@ -134,3 +135,21 @@ it.each([configText, legacyConfigText])(
     expect(await readFile(file, 'utf8')).toBe(text + '# customized\n');
   },
 );
+
+it('does not read or remove preexisting configuration without the ownership flag', async () => {
+  const state: unknown = JSON.parse(await readFile(stateFile(), 'utf8'));
+  if (!state || 'object' !== typeof state) {
+    throw new Error('Expected fixture manifest');
+  }
+  await writeFile(stateFile(), JSON.stringify({ ...state, createdHarness: false }));
+  const harness = join(root, '.arch/harness.toml');
+  await writeFile(harness, legacyConfigText);
+  vi.mocked(readFile).mockImplementation((...args: Parameters<typeof actual.readFile>) => {
+    if (args[0] === harness) {
+      return Promise.reject(Object.assign(new Error('private configuration'), { code: 'EACCES' }));
+    }
+    return actual.readFile(...args);
+  });
+  await uninstall(root);
+  expect(await actual.readFile(harness, 'utf8')).toBe(legacyConfigText);
+});

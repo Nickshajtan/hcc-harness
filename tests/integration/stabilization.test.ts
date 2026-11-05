@@ -1,6 +1,8 @@
 import { stateFrom } from '../../src/lifecycle/manifest.js';
 import { checkFiles } from '../../src/lifecycle/ownership.js';
 import { afterEach, beforeEach, expect, it } from 'vitest';
+import { constants } from 'node:fs';
+import { createRequire } from 'node:module';
 import {
   mkdtemp,
   mkdir,
@@ -9,7 +11,9 @@ import {
   rm,
   rmdir,
   copyFile,
-  symlink,
+  chmod,
+  realpath,
+  access,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, dirname, basename, delimiter } from 'node:path';
@@ -37,15 +41,47 @@ function environment() {
   };
 }
 
+async function prepareMacPty(): Promise<void> {
+  if ('darwin' !== process.platform) {
+    return;
+  }
+  // Match check-wizard.mjs's documented preparation for npm's node-pty helper.
+  // Repair only known package helper modes; every actual spawn failure still fails.
+  const directory = dirname(createRequire(import.meta.url).resolve('node-pty/package.json'));
+  for (const relative of [
+    'build/Release/spawn-helper',
+    'build/Debug/spawn-helper',
+    `prebuilds/darwin-${process.arch}/spawn-helper`,
+  ]) {
+    const helper = join(directory, relative);
+    try {
+      await access(helper);
+    } catch (error) {
+      if ('ENOENT' === (error as NodeJS.ErrnoException).code) {
+        continue;
+      }
+      throw error;
+    }
+    try {
+      await access(helper, constants.X_OK);
+    } catch (error) {
+      if ('EACCES' !== (error as NodeJS.ErrnoException).code) {
+        throw error;
+      }
+      await chmod(helper, 0o755);
+      console.info(`Restored execute permission: node-pty/${relative}`);
+    }
+  }
+}
+
 it.each([0, 17])(
   'runs three nested executions with independent middleware/events and exit %s',
   async (code) => {
     await writeFile(join(root, '.arch/harness.toml'), demo);
     const alias = join(root, 'win32' === process.platform ? 'provider-b.exe' : 'provider-b');
-    if ('win32' === process.platform) {
-      await copyFile(process.execPath, alias);
-    } else {
-      await symlink(process.execPath, alias);
+    await copyFile(process.execPath, alias);
+    if ('win32' !== process.platform) {
+      await chmod(alias, 0o755);
     }
     const command = basename(process.execPath);
     const leaf = `process.exit(${String(code)})`;
@@ -53,7 +89,14 @@ it.each([0, 17])(
       `const r=require('node:child_process').spawnSync(process.execPath,${JSON.stringify([cli, 'run', provider, '--', '-e', script])},{stdio:'inherit'});process.exit(r.status??1)`;
     const result = await run(
       process.execPath,
-      [cli, 'run', command, '--', '-e', invoke('provider-b', invoke(command, leaf))],
+      [
+        cli,
+        'run',
+        command,
+        '--',
+        '-e',
+        invoke('provider-b', "console.log('B_NATIVE:'+process.execPath);" + invoke(command, leaf)),
+      ],
       root,
       {
         ...environment(),
@@ -62,6 +105,7 @@ it.each([0, 17])(
       },
     );
     expect(result.code, result.stderr).toBe(code);
+    expect(result.stdout).toContain('B_NATIVE:' + (await realpath(alias)));
     const all = events(result) as (ReturnType<typeof events>[number] & {
       parentExecutionId?: string;
     })[];
@@ -150,6 +194,16 @@ it('reports unresolved setup entries read-only and blocks mutation until verifie
   expect(cliStatus.code).toBe(1);
   const json: unknown = JSON.parse(cliStatus.stdout);
   expect(json).toMatchObject({ schema: 1, state: 'invalid_state', setup: status.setup });
+  const textStatus = await run(process.execPath, [cli, 'status'], root, environment());
+  expect(textStatus.code).toBe(1);
+  expect(textStatus.stdout).toContain('Setup claim: present');
+  expect(textStatus.stdout).toContain('Bootstrap manifest: present');
+  expect(textStatus.stdout).toContain('Setup stages: .arch/.setup-evidence');
+  expect(textStatus.stdout).toContain('Manual setup recovery: true');
+  expect(textStatus.stdout).toContain(
+    'Setup recovery documentation: docs/usage.md#recovering-an-interrupted-init',
+  );
+  expect(await readFile(join(root, '.arch/bootstrap.json'))).toEqual(manifest);
   await expect(uninstall(root)).rejects.toThrow('Unresolved setup claim');
   expect((await inspectInstallation(root, {})).setup).toEqual(status.setup);
   // Independent provenance: setup completed before this test created the claim/stage.
@@ -208,6 +262,9 @@ it.skipIf('win32' === process.platform).each([0, 130])(
       child.stdin.write('exit\n');
       expect(await settled).toEqual([code, null]);
       expect(stdout).toContain('COUNT:2');
+      if (nested) {
+        expect(stdout.match(/OUTER_INT/g)).toHaveLength(2);
+      }
       expect(stderr.match(/\[arch:demo\] finalize/g)).toHaveLength(nested ? 2 : 1);
       expect(stderr.match(/\[arch:demo\] cleanup/g)).toHaveLength(nested ? 2 : 1);
     } finally {
@@ -260,6 +317,7 @@ it.skipIf('win32' === process.platform)(
 it.skipIf('win32' === process.platform)(
   'handles terminal Ctrl+C in an actual foreground PTY',
   async () => {
+    await prepareMacPty();
     const { spawn: spawnPty } = await import('node-pty');
     await writeFile(join(root, '.arch/harness.toml'), demo);
     const script =

@@ -237,9 +237,9 @@ it('forwards native arguments, stdin and exit status identically and keeps proje
 });
 
 it.skipIf('win32' === process.platform)(
-  'forwards signals through the npm-linked executable',
+  'preserves PID-only SIGINT policy and forwards termination through the npm-linked executable',
   async () => {
-    for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+    for (const signal of ['SIGTERM', 'SIGHUP'] as const) {
       const invocation = start(executable, ['run', 'claude', '--'], fixture.A, {
         ...env,
         FAKE_WAIT: '1',
@@ -252,9 +252,10 @@ it.skipIf('win32' === process.platform)(
         }
         await new Promise((done) => setTimeout(done, 20));
       }
+      invocation.child.kill('SIGINT');
       invocation.child.kill(signal);
       const result = await invocation.result;
-      expect(result.code).toBe('SIGINT' === signal ? 130 : 143);
+      expect(result.code).toBe('SIGHUP' === signal ? 129 : 143);
       expect(result.stderr).toContain('[arch:demo] cleanup');
     }
   },

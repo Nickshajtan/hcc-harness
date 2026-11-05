@@ -123,3 +123,22 @@ it('refuses the canonical Arch CLI identity before reading or launching it', asy
   await expect(isRouterTarget('alias-to-cli')).resolves.toBe(true);
   expect(open).not.toHaveBeenCalled();
 });
+
+it('preserves native PATH precedence when execute permission exists without read permission', async () => {
+  const name = 'win32' === process.platform ? 'tool.exe' : 'tool';
+  const file = join(root, name);
+  await writeFile(file, 'native executable fixture');
+  await chmod(file, 0o755);
+  vi.mocked(open).mockRejectedValueOnce(
+    Object.assign(new Error('execute-only native'), { code: 'EACCES' }),
+  );
+  await expect(resolveExecutable(name, root, { PATH: root })).resolves.toBe(file);
+});
+
+it('does not hide unexpected executable-content inspection failures', async () => {
+  const file = join(root, 'native');
+  await writeFile(file, 'fixture');
+  const failure = Object.assign(new Error('inspection I/O failed'), { code: 'EIO' });
+  vi.mocked(open).mockRejectedValueOnce(failure);
+  await expect(isRouterTarget(file)).rejects.toBe(failure);
+});

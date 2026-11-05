@@ -28,7 +28,7 @@ platforms the direct unconfigured outcome is measured rather than assumed. This
 experimental prototype is test code only. Its output is distinct from the
 acceptance suite, which requires every selected-router scenario to pass.
 
-The dispatcher is the config discovery/native passthrough boundary in `execute()`.
+The dispatcher is the configuration discovery/execution initialization boundary in `execute()`.
 Unix project launchers `exec` Node using `"$@"`. Native Windows launchers reuse
 [Scoop's C++ shim](https://github.com/ScoopInstaller/Shim/tree/cpp/v0.3.0), with no
 runtime dependencies; provenance, checksums and license are in `vendor/`.

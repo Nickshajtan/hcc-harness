@@ -302,7 +302,7 @@ it.each(['prefix', 'suffix'])(
 
 it('decodes quoted native paths without treating ordinary shell launchers as routers', async () => {
   const file = await candidate(join(root, 'script'));
-  const destination = await candidate(join(root, "native 'quoted'"));
+  const destination = await candidate(join(root, "native 'quoted' ' ' spaced"));
   const quote = (text: string) => "'" + text.replaceAll("'", "'\\''") + "'";
   await writeFile(
     file,
@@ -377,3 +377,16 @@ it('preserves malformed stable identity evidence as an explicit error', async ()
   await writeFile(join(root, 'installation.json'), '{broken');
   await expect(isRouterTarget(file)).rejects.toBeInstanceOf(SyntaxError);
 });
+
+it.skipIf('win32' === process.platform)(
+  'accepts a symlink to a native executable by canonical identity',
+  async () => {
+    const file = await candidate(join(root, 'native'));
+    const alias = join(root, 'alias');
+    await mkdir(alias);
+    await symlink(file, join(alias, command));
+    await expect(resolveExecutable('tool', root, { PATH: alias })).resolves.toBe(
+      await realpath(file),
+    );
+  },
+);
