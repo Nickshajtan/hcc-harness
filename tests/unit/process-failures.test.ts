@@ -142,3 +142,11 @@ it('does not hide unexpected executable-content inspection failures', async () =
   vi.mocked(open).mockRejectedValueOnce(failure);
   await expect(isRouterTarget(file)).rejects.toBe(failure);
 });
+
+it('rejects the Windows CLI identity despite canonical path casing differences', async () => {
+  Object.defineProperty(process, 'platform', { value: 'win32' });
+  const cli = fileURLToPath(new URL('../../src/cli.js', import.meta.url));
+  vi.mocked(realpath).mockResolvedValueOnce(cli.toUpperCase());
+  await expect(isRouterTarget('case-alias-to-cli')).resolves.toBe(true);
+  expect(open).not.toHaveBeenCalled();
+});

@@ -390,3 +390,25 @@ it.skipIf('win32' === process.platform)(
     );
   },
 );
+
+it.each(['win32', 'linux'] as const)(
+  'uses %s file-name case rules for stable executable identity',
+  async (platform) => {
+    const descriptor = Object.getOwnPropertyDescriptor(process, 'platform');
+    if (!descriptor) {
+      throw new Error('Missing platform descriptor');
+    }
+    const file = join(root, 'ARCH.EXE');
+    await writeFile(file, 'fixture');
+    await writeFile(
+      join(root, 'installation.json'),
+      JSON.stringify({ kind: 'arch-stable-installation-v1' }),
+    );
+    try {
+      Object.defineProperty(process, 'platform', { value: platform });
+      await expect(isRouterTarget(file)).resolves.toBe('win32' === platform);
+    } finally {
+      Object.defineProperty(process, 'platform', descriptor);
+    }
+  },
+);

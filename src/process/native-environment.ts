@@ -41,12 +41,14 @@ export async function nativeEnvironment(
 // not deletion authority. Arbitrary third-party scripts are not statically provable.
 export async function isRouterTarget(file: string, seen = new Set<string>()): Promise<boolean> {
   const target = await realpath(file);
-  if (seen.has(target) || (await isRouter(dirname(target)))) {
+  const identity = 'win32' === process.platform ? target.toLowerCase() : target;
+  if (seen.has(identity) || (await isRouter(dirname(target)))) {
     return true;
   }
-  seen.add(target);
+  seen.add(identity);
   const cli = fileURLToPath(new URL('../cli.js', import.meta.url));
-  if (target === cli) {
+  const cliIdentity = 'win32' === process.platform ? cli.toLowerCase() : cli;
+  if (identity === cliIdentity) {
     return true;
   }
   const text = await executablePrefix(target);
@@ -83,7 +85,7 @@ export async function isRouterTarget(file: string, seen = new Set<string>()): Pr
     }
   }
   // Stable bootstrap aliases resolve beside the installation metadata.
-  if (['arch', 'arch.exe'].includes(basename(target))) {
+  if (['arch', 'arch.exe'].includes(basename(identity))) {
     try {
       const metadata: unknown = JSON.parse(
         await readFile(join(dirname(target), 'installation.json'), 'utf8'),
