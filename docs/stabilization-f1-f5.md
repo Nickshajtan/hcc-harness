@@ -9,8 +9,9 @@ were confirmed against the fetched baseline. The initial working tree was clean.
 
 ## Result and compatibility
 
-GO for platform regression is **BLOCKED** by unresolved native Windows fixture
-failures and the final-head CI refresh. This record does not certify platform
+The pre-merge verdict remains **BLOCKED** by reproduced Windows console readiness
+failure (see the final review below). Exact reviewed-head CI is successful.
+This record does not certify platform
 acceptance or resolve the existing reliability incidents.
 
 - F1: CLI SIGINT cancels before spawn. After POSIX spawn it neither aborts nor
@@ -178,8 +179,8 @@ scopes and are protected here by real read-only/publication/recovery regressions
 
 ## Remaining risks and next passes
 
-GO remains **BLOCKED**: local Windows native/teardown failures are unresolved and
-the final head must complete CI. Reviewers should also assess the intentional
+GO remains **BLOCKED**: local Windows native/teardown failures reproduced in the
+final bounded review below. Reviewers should also assess the intentional
 unconfigured-event compatibility change and static wrapper-recognition limits.
 No standards gate was weakened; no general recovery or orchestration API was added.
 
@@ -191,6 +192,97 @@ SIGTERM/SIGHUP and ownership/recovery cases on a supported filesystem. For macOS
 verify the recorded node-pty helper preparation, actual PTY signals, canonical and
 symlink identities, and three-level mixed-provider nesting on supported APFS.
 Real provider TUI Ctrl+C acceptance belongs to those subsequent passes.
+
+## Final pre-merge review (2026-11-06)
+
+Fetched PR head and local HEAD both equal
+`0903d8e3930cb8ec96da59cf35bed53a175a1abc`; the working tree was clean.
+The following five workflows were inspected through the PR check API on that
+exact SHA, all COMPLETED/SUCCESS (including all matrix jobs and aggregates):
+
+- [Arch checks](https://github.com/Nickshajtan/hcc-harness/actions/runs/42138071328).
+- [Quality measurements, including effects](https://github.com/Nickshajtan/hcc-harness/actions/runs/42138071508).
+- [Runtime portability and required aggregate](https://github.com/Nickshajtan/hcc-harness/actions/runs/42138071340).
+- [Wizard checks](https://github.com/Nickshajtan/hcc-harness/actions/runs/42138071577).
+- [Windows reliability](https://github.com/Nickshajtan/hcc-harness/actions/runs/42138071469).
+
+These supersede the earlier CI-refresh uncertainty, but do not resolve the local
+incidents. This report-only follow-up does not change production or test source.
+CI for any subsequent documentation commit must be checked separately; the links
+above certify only the explicitly named SHA.
+
+### Bounded Windows investigation
+
+One selected reproduction run used installed Node 24, the explicit complete SDK,
+normal process permissions outside the sandbox, and unchanged existing deadlines:
+
+```powershell
+$env:ARCH_WINDOWS_SDK='10.0.17763.0'
+$env:npm_execpath=(Join-Path (Split-Path (Get-Command npm.cmd).Source) 'node_modules/npm/bin/npm-cli.js')
+node node_modules/vitest/vitest.mjs run tests/integration/stable-runtime.test.ts tests/integration/native-lifetime.test.ts tests/integration/process.test.ts -t 'builds, installs|preserves console signals|bounds owned bootstrap|creates, executes|mise activates' --maxWorkers=1 --reporter=default --reporter=json --outputFile=.test-state/premerge-windows.json
+node node_modules/vitest/vitest.mjs run tests/integration/process.test.ts -t 'handles real Windows Ctrl' --maxWorkers=1 --reporter=default --reporter=json --outputFile=.test-state/premerge-console.json
+node node_modules/vitest/vitest.mjs run tests/unit/cli-run.test.ts tests/integration/stabilization.test.ts --reporter=default --reporter=json --outputFile=.test-state/premerge-invariants.json
+```
+
+| Incident                    | Current evidence                                                                                                                                                                                                            | Classification                                                       |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| ConsoleDriver readiness     | FAIL: same `Native never started`, driver exit 3762504530; trace reaches preflight/prepareLaunch. Existing console deadline unchanged.                                                                                      | Reproduced; UNRESOLVED, product versus fixture cause not established |
+| Stable routed execution     | FAIL: existing 120000ms test timeout. The direct native comparison in that test completed its exit-7/output assertions before routing; live snapshot showed generated route → stable bootstrap → Node CLI → native fixture. | Reproduced; UNRESOLVED                                               |
+| Stable console routing      | FAIL: existing 120000ms timeout; no inference about which console phase caused it.                                                                                                                                          | Reproduced; UNRESOLVED                                               |
+| Stable executable removal   | FAIL: suite teardown `EPERM` unlinking retained fixture `arch-fixture-lQ5Sja/stable ü's & app/arch.exe`. Snapshot records live bootstrap ancestry, but does not identify the denying handle.                                | Reproduced; UNRESOLVED unsafe lifecycle uncertainty                  |
+| mise consumer / child close | PASS: existing active/inactive consumer test, 7017ms; owned bootstrap cancellation test also passed. Earlier failure mechanism remains unknown.                                                                             | NOT REPRODUCED; not RESOLVED                                         |
+| Raw native lifetime         | PASS: 16 independent execute/close/unlink/recreate operations, serial and three lanes; teardown completed.                                                                                                                  | Comparator PASS; does not explain routed failure                     |
+
+The selected run finished itself in 470.34s: 3 passed, 2 failed, 21 selection
+skips, plus one failing suite teardown. Console reproduction: 1 failed, 16
+selection skips. No retries until green, timeout increases, assertion changes or
+mutation changes. An additional direct invocation of the same retained native
+fixture with stdin closed and FAKE_WAIT/FAKE_STDIN disabled exited 0 within a
+ten-second bound, with its JSON output and `native stderr`. This is a readiness
+comparator, not an equivalent console/signal experiment.
+
+Local evidence: `.test-state/premerge-{windows,console,invariants}.json`,
+`.test-state/premerge-direct.json`, `.test-state/premerge-processes.json`, and
+the existing `coverage/tests.json`. Failed stable resources remain under
+`C:/Users/38098/AppData/Local/Temp/arch-fixture-lQ5Sja` where teardown stopped;
+partial cleanup may have removed other files. No foreign or historical process
+was killed. Snapshot PIDs are historical evidence, never permission to terminate
+a subsequently reused PID. Process observation is not proof of signal delivery,
+ownership of every descendant, or the cause of filesystem denial.
+
+No incident is classified RESOLVED or EXTERNAL / CONTAINED: no evidenced causal
+mechanism or verified corrective containment exists. Hosted success and direct
+native success do not justify attributing these failures to Windows, antivirus,
+sandboxing or timing. Investigation stops here rather than expanding this PR.
+
+### F1/F3 source inspection and decision
+
+Focused invariant result: PASS, 21 passed / 4 POSIX-only skips. Source inspection
+confirms the post-spawn POSIX SIGINT branch returns before abort; launch remains
+non-detached with inherited stdio, and actual settlement controls status. The
+Windows branch and child cancellation/escalation policy are retained; their real
+console reliability is not established by inspection. SIGTERM/SIGHUP still abort
+through the existing lifecycle. POSIX group/PTY tests were not rerun on Windows.
+
+Core creates a fresh UUID, session, bus and pipeline each call. Three-level tests
+verify distinct IDs, immediate parent relationships, independent middleware and
+terminal events, cleanup counts, and exit 0/17. `ARCH_ACTIVE` has no passthrough
+branch. Resolver canonical/marked/generated-wrapper checks still block router
+self-targets. Parent metadata appears only in context, event correlation and
+reserved child environment composition; it is not consulted for authorization.
+No F1/F3 redesign or production correction was justified by this investigation.
+
+**Merge recommendation: BLOCKED. Do not merge automatically.** The exact reviewed
+head has green mandatory hosted checks, but local critical readiness and teardown
+failures reproduce. The smallest necessary next action is a focused direct versus
+routed console/lifetime experiment that captures the wait stage and denying
+process/handle, followed by a narrow fix and regression for the demonstrated
+mechanism. If that mechanism lies outside F1–F5, obtain an explicit scope decision;
+do not silently expand stabilization. Reclassify only with causal evidence.
+The separate provider acceptance passes remain deferred. After blocker closure,
+they should cover Windows console/native lifetime and stable teardown, WSL2
+foreground group/PTY signals, and macOS PTY/symlink/nested routing. No real model
+inference, provider acceptance or full validation matrix was performed here.
 
 ## Changed files
 
