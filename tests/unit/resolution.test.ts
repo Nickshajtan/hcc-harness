@@ -412,3 +412,24 @@ it.each(['win32', 'linux'] as const)(
     }
   },
 );
+
+it('preserves PATH precedence for unrelated shell wrappers with cwd-relative targets', async () => {
+  const first = await candidate(join(root, 'first'));
+  await candidate(join(root, 'second'));
+  await writeFile(first, "#!/bin/sh\nexec './runtime-only-in-child' run 'tool' -- \"$@\"\n");
+  await expect(
+    resolveExecutable('tool', root, {
+      PATH: [join(root, 'first'), join(root, 'second')].join(delimiter),
+    }),
+  ).resolves.toBe(first);
+});
+
+it('does not interpret relative third-party shim references using Arch cwd', async () => {
+  const file = join(root, 'tool.exe');
+  await writeFile(file, 'fixture');
+  await writeFile(
+    join(root, 'tool.shim'),
+    'path = relative-runtime\nargs = "relative-script" run tool --\n',
+  );
+  await expect(isRouterTarget(file)).resolves.toBe(false);
+});

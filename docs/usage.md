@@ -157,6 +157,8 @@ and Arch's CLI target. Windows npm shim destinations receive the same identity
 checks. If no native target remains, resolution fails rather than falling back
 to Arch. Arbitrary third-party wrapper behavior cannot always be proven statically;
 intentional script reentry is permitted and is not agent ancestry detection.
+Relative operands in foreign wrappers are left to the native program, rather than
+being interpreted against Arch's own cwd.
 Native PATH remains filtered as before, so a provider wanting explicit nested
 routing can invoke the installed Arch entry with `run <provider> -- ...`.
 An absolute native provider invocation can bypass PATH routing and middleware.

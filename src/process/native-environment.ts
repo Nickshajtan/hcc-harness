@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { readFile, realpath, open } from 'node:fs/promises';
-import { join, resolve, delimiter, dirname, basename } from 'node:path';
+import { join, resolve, delimiter, dirname, basename, isAbsolute } from 'node:path';
 
 export const routerMarker = 'arch-harness-router-v1\n';
 
@@ -63,7 +63,9 @@ export async function isRouterTarget(file: string, seen = new Set<string>()): Pr
   const shellTarget = shell?.[2] ?? shell?.[1];
   if (shellTarget) {
     const path = shellTarget.slice(1, -1).replaceAll("'\\''", "'");
-    if (await isRouterTarget(path, seen)) {
+    // Arch generates absolute operands. Relative foreign wrappers use native cwd,
+    // which need not be Arch's own cwd; their contents cannot establish identity here.
+    if (isAbsolute(path) && (await isRouterTarget(path, seen))) {
       return true;
     }
   }
@@ -75,7 +77,7 @@ export async function isRouterTarget(file: string, seen = new Set<string>()): Pr
         shim,
       );
       const referenced = route?.[2] ?? route?.[1];
-      if (referenced && (await isRouterTarget(referenced, seen))) {
+      if (referenced && isAbsolute(referenced) && (await isRouterTarget(referenced, seen))) {
         return true;
       }
     } catch (error) {
