@@ -1,7 +1,7 @@
 # F1-F5 stabilization implementation record
 
 Baseline: `b4c35238614e1df7dc696b05bb286ae6c34b2825` (fetched upstream main).
-Production implementation: `f45debe0728dc48aa012c574075ff4844f932605`.
+Production implementation: `e1877b4ce204f7bf42c791c1766e01107cfdece1`.
 Branch: `fix/arch-f1-f5-stabilization`. Implementation environment: Windows x64,
 Node 24.19.0. The original two review reports were absent locally; the supplied
 corrective specification was the implementation authority. All five findings
@@ -10,7 +10,7 @@ were confirmed against the fetched baseline. The initial working tree was clean.
 ## Result and compatibility
 
 GO for platform regression is **BLOCKED** by unresolved native Windows fixture
-failures and outstanding POSIX evidence. This record does not certify platform
+failures and the final-head CI refresh. This record does not certify platform
 acceptance or resolve the existing reliability incidents.
 
 - F1: CLI SIGINT cancels before spawn. After POSIX spawn it neither aborts nor
@@ -49,75 +49,158 @@ wrapper behavior cannot always be proven by static analysis. Absolute native pat
 can bypass PATH routing. Correlation does not confer authorization, budget or sandbox
 privileges. No orchestration, interception boundary or budget redesign was added.
 
-## Executed checks
+## Executed checks (2026-11-05/06)
 
-Commands below ran from the repository root. Bootstrap/coverage used PowerShell
-`$env:ARCH_WINDOWS_SDK='10.0.17763.0'` where indicated. Default SDK 10.0.19041.0
-failed compilation because `specstrings_strict.h` is absent; selecting the complete
+Commands ran from the repository root. Bootstrap, Wizard and coverage used
+PowerShell `$env:ARCH_WINDOWS_SDK='10.0.17763.0'` where needed. Default SDK
+10.0.19041.0 failed because `specstrings_strict.h` is absent; selecting the complete
 installed SDK fixed that build prerequisite without changing project source.
 
-| Command                                                                                                                                                                                                                                 | Result                                                                                                                                                                              |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm run typecheck`                                                                                                                                                                                                                     | PASS after production changes; final static recheck recorded below                                                                                                                  |
-| `npm run lint`                                                                                                                                                                                                                          | Final recheck pending; intermediate fixture literal-throw diagnostic corrected using an explicitly untyped boundary                                                                 |
-| `npm run format:check`                                                                                                                                                                                                                  | PASS; final documentation formatting rechecked before completion                                                                                                                    |
-| `npm run lint:baseline`                                                                                                                                                                                                                 | PASS, zero known/new warnings                                                                                                                                                       |
-| `npm run test:quality`                                                                                                                                                                                                                  | PASS, 24 tooling tests                                                                                                                                                              |
-| `npm run check:dependencies`                                                                                                                                                                                                            | PASS, 62 modules / 175 dependencies                                                                                                                                                 |
-| `npm run build`                                                                                                                                                                                                                         | PASS                                                                                                                                                                                |
-| `npm run build:bootstrap` with selected SDK                                                                                                                                                                                             | PASS                                                                                                                                                                                |
-| `npx vitest run tests/unit tests/integration/stabilization.test.ts tests/integration/setup-publication.test.ts tests/acceptance/routing.test.ts --reporter=default --reporter=json --outputFile=.test-state/stabilization-focused.json` | PASS: 39 files, 703 passed / 8 platform skips                                                                                                                                       |
-| `npx vitest run tests/unit/resolution.test.ts tests/unit/process-failures.test.ts tests/unit/process.test.ts`                                                                                                                           | PASS: 90 passed / 2 POSIX symlink skips                                                                                                                                             |
-| `npx vitest run tests/integration/setup-publication.test.ts tests/integration/stabilization.test.ts --reporter=default --reporter=json --outputFile=.test-state/stabilization-integration.json`                                         | PASS: 19 passed / 4 POSIX signal/PTY skips                                                                                                                                          |
-| `npm run check`                                                                                                                                                                                                                         | FAIL: initial default-SDK build; selected-SDK sandbox run reached 775 passes / 5 failures / 39 skips, including superseded assertions subsequently corrected and mise access denied |
-| `npm run check` outside sandbox with selected SDK                                                                                                                                                                                       | FAIL: 776 passes / 4 failed tests / 47 skips, plus stable-runtime setup/teardown failures; two assertion failures in that snapshot were subsequently corrected                      |
-| `npm run test:coverage` outside sandbox with selected SDK                                                                                                                                                                               | FAIL: 810 passed / 3 failed / 39 skips, plus stable-runtime teardown failure. No numeric coverage report was generated; do not claim coverage gates passed                          |
-| `npm run test:mutation:core`; `node scripts/check-mutation.mjs core`                                                                                                                                                                    | PASS final: 224/234 assertion kills (95.73%), zero timeouts/errors. Per-file gates pass; entrypoint 90%, environment 100%                                                           |
-| `npm run test:mutation:process`                                                                                                                                                                                                         | Final rerun pending; first report failed native-environment's 90% gate (76.22%) and worker disposal was denied; boundary regressions were added                                     |
-| `npm run test:mutation:cli`                                                                                                                                                                                                             | Final rerun pending; initial dry run lacked the packaged publication helper. Sandbox prerequisite added without changing mutation scope/thresholds                                  |
+| Command                                                                                                                                                                                                                                                        | Result                                                                                                                              |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run typecheck`                                                                                                                                                                                                                                            | PASS                                                                                                                                |
+| `npm run lint`                                                                                                                                                                                                                                                 | PASS                                                                                                                                |
+| `npm run format:check`                                                                                                                                                                                                                                         | PASS                                                                                                                                |
+| `npm run lint:baseline`                                                                                                                                                                                                                                        | PASS, zero known/new warnings                                                                                                       |
+| `npm run test:quality`                                                                                                                                                                                                                                         | PASS, 24 tooling tests                                                                                                              |
+| `npm run check:dependencies`                                                                                                                                                                                                                                   | PASS, 62 modules / 175 dependencies                                                                                                 |
+| `npm run build`                                                                                                                                                                                                                                                | PASS                                                                                                                                |
+| `npm run build:bootstrap` with selected SDK                                                                                                                                                                                                                    | PASS                                                                                                                                |
+| `npm run test:wizard` with selected SDK, outside sandbox                                                                                                                                                                                                       | PASS: 76 unit tests and 15 terminal checks                                                                                          |
+| `node node_modules/vitest/vitest.mjs run tests/unit tests/integration/stabilization.test.ts tests/integration/setup-publication.test.ts tests/acceptance/routing.test.ts --reporter=default --reporter=json --outputFile=.test-state/stabilization-final.json` | PASS final: 39 files, 732 passed / 9 platform skips / zero failures; JSON totals checked against individual assertion records       |
+| `npx vitest run tests/integration/setup-publication.test.ts tests/integration/stabilization.test.ts --reporter=default --reporter=json --outputFile=.test-state/stabilization-integration.json`                                                                | PASS: 19 passed / 4 POSIX skips, including real publication interruption, verified retained commit and manual owned rollback/reinit |
+| `node scripts/check-mutation.mjs core process lifecycle cli`                                                                                                                                                                                                   | PASS, current source verified; all maintained per-file assertion-only gates met                                                     |
+| `node scripts/report-effects-mutation.mjs`                                                                                                                                                                                                                     | PASS, all seven current effect scopes met 85% assertion-only gates; removal 64/64 kills                                             |
 
-Earlier focused failures were assertions for superseded event/default behavior,
-plus missing assertions in new fixtures; they were corrected, not removed or
-suppressed. Earlier Core mutation had a 75% entrypoint result and sandbox taskkill
-failures; added parent-boundary/root-discovery tests and an unsandboxed rerun
-established the final result above. Stryker also reported existing sandbox symlink
-warnings. No timeout credit, assertion weakening or threshold reduction was used.
+The final discovery regressions also preserve execute-only native PATH precedence,
+Windows case-insensitive identity, quoted paths, and foreign cwd-relative wrapper
+operands. Text status explicitly renders setup observations in healthy and invalid
+states; JSON keeps existing fields/schema and adds optional setup diagnostics.
 
-## Unresolved evidence and next passes
+### Mutation measurements
 
-The final broad coverage run failed Windows ConsoleDriver readiness (`Native never
-started`), stable runtime routed execution/console timeouts, and `EPERM` unlinking
-the installed stable executable in teardown. A previous broad run also timed out
-in a mise consumer and could not close owned teardown children. A later consumer
-pass does not resolve that failure. Fixture locations/diagnostics were retained by
-the existing helpers; the coverage assertion report is `coverage/tests.json`.
-These mechanisms remain **UNRESOLVED**; a new product regression is not ruled out.
-They must not be attributed to sandboxing, load, antivirus or the pre-existing
-incidents without causal evidence. No failing test or timeout was weakened.
+All listed `npm run test:mutation:*` commands completed with exit 0 on their final
+runs. Validators above checked current production source, complete scopes and
+assertion-only thresholds. No timeout credit, exclusions or lowered thresholds.
 
-POSIX process-group/repeated SIGINT, signal termination and actual PTY cases are
-implemented but NOT TESTED on this Windows host. Existing opt-in Node/runtime
-matrix tests were not provisioned (26 skips in broad runs). Windows ARM64, real
-provider TUIs and paid inference were not run. Dedicated terminal Wizard and
-additional effect/lifecycle mutation measurements are recorded at completion.
-The three separate platform acceptance passes were not performed.
+| Command                           | Assertion kills / total | Assertion-only score | Timeouts |
+| --------------------------------- | ----------------------: | -------------------: | -------: |
+| `npm run test:mutation:core`      |               224 / 234 |               95.73% |        0 |
+| `npm run test:mutation:process`   |               423 / 442 |               95.70% |        0 |
+| `npm run test:mutation:lifecycle` |               386 / 398 |               96.98% |        0 |
+| `npm run test:mutation:cli`       |               469 / 487 |               96.30% |        5 |
+| `npm run test:mutation:effects`   |               698 / 762 |               91.60% |       12 |
 
-For Windows, isolate the native readiness/stable lifetime and teardown failures
-before declaring GO; rerun default/legacy starter ownership, nested mixed-provider
-fixtures, and existing console/runtime contracts without relaxing deadlines.
-For WSL2, run the POSIX group and PTY cases, nested signal case, SIGTERM/SIGHUP
-regressions and owned publication/recovery on a supported filesystem.
-For macOS, run the same POSIX cases plus canonical/symlink launcher identity and
-three-level mixed-provider nesting on supported APFS. Real provider TUI Ctrl+C
-acceptance belongs to the subsequent platform passes, not this implementation.
+Effect measurement took 63m15s locally; the inspected hosted source-identical
+measurement took 6m01s. These are observations, not a causal diagnosis or a
+performance guarantee. The local effect run completed before a requested stop;
+the stop found no process and did not terminate anything. One earlier effect run
+was deliberately stopped after its source snapshot became stale, then rerun in
+full. No older passing report was reused. Earlier Core/process pilots exposed
+missing boundary assertions; added regressions raised their final scores without
+changing gates. Initial sandbox pilots also encountered taskkill access denial;
+final unsandboxed runs completed successfully. Stryker emitted sandbox symlink
+warnings. Raw reports remain under `reports/mutation-*/`.
+
+### Earlier broad failures retained
+
+| Command / environment                                 | Result and classification                                                                                                                   |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run check`, default SDK                          | FAIL: missing SDK header; environment prerequisite corrected by explicit SDK selection                                                      |
+| `npm run check`, selected SDK in sandbox              | FAIL: 775 passed / 5 failed / 39 skipped; superseded assertions subsequently corrected, plus mise OS access denied                          |
+| `npm run check`, selected SDK outside sandbox         | FAIL: 776 passed / 4 failed / 47 skipped, plus stable-runtime setup/teardown errors; two assertion failures in that snapshot were corrected |
+| `npm run test:coverage`, selected SDK outside sandbox | FAIL: 810 passed / 3 failed / 39 skipped, plus stable-runtime teardown failure. No numeric local coverage report was generated              |
+
+Those exploratory runs preceded final compatibility/fixture corrections. Final
+focused results do not erase their Windows native failures: ConsoleDriver reported
+`Native never started`, stable routed execution/console tests timed out, and teardown
+hit `EPERM` unlinking the stable executable. A previous broad run also timed out
+in a mise consumer and could not close owned children. Mechanisms remain
+**UNRESOLVED**; a new product regression is not ruled out. Do not attribute them to
+sandboxing, load, antivirus or older incidents without causal evidence. Existing
+helpers retained failed fixtures/diagnostics. `coverage/tests.json` retains the
+failed broad assertion report. No failing test, assertion or deadline was weakened.
+
+Corrected assertion failures were test-assumption errors for the mandated new
+SIGINT/event/starter contracts. A remaining npm-linked POSIX test expected PID-only
+SIGINT forwarding; it now tests ignored PID-only SIGINT followed by SIGTERM/SIGHUP.
+The initial macOS PTY failure (`posix_spawnp failed`) led to applying the existing
+Wizard/runtime fixture's known node-pty helper executable-mode preparation, with
+restoration logged and actual spawn failures still fatal. No native provider or
+system tool is repaired. A separate npm invocation with forwarded reporter flags
+was rejected before Vitest started; the final run used the direct installed Vitest
+entry above. That invocation produced no test result.
+
+### Inspected hosted CI
+
+At commit `6d53d3060d6647b82c1dc1e13b8bc9cfe66e4f68`, the following ordinary CI
+runs were inspected as successful:
+
+- [Regression: Ubuntu, Windows, macOS](https://github.com/Nickshajtan/hcc-harness/actions/runs/42109525522).
+- [Quality coverage, mutation and effect gates](https://github.com/Nickshajtan/hcc-harness/actions/runs/42109525954).
+- [Required runtime portability aggregate](https://github.com/Nickshajtan/hcc-harness/actions/runs/42109525554).
+- [Wizard matrix](https://github.com/Nickshajtan/hcc-harness/actions/runs/42109525699).
+- [Windows reliability](https://github.com/Nickshajtan/hcc-harness/actions/runs/42109525646).
+
+The earlier [91cde9b regression failure](https://github.com/Nickshajtan/hcc-harness/actions/runs/42104141765)
+and [quality failure](https://github.com/Nickshajtan/hcc-harness/actions/runs/42104140714)
+were inspected: obsolete npm SIGINT expectations and the macOS PTY prerequisite
+failed. Linux group/repeated-SIGINT and actual PTY cases passed in that run.
+Subsequent hosted success is evidence for the referenced commit, not resolution
+of local Windows incidents. The final Windows identity/foreign-relative-wrapper
+refinements have fresh local focused and mutation evidence; the final PR head
+requires its own CI refresh. No uninspected final-head CI result is claimed.
+These automatic repository checks are not the three separate provider acceptance
+passes requested for later.
+
+### Exact final local skips
+
+The final focused JSON records these nine Windows-host skips:
+
+- `stabilization.test.ts`: preserves process-group SIGINT without forwarding/escalation and propagates 0.
+- `stabilization.test.ts`: preserves process-group SIGINT without forwarding/escalation and propagates 130.
+- `stabilization.test.ts`: preserves native SIGINT termination and cleanup.
+- `stabilization.test.ts`: handles terminal Ctrl+C in an actual foreground PTY.
+- `resolution.test.ts`: skips a symlink to a marked wrapper by real executable identity.
+- `resolution.test.ts`: skips non-executable files and resolves native symlink identity.
+- `resolution.test.ts`: accepts a symlink to a native executable by canonical identity.
+- `setup-contract.test.ts`: prepares permissions before publication and preserves a chmod failure.
+- `lifecycle-effects.test.ts`: preserves a complete private stage and the exact permission failure before publication.
+
+The earlier broad run additionally left 26 opt-in runtime tests unprovisioned;
+all exact skipped/failed assertion records are retained in its JSON. Windows
+ARM64, real provider TUIs, WSL2 acceptance and paid inference were not run. The
+three separate platform acceptance passes were not performed. Dedicated stable
+contracts ran within broad suites and hosted CI; `npm run test:stable` was not
+separately repeated. The stable mutation pilot was not rerun because its production
+modules were unchanged. Inspection diagnostics are outside maintained mutation
+scopes and are protected here by real read-only/publication/recovery regressions.
+
+## Remaining risks and next passes
+
+GO remains **BLOCKED**: local Windows native/teardown failures are unresolved and
+the final head must complete CI. Reviewers should also assess the intentional
+unconfigured-event compatibility change and static wrapper-recognition limits.
+No standards gate was weakened; no general recovery or orchestration API was added.
+
+For Windows, first isolate native readiness, stable lifetime and teardown failures;
+then verify empty/legacy starter ownership, case-insensitive native identities,
+mixed-provider nesting and existing console/runtime contracts without relaxing
+deadlines. For WSL2, run foreground group/PTY/repeated-SIGINT, nested signal,
+SIGTERM/SIGHUP and ownership/recovery cases on a supported filesystem. For macOS,
+verify the recorded node-pty helper preparation, actual PTY signals, canonical and
+symlink identities, and three-level mixed-provider nesting on supported APFS.
+Real provider TUI Ctrl+C acceptance belongs to those subsequent passes.
 
 ## Changed files
 
 - `docs/architecture.md`
 - `docs/compatibility.md`
 - `docs/decisions/nested-execution.md`
+- `docs/stabilization-f1-f5.md`
 - `docs/usage.md`
 - `src/cli/native-run.ts`
+- `src/cli/presentation.ts`
 - `src/core/execution-environment.ts`
 - `src/core/execution-session.ts`
 - `src/core/index.ts`
@@ -141,6 +224,7 @@ acceptance belongs to the subsequent platform passes, not this implementation.
 - `tests/integration/stabilization.test.ts`
 - `tests/integration/stable-runtime.test.ts`
 - `tests/support.ts`
+- `tests/unit/cli-dispatch.test.ts`
 - `tests/unit/cli-run.test.ts`
 - `tests/unit/core.test.ts`
 - `tests/unit/environment.test.ts`
