@@ -284,6 +284,210 @@ they should cover Windows console/native lifetime and stable teardown, WSL2
 foreground group/PTY signals, and macOS PTY/symlink/nested routing. No real model
 inference, provider acceptance or full validation matrix was performed here.
 
+## Windows lifecycle root-cause comparison
+
+Investigation date: 2026-11-07. Baseline:
+`b4c35238614e1df7dc696b05bb286ae6c34b2825`; candidate:
+`7a83db2e3d384a9ac5e60d821edbac73998e0f18` (fetched and confirmed unchanged).
+The main working tree was clean. Separate detached worktrees under
+`.test-state/lifecycle-{baseline,candidate}` contain independent source builds,
+native bootstrap builds and test-created stable installations. No global Arch
+installation or provider configuration was changed.
+
+### Environment and preparation
+
+Same Windows 10 Enterprise host, version 10.0.19045; Windows PowerShell 5.1.19041.6456;
+Node `v24.19.0`, npm `12.0.2`, executable `C:/nvm4w/nodejs/node.exe`;
+SDK `10.0.17763.0`, MSVC `14.16.27023`. Checkouts reside on `D:`, native
+fixtures on `C:/Users/38098/AppData/Local/Temp`. Test commands and process
+inspection ran with the execution tool's explicit outside-sandbox approval;
+ordinary restricted calls cannot query CIM. This does not disable host security.
+Minimal environment selection follows `world()`; no credential/environment dump
+was collected. Both runs set the same SDK, npm CLI path and repository-local mise.
+
+Independent `npm ci --ignore-scripts` attempts stalled; npm recorded
+`UNABLE_TO_VERIFY_LEAF_SIGNATURE` for an audit request. Offline/no-audit attempts
+also did not settle and were stopped using their current process identities.
+Retained dependency directories could not be renamed (access denied). The existing
+locked dependency installation was therefore copied into both worktrees with
+`robocopy /E /R:0 /W:0`, without copying application/stable build artifacts.
+Each checkout then independently ran
+`node ../../node_modules/typescript/bin/tsc -p tsconfig.build.json` and
+`node scripts/build-stable-bootstrap.mjs`: PASS, exit 0. This dependency-preparation
+deviation is explicit; its stalls are not classified as W1–W4 root causes.
+Both lockfiles have SHA-256
+`3238abf5e407d652ae7a447e4cefb6a15ff84a875ca5c9879551d59c1e464762`.
+
+### Unchanged original scenarios
+
+The following command ran once per revision, sequentially, with the existing
+120-second test/hook deadlines and unchanged ConsoleDriver ten-second barrier:
+
+```powershell
+$env:ARCH_WINDOWS_SDK='10.0.17763.0'
+$env:npm_execpath=(Join-Path (Split-Path (Get-Command npm.cmd).Source) 'node_modules/npm/bin/npm-cli.js')
+$env:MISE_BIN='D:\AI\projects\projects\harness\.tools\mise\bin\mise.exe'
+node node_modules/vitest/vitest.mjs run tests/integration/stable-runtime.test.ts tests/integration/process.test.ts -t 'builds, installs|preserves console signals|handles real Windows Ctrl|mise activates' --maxWorkers=1 --reporter=default --reporter=json --outputFile=.test-state/lifecycle-original.json
+```
+
+| Scenario                                            | Baseline                                               | Candidate                        | Classification                                                         |
+| --------------------------------------------------- | ------------------------------------------------------ | -------------------------------- | ---------------------------------------------------------------------- |
+| W1 real Windows Ctrl+C/Ctrl+Break test              | FAIL, 82.343s, `Native never started`, exit 3762504530 | FAIL, 83.530s, same error/status | Reproduced before stabilization; initiating cause UNRESOLVED           |
+| W2 stable routed execution/source relocation/deinit | FAIL, 120.034s                                         | FAIL, 120.030s                   | Reproduced before stabilization; incomplete settlement UNRESOLVED      |
+| W3 stable console routing/cleanup                   | FAIL, 120.014s                                         | FAIL, 120.006s                   | Reproduced before stabilization; incomplete settlement UNRESOLVED      |
+| W4 stable executable unlink                         | FAIL, `EPERM`                                          | FAIL, `EPERM`                    | Active image user identified; upstream suspension/retention UNRESOLVED |
+| mise active/inactive consumer comparator            | PASS, 7.617s                                           | PASS, 6.606s                     | Comparator PASS; no separate mise investigation                        |
+
+Each revision: 1 passed, 3 failed, 21 selection skips, plus failing suite teardown;
+command exit 1. Baseline started `2026-11-06T23:55:48.294Z`, last assertion ended
+`2026-11-07T00:02:39.503Z`, runner duration 411.22s. Candidate started
+`2026-11-07T00:06:25.707Z`, last assertion ended
+`2026-11-07T00:13:25.503Z`, runner duration 422.11s. Ctrl+Break assertions were
+not reached after Ctrl+C failed. These results establish that the four symptoms
+predate PR #24; they do not establish that every underlying mechanism is identical
+or that an additional candidate-specific defect is impossible.
+
+### Process timeline and shared-cause evidence
+
+The bootstrap C++, ConsoleDriver C#, native C# and `capture/run` synchronization
+are unchanged between these revisions (the support-file diff only adds parent
+event metadata). ConsoleDriver starts its child with inherited standard handles
+and a new hidden console, polls `FAKE_LOG`, then attaches to that child's console
+and broadcasts a control event. It does not require a fixed descendant depth.
+The native fixture appends its JSON readiness record before stdout, stdin reading
+or its optional 60-second wait. Therefore missing readiness cannot be attributed
+to `ReadToEnd()` without additional evidence.
+
+Baseline W2 observations, UTC, from CIM creation times and bounded snapshots:
+
+| Time                    | Observed boundary                                                                                    |
+| ----------------------- | ---------------------------------------------------------------------------------------------------- |
+| 23:56:41                | Direct native comparator process entries appeared; later source assertions advanced to routed launch |
+| 23:57:06.514            | Generated route PID 18348 created                                                                    |
+| 23:57:06.649            | Stable bootstrap PID 9920 created, parent 18348                                                      |
+| 23:58:02.581            | Selected Node CLI PID 7212 created, parent 9920                                                      |
+| 23:58:02.740 / .774     | Native command process entries 1376 / 16316 appeared under 7212; only one had a queryable image path |
+| 23:59:25.001            | W3 bootstrap PID 20512 created under route 12332                                                     |
+| After runner settlement | PID 20512 remained, `HasExited=false`, one thread Waiting/Suspended                                  |
+
+Candidate W2 likewise showed route 14888, bootstrap entry 4284, selected Node
+12852 and native entry 21488; process ancestry included another parent 3408 that
+had settled before follow-up observation. Creation times, paths and parent IDs
+are retained; an inaccessible image path is not proof that a process never ran.
+No native exit/close or Arch finalization was established for these failing
+chains. The snapshots prove spawn/process creation beyond middleware, but do not
+prove native managed initialization or distinguish missing readiness emission
+from file virtualization. W1 traces on both revisions reach execution.started,
+preflight and prepareLaunch before the readiness failure.
+
+Host instrumentation is now evidenced, not guessed: the affected baseline
+bootstrap and Node module inventories include
+`C:/Program Files/Avast Software/Avast/aswhook.dll`. The local
+`autosandbox.log` explicitly records `Result: Sandboxing` / `Sandboxing (no custody)`
+and `Instrumentation inside sandbox requested` for the exact current-run native,
+bootstrap and console-driver paths, with matching launch times. Candidate entries
+are retained separately. These decisions establish active external intervention;
+they do not alone establish which component suspended a particular thread, the
+duration spent inside CreateProcess, or whether readiness writes were redirected.
+No security settings or exceptions were changed.
+
+For W4, the built-in read-only Restart Manager API identified baseline bootstrap
+PID 20512, including process start FILETIME, as the stable executable's user.
+Its parent had settled. After revalidating both creation time
+`23:59:25.001029Z` and the current fixture command path, termination of this
+test-owned leftover changed Restart Manager's user count from 1 to 0. Unlink of
+that exact generated executable then succeeded at `00:41:07.678Z`. Thus an active,
+suspended image explains this baseline unlink denial; it was not an unexplained
+post-close filesystem error. Candidate Restart Manager also identified an active
+`arch.exe` user, PID 12404 with its start FILETIME. No historical PID or foreign
+resource was terminated/deleted. Manual release is diagnostic cleanup, not a
+product fix or a general permission to kill descendants.
+
+### Bounded diagnostic experiment and evidence boundary
+
+One candidate-only observational A/B/C experiment uses the same native fixture,
+arguments `[]`, EOF stdin, controlled environment, real ConsoleDriver/new-console
+attachment and event `0`: direct native, development-generated route and stable
+route. It keeps original driver deadlines and repository test deadlines. It is
+an observation harness, not a replacement regression or a passing acceptance gate.
+It is retained only in the isolated checkout, along with its fixture.
+
+Direct native: driver request `00:40:23.027Z`, exit and close
+`00:40:51.602Z` / `.606Z`, status 3221225786; native PID 12200 emitted both JSON
+readiness and stdout, then the real Ctrl+C path completed. Development route:
+execution.started at `00:42:01.890Z`, driver exit `00:42:11.640Z` with
+`Native never started` / 3762504530, close `00:42:29.530Z`; readiness file remained
+absent. The 17.890-second exit-to-close gap demonstrates that parent exit was not
+stream settlement; the exact handle holder was not identified. Process snapshots
+also captured no-module process entries alongside a CLR-initialized driver.
+These observations do not establish two legitimate Arch executions or identify
+the origin of the extra entries.
+
+Stable route: driver request `00:43:36.472Z`, exit `00:43:46.559Z`, status
+3762504530; close was not observed before the unchanged 120-second diagnostic
+deadline. Its leftover bootstrap PID 17816 also had one suspended thread and
+`HasExited=false`. Diagnostic runner exit 1, duration 326.16s. Its two completed
+observation cases are not two behavioral PASS results: the harness records
+outcomes without asserting console success; the development route failed readiness.
+
+Final cleanup revalidated current process creation times and fixture paths before
+terminating candidate bootstrap 12404 and diagnostic bootstrap 17816. Restart
+Manager's candidate image-user count changed to zero; candidate executable unlink
+succeeded at `00:47:20.868Z`. A final CIM query at `00:47:20.678Z` found zero
+remaining matching owned processes across all five current-run fixture roots.
+This required manual diagnostic cleanup, so it is not evidence of correct automatic
+teardown. Other fixture files remain for inspection; no recursive historical
+resource deletion was performed.
+
+A prepared preload tracer was not enabled in this experiment; it supplies
+no evidence. There is no claim of complete instrumentation of all sixteen requested
+boundaries. Bootstrap/CLI process entry and native process creation were observed;
+native managed entry/readiness, finalization, all descendant exits and the
+security-intervention call stack remain incomplete where explicitly noted.
+
+### Decision and next observation
+
+**BLOCKED.** W1–W4 reproduce on both revisions. External autosandbox intervention
+is confirmed, and W4's active-image retention has a demonstrated release/unlink
+relationship. The initiating readiness/suspension mechanism is not yet causally
+closed, so these incidents remain UNRESOLVED rather than RESOLVED or
+EXTERNAL / CONTAINED. No F1–F5 regression or production correction is demonstrated.
+No speculative production/fixture patch, timeout increase, retry, assertion
+weakening, mutation-threshold change or security bypass is justified.
+
+This is the evidence boundary after baseline comparison, process/module/wait
+tracing and one A/B/C diagnostic experiment. The smallest additional observation
+is a process-creation/wait stack or equivalent security-component trace for the
+exact suspended instance, identifying who suspends/resumes it and which instance
+writes readiness. A separately approved, narrowly scoped security-policy comparison
+could test that mechanism; globally disabling security is not a recommendation.
+Do not begin another investigation or platform acceptance automatically.
+
+Focused existing F1/F3 regressions on the independent candidate build:
+`node node_modules/vitest/vitest.mjs run tests/unit/cli-run.test.ts tests/integration/stabilization.test.ts --maxWorkers=1 --reporter=default --reporter=json --outputFile=.test-state/lifecycle-invariants.json`:
+PASS, 21 passed / 4 POSIX-only skips, exit 0, 8.52s. No production or supported
+regression-test change was made. Full typecheck/lint and mutation campaigns were
+not repeated for this report-only change; scoped formatting/diff checks apply.
+
+All five hosted workflows completed successfully on the measured candidate
+`7a83db2`: [Arch checks](https://github.com/Nickshajtan/hcc-harness/actions/runs/42299148697),
+[Wizard](https://github.com/Nickshajtan/hcc-harness/actions/runs/42299148637),
+[Quality including effects](https://github.com/Nickshajtan/hcc-harness/actions/runs/42299148638),
+[Runtime portability including required aggregate](https://github.com/Nickshajtan/hcc-harness/actions/runs/42299148645),
+and [Windows reliability](https://github.com/Nickshajtan/hcc-harness/actions/runs/42299148620).
+Hosted success does not resolve local failures.
+The report-only follow-up commit's CI must be reported separately after completion.
+No production change means no new mutation campaign is applicable; no full matrix,
+real inference or provider/platform acceptance pass was run.
+
+Evidence is local and retained: worktree `.test-state/lifecycle-original.json`
+reports; candidate `.test-state/diagnostic-{timeline.jsonl,results.json}`; root
+`.test-state/lifecycle-*.json*` process/wait/Restart Manager/unlink records and
+`lifecycle-security-*.txt` filtered security decisions. These files describe
+historical identities, not ongoing termination authority. Failed fixtures
+`arch-fixture-gGjsJu`, `arch-fixture-PvZv8n` and diagnostic `arch-fixture-j0WOne`
+may be partially cleaned; no complete installation preservation is claimed.
+
 ## Changed files
 
 - `docs/architecture.md`
