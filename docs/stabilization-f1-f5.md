@@ -488,6 +488,126 @@ historical identities, not ongoing termination authority. Failed fixtures
 `arch-fixture-gGjsJu`, `arch-fixture-PvZv8n` and diagnostic `arch-fixture-j0WOne`
 may be partially cleaned; no complete installation preservation is claimed.
 
+## Controlled Avast protection comparison
+
+2026-11-07; measured commit `c0dd27e03b2bb3226e4a153912c26c4846f7de99`.
+The main working tree was clean before this experiment. Same Windows 10 Enterprise
+10.0.19045 host, PowerShell 5.1.19041.6456, Node v24.19.0/npm 12.0.2 at
+`C:/nvm4w/nodejs`, SDK 10.0.17763.0 and MSVC 14.16.27023. Checkouts remained on
+`D:` and synthetic fixtures in the same local `C:/Users/38098/AppData/Local/Temp`.
+Current-checkout `npm run build` and `npm run build:bootstrap` passed with the same
+SDK and offline npm setting. No dependencies were downloaded. Valid measurements
+used the retained isolated candidate worktree, advanced to the exact measured SHA;
+its compiled application was unchanged from the preceding comparison (intervening
+commits change documentation only). Its separate diagnostic test was not selected.
+
+### Protection state and controls
+
+Before any test, the user explicitly confirmed: “Yes, protection is temporarily
+disabled.” This is **user-reported disabled**, not independently confirmed
+AutoSandbox inactivity. Read-only Windows Security Center observations before,
+during and after measurement reported Avast `productState=270336`, timestamp
+`Sat, 07 Nov 2026 02:30:31 GMT`; this raw registration/state value was not treated
+as conclusive verification of each shield. No matching AutoSandbox log entries
+were found for the current-run fixture names. The historical active controls had
+explicit sandbox/instrumentation decisions, as recorded above.
+
+No security configuration, exclusion, firewall, global Arch installation or user
+provider configuration was changed by the agent. `npm_config_offline=true` forced
+test-created stable installations to use cached packages; host networking itself
+was not disabled. Tests, production source, deadlines, fixture behavior, routing
+configuration and installation layout were unchanged.
+
+An initial invocation from the main repository root unexpectedly discovered
+retained baseline/candidate worktree copies as well as the intended tests.
+Two baseline-copy tests reported failures; intended current-source tests reported
+passes before the run was stopped. This invocation is **INVALID for comparison**,
+not a successful run or a retry-to-green result: discovery mixed revisions and
+working-directory contracts. The current runner was identified and stopped; no
+historical process was targeted. Its partial evidence is retained under
+`.test-state/avast-disabled-1`. The isolated checkout below prevents that discovery
+contamination without changing runner selection options or assertions.
+
+### Exact valid commands and results
+
+Working directory: `D:/AI/projects/projects/harness/.test-state/lifecycle-candidate`.
+Run once with `N=1`, then the single permitted clean repetition with `N=2` after
+all selected scenarios passed:
+
+```powershell
+$env:ARCH_WINDOWS_SDK='10.0.17763.0'
+$env:npm_execpath=(Join-Path (Split-Path (Get-Command npm.cmd).Source) 'node_modules/npm/bin/npm-cli.js')
+$env:MISE_BIN='D:\AI\projects\projects\harness\.tools\mise\bin\mise.exe'
+$env:npm_config_offline='true'
+node node_modules/vitest/vitest.mjs run tests/integration/stable-runtime.test.ts tests/integration/process.test.ts -t 'builds, installs|preserves console signals|handles real Windows Ctrl|mise activates' --maxWorkers=1 --reporter=default --reporter=json --outputFile=D:/AI/projects/projects/harness/.test-state/avast-disabled-valid-N/results.json
+```
+
+The full selected test names are unchanged from the preceding comparison:
+
+| Scenario / test                                                                                | Historical Avast-active candidate   | User-reported disabled, first / repetition |
+| ---------------------------------------------------------------------------------------------- | ----------------------------------- | ------------------------------------------ |
+| W1: handles real Windows Ctrl+C and Ctrl+Break with cleanup and no surviving native child      | FAIL, 83.530s, Native never started | PASS, 0.800s / 0.666s                      |
+| W2: builds, installs, routes a controlled fixture, relocates source and safely deinitializes   | FAIL, 120.030s timeout              | PASS, 4.048s / 4.010s                      |
+| W3: preserves console signals and middleware cleanup through stable project routing            | FAIL, 120.006s timeout              | PASS, 1.471s / 1.395s                      |
+| W4: stable executable unlink in suite teardown                                                 | FAIL, EPERM                         | PASS / PASS, automatic fixture removal     |
+| Comparator: mise activates the project-local launchers and leaves unconfigured projects native | PASS, 6.606s                        | PASS, 0.440s / 0.419s                      |
+
+Each valid run: **4 passed, 0 failed, 21 selection skips, 2 suites passed, runner
+exit 0**, no suite teardown error. W4 is a teardown outcome, not a fifth test.
+Run 1: `02:51:07.528Z`–`02:51:27.258Z`, Vitest duration 19.19s.
+Run 2: `02:52:02.801Z`–`02:52:22.302Z`, duration 18.89s.
+These are original assertions/deadlines, not the earlier observation-only harness.
+
+Both real control-event iterations completed: readiness existed before delivery,
+middleware cleanup was observed and recorded native PIDs were no longer alive.
+The original tests assert accepted Windows console status sets; their passing JSON
+does not expose which accepted native/control status was returned in each case.
+W2 verified direct and routed exit 7, stdin/output/arguments, source relocation,
+replacement Arch runtime and deinit. Shared capture awaits direct-child `close`;
+test completion and final filesystem removal establish settlement sufficiently
+for these assertions, not an independent event trace of every transient descendant.
+
+Read-only CIM sampling retained PID, parent PID, creation time, image/category and
+fixture identity. Final inspection at `02:53:11.645Z` found zero remaining matching
+fixture processes. Valid-run roots `arch-fixture-leQteI`, `arch-fixture-zKCxxq`,
+`arch-fixture-oOrgbG`, `arch-fixture-xAoJzT` were all absent: stable executables and
+their fixture trees were removed automatically. **No manual cleanup was necessary
+for either valid run.** The aborted discovery run retained `arch-fixture-0Ljebm`
+for diagnosis, with no matching live process; no recursive deletion was attempted.
+No Restart Manager intervention was needed because unlink succeeded.
+
+### Interpretation and merge recommendation
+
+**CONDITIONAL GO for PR #24.** All four affected scenarios now pass twice with
+automatic teardown. Combined with the repeated historical active failures and
+their explicit sandbox logs, this is strong evidence that Avast protection state
+affects the observed failures. It is not definitive proof that AutoSandbox alone
+caused every symptom: protection was broadly user-disabled, its precise component
+state was not independently verified, and this is a historical A/B comparison
+rather than an interleaved A/B/A experiment. Cache/history and elapsed time are
+additional uncontrolled differences. Exact suspension/readiness intervention
+stacks from the active failures remain unknown.
+
+This section updates the preceding BLOCKED recommendation based on the newly
+authorized experiment; it does not relabel the historical failures as fixed by
+production code. No production correction is justified. Security-disabled operation
+is not an acceptable assumed long-term deployment requirement. Recommend one
+separate, user-approved A/B/A confirmation after restoration if the owner needs
+causal closure before merge; do not run it automatically. Compatibility with
+active Avast remains a risk and the separate provider/platform acceptance passes
+remain deferred. PR merge remains the owner's decision.
+
+Evidence: `.test-state/avast-disabled-valid-{1,2}/` contains JSON results, UTC
+runner bounds/exit, security snapshots, process samples and fixture identities;
+`.test-state/avast-comparison-final-state.json` records process absence, artifact
+removal and the targeted AutoSandbox log search. Monitoring is sampled and can
+miss short-lived processes. No full suite, platform acceptance, paid inference or
+mutation campaign was run; this change is documentation only.
+
+**User action: re-enable Avast protection and verify it is active.** Restoration
+was requested after testing; the agent did not configure or restore protection
+and does not claim that the user has completed restoration.
+
 ## Changed files
 
 - `docs/architecture.md`
