@@ -15,6 +15,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { resolve, join, dirname, delimiter } from 'node:path';
 import { spawn, type ChildProcess, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { createHook, type AsyncHook } from 'node:async_hooks';
 import { inspectInstallation } from '../src/lifecycle/inspection.js';
 
 export const cli = resolve('dist/cli.js');
@@ -187,6 +188,40 @@ export async function run(
     });
   }
   return result;
+}
+
+// ChildProcess 'close' settles stdio, but Windows closes its native process
+// handle later in libuv's endgame. Executable relocation needs that release too.
+// Observe only this synchronous spawn's PROCESSWRAP, never other invocations.
+export async function runWithReleasedProcessHandle(
+  ...args: Parameters<typeof run>
+): Promise<Result> {
+  let processAsyncId: number | undefined;
+  let hook: AsyncHook | undefined;
+  const released = new Promise<void>((done) => {
+    hook = createHook({
+      init(asyncId, type) {
+        if ('PROCESSWRAP' === type && undefined === processAsyncId) {
+          processAsyncId = asyncId;
+        }
+      },
+      destroy(asyncId) {
+        if (processAsyncId === asyncId) {
+          done();
+        }
+      },
+    }).enable();
+  });
+  try {
+    const result = await run(...args);
+    if (undefined === processAsyncId) {
+      throw new Error('Did not observe the owned native process handle');
+    }
+    await released;
+    return result;
+  } finally {
+    hook?.disable();
+  }
 }
 
 // Persist before assertions or fixture disposal can discard an unexpected

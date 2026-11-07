@@ -608,6 +608,78 @@ mutation campaign was run; this change is documentation only.
 was requested after testing; the agent did not configure or restore protection
 and does not claim that the user has completed restoration.
 
+## CI historical-runtime handle release correction
+
+The Windows PR-event portability job on `17d4cdf` failed at the single-attempt
+rename of `historical Node/node.exe` after real initialization:
+[run 42331494591](https://github.com/Nickshajtan/hcc-harness/actions/runs/42331494591).
+Eight shared-contract tests passed; the legacy-recovery case failed with `EBUSY`.
+Its required aggregate failed as designed. The duplicate push-event run passed;
+that did not resolve the failure. This hosted incident is distinct from the local
+Avast comparison and is not attributed to Avast.
+
+Inspection found a fixture synchronization gap. The existing `run()` awaits
+ChildProcess `close` (including stdio settlement), but that event can precede
+native process-handle destruction. In the exact
+[Node 24.19.0 Windows implementation](https://github.com/nodejs/node/blob/v24.19.0/deps/uv/src/win/process.c),
+`uv__process_close` schedules endgame; `uv__process_endgame` subsequently calls
+`CloseHandle`. A copied-runtime probe observed `close` with its PROCESSWRAP still
+undestroyed, then destruction later. Rename happened to pass in that probe:
+an outstanding process handle does not establish the original CI lock owner.
+A separate held-reader probe also showed that moving the parent directory does
+not safely avoid file-sharing restrictions, so that alternative was not used.
+
+The narrow correction adds test-only `runWithReleasedProcessHandle()`, which waits
+for both existing `run()` settlement and the owned PROCESSWRAP's public
+`async_hooks.destroy` notification. It captures the synchronous spawn's async ID,
+ignores other resources/invocations and disables its hook on completion/failure.
+Only the historical executable's real init uses this stronger barrier. Production
+process handling, ordinary `run()`, ownership validation, actual executable rename,
+source relocation, recovery assertions and original deadlines are unchanged.
+An added ENOENT assertion verifies that the historical executable path is genuinely
+unavailable before recovery. There are no sleeps, polling, deletion retries or
+fallback success paths. The barrier releases this owned handle; it cannot promise
+release of external readers or unknown descendants.
+
+The new real-process regression checks native handle destruction before return,
+then renames the copied executable and checks ENOENT. It **failed with the original
+close-only helper** (`released=false`) in the isolated checkout, and passed with
+the new barrier. This demonstrates the corrected ordering gap without claiming
+that the hosted file lock was captured. Local evidence is retained in
+`.test-state/ci-handle-release-before.json`, `ci-handle-release.json` and
+`ci-handle-release-final.json`; the failed hosted artifact is retained in
+`.test-state/ci-42331494591`.
+
+Local checks: typecheck, scoped ESLint, scoped Prettier and diff checks passed.
+The initial combined support/shared-contract run had 23 passed / 1 failed: all
+15 support tests and 8 shared cases passed, including the corrected recovery case;
+the remaining case failed because the local invocation omitted `ARCH_B1_MISE`.
+This was a prerequisite error, not hidden as PASS. The corrected focused command,
+using the existing Node 22, mise and bootstrap paths, is:
+
+```powershell
+$env:ARCH_RUNTIME_CONTRACT='1'
+$env:ARCH_B1_NODE22='C:\Users\38098\AppData\Local\nvm\v22.12.0\node.exe'
+$env:ARCH_B1_BOOTSTRAP='D:\AI\projects\projects\harness\.test-state\b1-bootstrap\arch-bootstrap.exe'
+$env:ARCH_B1_MISE='D:\AI\projects\projects\harness\.tools\mise\bin\mise.exe'
+$env:npm_execpath=(Join-Path (Split-Path (Get-Command npm.cmd).Source) 'node_modules/npm/bin/npm-cli.js')
+$env:npm_config_offline='true'
+$env:MISE_BIN=$env:ARCH_B1_MISE
+node node_modules/vitest/vitest.mjs run tests/unit/support.test.ts tests/feasibility/runtime-contract.test.ts -t 'releases the owned native process handle|recovers legacy ownership|switches real mise-linked' --exclude '**/.test-state/**' --maxWorkers=1 --reporter=default --reporter=json --outputFile=.test-state/ci-handle-release-final.json
+```
+
+Corrected focused result: PASS, 3 passed / 21 selection skips, exit 0, 22.75s.
+This includes a clean second successful recovery case and the actual offline mise
+switching comparator with its prerequisite supplied.
+
+The explicit exclusion prevents retained diagnostic worktrees from participating
+in local test discovery; hosted checkout discovery is unchanged. No production
+change or new dependency was made, so no local mutation campaign was added.
+Fresh final-commit CI results are reported separately after completion. The
+earlier failed run remains historical failure evidence; no assertion, job or
+required check was disabled. Merge still requires passing mandatory final-head
+checks and retains the Avast-active compatibility limitation documented above.
+
 ## Changed files
 
 - `docs/architecture.md`

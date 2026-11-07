@@ -14,7 +14,7 @@ import {
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
-import { records, run, start, world } from '../support.js';
+import { records, run, runWithReleasedProcessHandle, start, world } from '../support.js';
 import { requiredEnvironment, runtimeOutput } from '../support.js';
 
 // Normal regression runs don't provision a second engine. The mandatory CI job
@@ -224,7 +224,7 @@ describe.skipIf('1' !== process.env.ARCH_RUNTIME_CONTRACT)('M2.2 shared runtime 
       await chmod(historicalNode, 0o755);
     }
     // Real init captures the historical executable + checkout in valid unchanged owned files.
-    const init = await run(
+    const init = await runWithReleasedProcessHandle(
       historicalNode,
       [join(historical, 'dist/cli.js'), 'init', 'runtime'],
       f.B,
@@ -235,6 +235,7 @@ describe.skipIf('1' !== process.env.ARCH_RUNTIME_CONTRACT)('M2.2 shared runtime 
       edited = 'schema=1\n# user middleware configuration\nmiddleware=[]\n';
     await writeFile(config, edited);
     await rename(historicalNode, historicalNode + '.removed');
+    await expect(readFile(historicalNode)).rejects.toMatchObject({ code: 'ENOENT' });
     await rename(historical, historical + '.relocated');
     const environment = { ...env(), ARCH_NODE: replacement };
     const status = await run(entry, ['status', '--json'], f.B, environment);
