@@ -83,4 +83,5 @@ export function manifestRoutes(state: State): { commands: string[]; windows: boo
   return { commands, windows };
 }
 
-export const configText = 'schema = 1\n\n[[middleware]]\nid = "demo"\nenabled = true\n';
+export const legacyConfigText = 'schema = 1\n\n[[middleware]]\nid = "demo"\nenabled = true\n';
+export const configText = 'schema = 1\nmiddleware = []\n';

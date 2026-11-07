@@ -1,7 +1,7 @@
 import { assertBootstrapAuthority } from './setup-claim.js';
 import { unlink, rename } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { statePath, uninstallPath, stateFrom, configText } from './manifest.js';
+import { statePath, uninstallPath, stateFrom, configText, legacyConfigText } from './manifest.js';
 import { readOptional, checkFiles, assertSafePath } from './ownership.js';
 export async function uninstall(root: string): Promise<void> {
   root = resolve(root);
@@ -45,8 +45,11 @@ export async function uninstall(root: string): Promise<void> {
     await remove(join(root, file), 'remove managed file');
   }
   const harnessFile = join(root, '.arch/harness.toml');
-  if (state.createdHarness && (await readOptional(harnessFile))?.toString() === configText) {
-    await remove(harnessFile, 'remove generated configuration');
+  if (state.createdHarness) {
+    const harness = (await readOptional(harnessFile))?.toString();
+    if (harness === configText || harness === legacyConfigText) {
+      await remove(harnessFile, 'remove generated configuration');
+    }
   }
   await remove(journalFile, 'remove uninstall state');
 }

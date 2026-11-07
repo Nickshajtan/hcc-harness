@@ -227,3 +227,26 @@ it.each([
   expect(terminalInteraction).not.toHaveBeenCalled();
   expect(setup).not.toHaveBeenCalled();
 });
+
+it.each([false, true])(
+  'renders setup diagnostics explicitly with claim presence %s',
+  async (claimPresent) => {
+    const documentation = 'docs/usage.md#recovering-an-interrupted-init';
+    vi.mocked(inspectInstallation).mockResolvedValue({
+      ...status,
+      setup: {
+        claimPresent,
+        bootstrapPresent: !claimPresent,
+        stagingPaths: claimPresent ? ['.arch/.setup-fixture'] : [],
+        manualRecoveryRequired: claimPresent,
+        documentation,
+      },
+    });
+    await publicCommand(['status']);
+    expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining(
+        `Setup claim: ${claimPresent ? 'present' : 'absent'}\nBootstrap manifest: ${claimPresent ? 'absent' : 'present'}\nSetup stages: ${claimPresent ? '.arch/.setup-fixture' : '(none)'}\nManual setup recovery: ${String(claimPresent)}\nSetup recovery documentation: ${documentation}\n`,
+      ),
+    );
+  },
+);

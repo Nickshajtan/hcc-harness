@@ -13,6 +13,7 @@ export type ArchEvent<T extends EventType = EventType> = T extends EventType
       id: string;
       type: T;
       executionId: string;
+      parentExecutionId?: string | undefined;
       timestamp: string;
       schemaVersion: 1;
       payload: EventPayloads[T];
@@ -68,11 +69,13 @@ export function event<T extends EventType>(
   type: T,
   executionId: string,
   payload: EventPayloads[T],
+  parentExecutionId?: string,
 ): ArchEvent<T> {
   return {
     id: randomUUID(),
     type,
     executionId,
+    ...(parentExecutionId ? { parentExecutionId } : {}),
     timestamp: new Date().toISOString(),
     schemaVersion: 1,
     payload,

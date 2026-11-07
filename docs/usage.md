@@ -47,7 +47,7 @@ ordinary commands require the user's shell activation/trust and prompt refresh.
 
 ## Middleware configuration
 
-Example `.arch/harness.toml`:
+New starters use `schema = 1` and `middleware = []`. Explicit demo opt-in example:
 
 ```toml
 schema = 1
@@ -59,8 +59,8 @@ enabled = true
 
 The nearest ancestor configuration wins, including subdirectories. A nested file
 replaces the whole parent configuration. Adjacent projects are independent. Missing
-configuration passes through; invalid configuration or unknown enabled middleware
-fails explicitly. TOML list order is execution order; `middleware = []` still
+configuration runs native with an empty middleware pipeline and its own execution
+events; invalid configuration or unknown enabled middleware fails explicitly. TOML list order is execution order; `middleware = []` still
 activates the lifecycle. Route changes never rewrite this file.
 
 `ARCH_TRACE=1` enables local lifecycle JSON/demo diagnostics on stderr, without
@@ -116,3 +116,138 @@ Edited middleware bytes survive deinit/init; unchanged generated defaults may be
 removed/recreated. Modified managed launchers still block removal. CLI link loss
 after a Node-prefix switch needs explicit relinking with a working checkout, not
 automatic runtime discovery. B1's `ARCH_NODE` policy is not a production launcher fix.
+
+## Signals and nested execution
+
+On POSIX, Arch spawns its direct child without detachment, with inherited stdio
+and process group. Once spawn has been initiated, Arch ignores SIGINT itself:
+the foreground terminal delivers Ctrl+C to the group, including the child.
+Arch neither forwards another SIGINT nor starts a SIGINT escalation timer.
+Interactive children can cancel an operation and continue. Arch waits for actual
+settlement, finalizes once, and preserves the child's exit code or signal.
+Before spawn, SIGINT still cancels preparation and runs applicable cleanup.
+
+A SIGINT sent only to the Arch PID after spawn does not reach the child and does
+not stop Arch. Use SIGTERM for programmatic termination. Arch does not infer
+signal origin. SIGTERM/SIGHUP retain direct-child forwarding and the existing
+three-second escalation. Explicit library AbortSignal cancellation retains its
+existing direct-child cancellation contract. Windows console handling is unchanged.
+Detached children/separate process groups are not launch options in this process
+model; descendants independently created by native providers remain their responsibility.
+
+Every invocation, including `Arch -> provider -> Arch -> provider`, creates a
+fresh execution ID, middleware pipeline, event bus, outcome and cleanup scope.
+Unconfigured invocations also emit their own execution events, with an empty
+middleware pipeline and cwd as project root. `ARCH_ACTIVE` identifies the current
+execution in its child's environment; it no longer prohibits nested execution.
+Arch sets `ARCH_PARENT_EXECUTION_ID` to its ID for its child. A subsequent Arch
+accepts a bounded UUID-shaped value as optional parent correlation, publishes it
+as additive `parentExecutionId` on schema-1 events, and allocates a new ID.
+Invalid metadata is ignored; a valid-looking forged ID is still untrusted.
+
+Correlation grants no authorization, ownership, budget or sandbox privileges.
+Configured middleware runs independently at each level. No mutable middleware
+state is shared. An invocation is not a model request: future Budget Guard work
+must distinguish execution IDs, model request IDs, parent relationships and
+billable operations, without disabling nested middleware or changing accounting here.
+
+Native resolution filters marked routing directories, resolves symlinks before
+checking executable identity, and refuses recognized generated launcher shapes
+and Arch's CLI target. Windows npm shim destinations receive the same identity
+checks. If no native target remains, resolution fails rather than falling back
+to Arch. Arbitrary third-party wrapper behavior cannot always be proven statically;
+intentional script reentry is permitted and is not agent ancestry detection.
+Relative operands in foreign wrappers are left to the native program, rather than
+being interpreted against Arch's own cwd.
+Native PATH remains filtered as before, so a provider wanting explicit nested
+routing can invoke the installed Arch entry with `run <provider> -- ...`.
+An absolute native provider invocation can bypass PATH routing and middleware.
+Arch is a process router, not a mandatory interception or security boundary.
+
+## Recovering an interrupted init
+
+An unresolved `.arch/setup-claim` means the setup invocation did not finish
+verified commit or verified rollback. It may have died before recording any
+manifest. A manifest at the expected path alone does not prove it belongs to
+that setup: another writer may have won publication. Init retries, routing
+mutations and deinit therefore fail closed. Ordinary operations never remove
+this claim automatically. There is no automatic setup recovery command.
+
+Stop concurrent setup/lifecycle writers first. Preserve evidence and run
+`arch status --json` from the project root. Status remains read-only, returns
+nonzero for invalid ownership state, and adds a `setup` object containing
+`claimPresent`, `bootstrapPresent`, `stagingPaths`, `manualRecoveryRequired` and
+`documentation`. Text status includes the inspection paths and documentation
+reference. Entries are observations, never deletion authorization. No stage or
+configuration contents are exposed by these diagnostics.
+
+Inspect `.arch/bootstrap.json` as data, without executing any launcher. Its
+`files` map records generated route/marker/mise paths and their SHA-256 hashes;
+`createdHarness` records whether setup created the starter. Check the complete
+manifest format and expected route set, including platform-specific exe/shim
+pairs. Reject symlinks, unexpected paths, conflicting journals and foreign or
+modified resources. Compute SHA-256 over each file's exact bytes (for example
+`Get-FileHash -Algorithm SHA256 -LiteralPath <file>` on PowerShell or
+`shasum -a 256 <file>` on macOS); do not normalize newlines. Compare with recorded
+hashes, but remember that a hash match alone does not establish provenance.
+
+List private `.arch/.setup-*` directories without following links. Setup stages
+use numeric names in publication order: generated resources, optional starter,
+and bootstrap last. These names and matching contents are useful evidence but
+do not authorize deletion. POSIX stages may remain hard-linked to published
+files; Windows moves can consume stages and change file identities. There is no
+durable stage-to-resource ownership journal for an interrupted initial setup.
+Use independently captured setup records, pre-setup snapshots and exclusive
+publication/file-identity evidence where available. Never infer ownership just
+because a file occupies an expected generated path or resembles a launcher.
+
+Choose only one of these outcomes:
+
+1. **Retain a verified committed installation.** Establish that bootstrap was
+   published by this setup, that every recorded resource is complete and hash-valid,
+   and that the route set and starter provenance are correct. Preserve any existing
+   user configuration. Remove only proven setup-owned staging residue after checking
+   identity and bytes; stop if its origin is uncertain. Retain the verified bootstrap
+   and generated files. Remove the empty claim directory last, then run status again.
+2. **Roll back demonstrably setup-owned resources.** With independent provenance
+   and current identity/hash verification, remove only resources exclusively published
+   by this setup, in reverse publication order. Preserve pre-existing/customized
+   configuration and every foreign collision. Remove only proven private stages and
+   the setup-owned bootstrap; remove the empty claim directory last. Verify status,
+   then initialize again with explicit provider names.
+
+If publication outcome, bootstrap provenance, stage origin, file identity or
+ownership is ambiguous, stop and retain the claim and evidence for manual review.
+Do not recursively delete `.arch`, blindly delete bootstrap, or delete foreign
+resources because they occupy expected paths. A nonempty/substituted claim also
+requires investigation. This procedure does not weaken FS-1.2 no-replace publication.
+
+## Generated artifacts and starter middleware
+
+`.arch/bin/*` launchers are machine-local installation artifacts. POSIX scripts
+capture absolute Node/CLI paths for development installs or the stable entry path
+for stable installs. Windows `.shim` files capture the corresponding absolute
+paths; their companion `.exe` files and `.arch-router` marker form the route set.
+`.arch/bootstrap.json` records ownership hashes for that local installation.
+`.config/mise/conf.d/arch.toml` currently uses `{{config_root}}/.arch/bin`; it is
+still generated installation integration, not portable team configuration.
+Stable entries bind routes to an installation identity; copying routes does not
+relocate or rebind that installation.
+
+Do not commit generated routes, ownership manifests, claims or private stages as
+portable project configuration. Each contributor installs Arch and runs `arch init
+<providers...>` locally. Decide source-control ignore rules explicitly; Arch does
+not modify `.gitignore`. A deliberately maintained middleware configuration can
+be shared independently of generated routing artifacts. To recreate routes, inspect
+ownership, complete any recovery, safely deinit, then initialize using the intended
+installation. Modified or foreign resources must be resolved without deleting them
+blindly. Relocation and automatic migration are unsupported.
+
+New generated `.arch/harness.toml` contains `schema = 1` and `middleware = []`.
+Demo remains an explicit example: to opt in use the repository demo configuration
+(`[[middleware]]`, `id = "demo"`, `enabled = true`). Demo can inject `ARCH_DEMO=1`
+and deny on `ARCH_DEMO_DENY=1`; ordinary routing does neither by default.
+For older projects intentionally replace the middleware list with `middleware = []`
+or disable the demo entry. No automatic migration occurs. Deinit recognizes exact
+unchanged legacy and new generated starter bytes only when `createdHarness` records
+ownership. Customized starters and foreign configurations are preserved.

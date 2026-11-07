@@ -1,3 +1,4 @@
+import { isRouterTarget } from '../../src/process/native-environment.js';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import {
   mkdtemp,
@@ -192,3 +193,243 @@ it.skipIf('win32' !== process.platform)(
     );
   },
 );
+
+it('rejects copied generated shell launchers referencing a marked target', async () => {
+  const directory = join(root, 'copied');
+  const file = await candidate(directory);
+  const owned = join(root, 'owned');
+  const destination = await candidate(owned);
+  await writeFile(join(owned, '.arch-router'), routerMarker);
+  const quoted = destination.replaceAll("'", "'\\''");
+  await writeFile(file, `#!/bin/sh\nexec '${quoted}' run 'tool' -- "$@"\n`);
+  await expect(resolveExecutable('tool', root, { PATH: directory })).rejects.toThrow(
+    'Native executable not found',
+  );
+});
+
+it('keeps similar shell launchers targeting genuine native executables', async () => {
+  const directory = join(root, 'copied');
+  const file = await candidate(directory);
+  await writeFile(file, `#!/bin/sh\nexec '${process.execPath}' run 'tool' -- "$@"\n`);
+  await expect(resolveExecutable('tool', root, { PATH: directory })).resolves.toBe(file);
+});
+
+it('rejects generated Windows shim arguments referencing marked targets', async () => {
+  const directory = join(root, 'copied');
+  await mkdir(directory);
+  const file = join(directory, 'tool.exe');
+  await writeFile(file, 'fixture');
+  await chmod(file, 0o755);
+  const owned = join(root, 'owned');
+  const destination = await candidate(owned);
+  await writeFile(join(owned, '.arch-router'), routerMarker);
+  await writeFile(join(directory, 'tool.shim'), `path = ${destination}\nargs = run tool --\n`);
+  await expect(resolveExecutable('tool.exe', root, { PATH: directory })).rejects.toThrow(
+    'Native executable not found',
+  );
+});
+
+it('rejects a generated wrapper cycle without spawning any process', async () => {
+  const directory = join(root, 'cycle');
+  const file = await candidate(directory);
+  await writeFile(file, `#!/bin/sh\nexec '${file}' run 'tool' -- "$@"\n`);
+  await expect(resolveExecutable('tool', root, { PATH: directory })).rejects.toThrow(
+    'Native executable not found',
+  );
+});
+
+it.each('win32' === process.platform ? ['arch.exe'] : ['arch', 'arch.exe'])(
+  'rejects a stable %s entry using installation metadata',
+  async (name) => {
+    const directory = join(root, 'stable');
+    await mkdir(directory);
+    const file = join(directory, name);
+    await writeFile(file, 'native bootstrap fixture');
+    await chmod(file, 0o755);
+    await writeFile(
+      join(directory, 'installation.json'),
+      JSON.stringify({ kind: 'arch-stable-installation-v1' }),
+    );
+    await expect(
+      resolveExecutable(name, root, { PATH: directory, PATHEXT: '.EXE;' }),
+    ).rejects.toThrow('Native executable not found');
+    await writeFile(join(directory, 'installation.json'), '{}');
+    await expect(resolveExecutable(name, root, { PATH: directory })).resolves.toBe(file);
+  },
+);
+
+it('preserves a native arch.exe without stable installation metadata', async () => {
+  const directory = join(root, 'native-arch');
+  await mkdir(directory);
+  const file = join(directory, 'arch.exe');
+  await writeFile(file, 'native fixture');
+  await chmod(file, 0o755);
+  await expect(resolveExecutable('arch.exe', root, { PATH: directory })).resolves.toBe(file);
+});
+
+it('does not ignore unexpected shim metadata read failures', async () => {
+  const directory = join(root, 'invalid-shim');
+  await mkdir(directory);
+  const file = join(directory, 'tool.exe');
+  await writeFile(file, 'fixture');
+  await chmod(file, 0o755);
+  await mkdir(join(directory, 'tool.shim'));
+  await expect(resolveExecutable('tool.exe', root, { PATH: directory })).rejects.toThrow();
+});
+
+it('keeps a third-party shim with similar arguments targeting a native executable', async () => {
+  const directory = join(root, 'native-shim');
+  await mkdir(directory);
+  const file = join(directory, 'tool.exe');
+  await writeFile(file, 'fixture');
+  await chmod(file, 0o755);
+  await writeFile(join(directory, 'tool.shim'), `path = ${process.execPath}\nargs = run tool --\n`);
+  await expect(resolveExecutable('tool.exe', root, { PATH: directory })).resolves.toBe(file);
+});
+
+it.each(['prefix', 'suffix'])(
+  'does not classify a shell script with additional %s bytes as a generated launcher',
+  async (position) => {
+    const file = await candidate(join(root, 'script'));
+    const owned = join(root, 'owned');
+    const destination = await candidate(owned);
+    await writeFile(join(owned, '.arch-router'), routerMarker);
+    const script = `#!/bin/sh\nexec '${destination}' run 'tool' -- "$@"\n`;
+    await writeFile(file, 'prefix' === position ? '# custom\n' + script : script + '# custom\n');
+    await expect(isRouterTarget(file)).resolves.toBe(false);
+  },
+);
+
+it('decodes quoted native paths without treating ordinary shell launchers as routers', async () => {
+  const file = await candidate(join(root, 'script'));
+  const destination = await candidate(join(root, "native 'quoted' ' ' spaced"));
+  const quote = (text: string) => "'" + text.replaceAll("'", "'\\''") + "'";
+  await writeFile(
+    file,
+    `#!/bin/sh\nexec ${quote(process.execPath)} ${quote(destination)} run 'tool' -- "$@"\n`,
+  );
+  await expect(isRouterTarget(file)).resolves.toBe(false);
+});
+
+it('recognizes the CLI argument of a development Windows shim, independently of the Node target', async () => {
+  const file = join(root, 'tool.exe');
+  await writeFile(file, 'fixture');
+  const owned = join(root, 'owned');
+  const destination = await candidate(owned);
+  await writeFile(join(owned, '.arch-router'), routerMarker);
+  await writeFile(
+    join(root, 'tool.shim'),
+    `path = ${process.execPath}\nargs = "${destination}" run tool --\n`,
+  );
+  await expect(isRouterTarget(file)).resolves.toBe(true);
+});
+
+it.each(['prefix', 'suffix', 'unrelated'])(
+  'preserves a native exe with non-generated %s shim contents',
+  async (variant) => {
+    const file = join(root, 'tool.exe');
+    await writeFile(file, 'fixture');
+    const owned = join(root, 'owned');
+    const destination = await candidate(owned);
+    await writeFile(join(owned, '.arch-router'), routerMarker);
+    const shim = `path = ${destination}\nargs = run tool --\n`;
+    const contents = 'prefix' === variant ? '# custom\n' + shim : shim + '# custom\n';
+    await writeFile(
+      join(root, 'tool.shim'),
+      'unrelated' === variant ? 'unrelated bytes' : contents,
+    );
+    await expect(isRouterTarget(file)).resolves.toBe(false);
+  },
+);
+
+it('does not interpret shim-shaped contents in a non-exe file', async () => {
+  const file = join(root, 'tool.bin');
+  const owned = join(root, 'owned');
+  const destination = await candidate(owned);
+  await writeFile(join(owned, '.arch-router'), routerMarker);
+  await writeFile(file, `path = ${destination}\nargs = run tool --\n`);
+  await expect(isRouterTarget(file)).resolves.toBe(false);
+});
+
+it.each([null, 1, 'unrelated', [], {}, { kind: 'foreign' }])(
+  'preserves native arch.exe beside non-Arch metadata %j',
+  async (metadata) => {
+    const file = join(root, 'arch.exe');
+    await writeFile(file, 'fixture');
+    await writeFile(join(root, 'installation.json'), JSON.stringify(metadata));
+    await expect(isRouterTarget(file)).resolves.toBe(false);
+  },
+);
+
+it('does not classify other executables using unrelated adjacent installation metadata', async () => {
+  const file = join(root, 'native.exe');
+  await writeFile(file, 'fixture');
+  await writeFile(
+    join(root, 'installation.json'),
+    JSON.stringify({ kind: 'arch-stable-installation-v1' }),
+  );
+  await expect(isRouterTarget(file)).resolves.toBe(false);
+});
+
+it('preserves malformed stable identity evidence as an explicit error', async () => {
+  const file = join(root, 'arch.exe');
+  await writeFile(file, 'fixture');
+  await writeFile(join(root, 'installation.json'), '{broken');
+  await expect(isRouterTarget(file)).rejects.toBeInstanceOf(SyntaxError);
+});
+
+it.skipIf('win32' === process.platform)(
+  'accepts a symlink to a native executable by canonical identity',
+  async () => {
+    const file = await candidate(join(root, 'native'));
+    const alias = join(root, 'alias');
+    await mkdir(alias);
+    await symlink(file, join(alias, command));
+    await expect(resolveExecutable('tool', root, { PATH: alias })).resolves.toBe(
+      await realpath(file),
+    );
+  },
+);
+
+it.each(['win32', 'linux'] as const)(
+  'uses %s file-name case rules for stable executable identity',
+  async (platform) => {
+    const descriptor = Object.getOwnPropertyDescriptor(process, 'platform');
+    if (!descriptor) {
+      throw new Error('Missing platform descriptor');
+    }
+    const file = join(root, 'ARCH.EXE');
+    await writeFile(file, 'fixture');
+    await writeFile(
+      join(root, 'installation.json'),
+      JSON.stringify({ kind: 'arch-stable-installation-v1' }),
+    );
+    try {
+      Object.defineProperty(process, 'platform', { value: platform });
+      await expect(isRouterTarget(file)).resolves.toBe('win32' === platform);
+    } finally {
+      Object.defineProperty(process, 'platform', descriptor);
+    }
+  },
+);
+
+it('preserves PATH precedence for unrelated shell wrappers with cwd-relative targets', async () => {
+  const first = await candidate(join(root, 'first'));
+  await candidate(join(root, 'second'));
+  await writeFile(first, "#!/bin/sh\nexec './runtime-only-in-child' run 'tool' -- \"$@\"\n");
+  await expect(
+    resolveExecutable('tool', root, {
+      PATH: [join(root, 'first'), join(root, 'second')].join(delimiter),
+    }),
+  ).resolves.toBe(first);
+});
+
+it('does not interpret relative third-party shim references using Arch cwd', async () => {
+  const file = join(root, 'tool.exe');
+  await writeFile(file, 'fixture');
+  await writeFile(
+    join(root, 'tool.shim'),
+    'path = relative-runtime\nargs = "relative-script" run tool --\n',
+  );
+  await expect(isRouterTarget(file)).resolves.toBe(false);
+});

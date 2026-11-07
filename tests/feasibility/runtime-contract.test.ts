@@ -1,3 +1,4 @@
+import { legacyConfigText } from '../../src/lifecycle/manifest.js';
 import { onTestFinished, afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   chmod,
@@ -13,7 +14,7 @@ import {
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
-import { records, run, start, world } from '../support.js';
+import { records, run, runWithReleasedProcessHandle, start, world } from '../support.js';
 import { requiredEnvironment, runtimeOutput } from '../support.js';
 
 // Normal regression runs don't provision a second engine. The mandatory CI job
@@ -103,6 +104,7 @@ describe.skipIf('1' !== process.env.ARCH_RUNTIME_CONTRACT)('M2.2 shared runtime 
     ) => Promise<void>;
     await cmdShim(script, join(f.native, 'runtime'));
     expect(await run(entry, ['init', 'runtime'], f.A, env())).toMatchObject({ code: 0 });
+    await writeFile(join(f.A, '.arch/harness.toml'), legacyConfigText);
     // Feasibility fixture only: production launcher/manifest formats stay unchanged.
     if (windows) {
       await writeFile(
@@ -222,7 +224,7 @@ describe.skipIf('1' !== process.env.ARCH_RUNTIME_CONTRACT)('M2.2 shared runtime 
       await chmod(historicalNode, 0o755);
     }
     // Real init captures the historical executable + checkout in valid unchanged owned files.
-    const init = await run(
+    const init = await runWithReleasedProcessHandle(
       historicalNode,
       [join(historical, 'dist/cli.js'), 'init', 'runtime'],
       f.B,
@@ -233,6 +235,7 @@ describe.skipIf('1' !== process.env.ARCH_RUNTIME_CONTRACT)('M2.2 shared runtime 
       edited = 'schema=1\n# user middleware configuration\nmiddleware=[]\n';
     await writeFile(config, edited);
     await rename(historicalNode, historicalNode + '.removed');
+    await expect(readFile(historicalNode)).rejects.toMatchObject({ code: 'ENOENT' });
     await rename(historical, historical + '.relocated');
     const environment = { ...env(), ARCH_NODE: replacement };
     const status = await run(entry, ['status', '--json'], f.B, environment);
@@ -287,9 +290,10 @@ describe.skipIf('1' !== process.env.ARCH_RUNTIME_CONTRACT)('M2.2 shared runtime 
           }
           await new Promise((done) => setTimeout(done, 20));
         }
-        invocation.child.kill(signal);
+        invocation.child.kill('SIGINT');
+        invocation.child.kill('SIGTERM');
         const result = await invocation.result;
-        expect(result.code).toBe(code);
+        expect(result.code).toBe(143);
         expect(result.stderr).toContain('[arch:demo] cleanup');
       }
       const native = await records(log, 'runtime');

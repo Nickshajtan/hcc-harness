@@ -55,7 +55,13 @@ it.each(['win32', 'linux'] as const)(
     const result = composeLaunchEnvironment(original, changes, 'new-id', platform);
     expect(result).toEqual(
       'win32' === platform
-        ? { KEPT: '', mixed: '', ADDED: 'value', ARCH_ACTIVE: 'new-id' }
+        ? {
+            KEPT: '',
+            mixed: '',
+            ADDED: 'value',
+            ARCH_ACTIVE: 'new-id',
+            ARCH_PARENT_EXECUTION_ID: 'new-id',
+          }
         : {
             Mixed: 'old',
             MIXED: 'other',
@@ -63,6 +69,7 @@ it.each(['win32', 'linux'] as const)(
             mixed: '',
             ADDED: 'value',
             ARCH_ACTIVE: 'new-id',
+            ARCH_PARENT_EXECUTION_ID: 'new-id',
           },
     );
     expect(original).toEqual({ Mixed: 'old', MIXED: 'other', KEPT: '', ARCH_ACTIVE: 'old-id' });
@@ -70,6 +77,22 @@ it.each(['win32', 'linux'] as const)(
     expect(composeLaunchEnvironment({ KEPT: 'yes' }, {}, 'id', platform)).toEqual({
       KEPT: 'yes',
       ARCH_ACTIVE: 'id',
+      ARCH_PARENT_EXECUTION_ID: 'id',
     });
   },
 );
+
+it('replaces inherited mixed-case correlation keys on Windows without mutating native input', () => {
+  const native = Object.freeze({
+    arch_active: 'spoof',
+    arch_parent_execution_id: 'spoof',
+    KEPT: 'yes',
+  });
+  expect(composeLaunchEnvironment(native, {}, 'current', 'win32')).toEqual({
+    KEPT: 'yes',
+    ARCH_ACTIVE: 'current',
+    ARCH_PARENT_EXECUTION_ID: 'current',
+  });
+  expect(native.arch_active).toBe('spoof');
+  expect(native.arch_parent_execution_id).toBe('spoof');
+});

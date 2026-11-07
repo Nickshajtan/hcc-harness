@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { Socket } from 'node:net';
-import { mkdtemp, rm, writeFile, mkdir, readFile } from 'node:fs/promises';
+import { createHook } from 'node:async_hooks';
+import { mkdtemp, rm, writeFile, mkdir, readFile, copyFile, chmod, rename } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -9,6 +10,7 @@ import {
   recordRemovalFailure,
   start,
   run,
+  runWithReleasedProcessHandle,
   runtimeOutput,
   requiredEnvironment,
   diagnosticStreams,
@@ -16,6 +18,38 @@ import {
 } from '../support.js';
 
 const directories: string[] = [];
+
+it('releases the owned native process handle before returning a relocatable executable', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'arch-process-release-'));
+  directories.push(root);
+  const target = join(root, 'win32' === process.platform ? 'node.exe' : 'node');
+  await copyFile(process.execPath, target);
+  await chmod(target, 0o755);
+  let processAsyncId: number | undefined;
+  let released = false;
+  const observer = createHook({
+    init(asyncId, type) {
+      if ('PROCESSWRAP' === type && undefined === processAsyncId) {
+        processAsyncId = asyncId;
+      }
+    },
+    destroy(asyncId) {
+      if (processAsyncId === asyncId) {
+        released = true;
+      }
+    },
+  }).enable();
+  try {
+    const result = await runWithReleasedProcessHandle(target, ['--version'], root, process.env);
+    expect(result).toMatchObject({ code: 0, signal: null });
+    expect(processAsyncId).toBeDefined();
+    expect(released).toBe(true);
+    await rename(target, target + '.removed');
+    await expect(readFile(target)).rejects.toMatchObject({ code: 'ENOENT' });
+  } finally {
+    observer.disable();
+  }
+});
 
 it('sends EOF without an empty write and preserves actual stdin payloads', async () => {
   const endings = vi.spyOn(Socket.prototype, 'end');

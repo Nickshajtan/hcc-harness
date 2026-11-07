@@ -1,3 +1,4 @@
+import { legacyConfigText } from '../../src/lifecycle/manifest.js';
 import { afterAll, beforeAll, expect, it, onTestFinished } from 'vitest';
 import {
   chmod,
@@ -339,6 +340,8 @@ it('preserves console signals and middleware cleanup through stable project rout
   const initialized = await run(entry, ['init', 'claude'], f.B, env);
   expect(initialized.code, initialized.stderr).toBe(0);
   const route = join(f.B, '.arch/bin', windows ? 'claude.exe' : 'claude');
+  // Middleware contracts opt in explicitly; production starters are empty.
+  await writeFile(join(f.B, '.arch/harness.toml'), legacyConfigText);
   for (const [signal, event, code] of [
     ['SIGINT', '0', 130],
     [windows ? 'SIGBREAK' : 'SIGTERM', '1', windows ? 149 : 143],
@@ -375,9 +378,11 @@ it('preserves console signals and middleware cleanup through stable project rout
             );
           }),
         ]);
-        invocation.child.kill(signal);
+        // PID-only SIGINT is ignored after spawn; programmatic termination uses SIGTERM.
+        invocation.child.kill('SIGINT');
+        invocation.child.kill('SIGTERM');
         const result = await invocation.result;
-        expect(result.code, result.stderr).toBe(code);
+        expect(result.code, result.stderr).toBe(143);
         expect(result.stderr).toContain('[arch:demo] cleanup');
       } finally {
         await invocation.dispose();

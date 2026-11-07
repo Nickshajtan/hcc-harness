@@ -2,7 +2,7 @@ import { access, realpath, stat, readFile, open } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { resolve, extname, join, dirname } from 'node:path';
 import readCmdShim from 'read-cmd-shim';
-import { isRouter } from './native-environment.js';
+import { isRouter, isRouterTarget } from './native-environment.js';
 import { resolveExecutable } from './executable-resolver.js';
 
 export async function windowsNpmShim(
@@ -18,7 +18,7 @@ export async function windowsNpmShim(
     throw new Error('Arbitrary batch scripts require a shell and are unsupported');
   }
   const destination = await realpath(resolve(dirname(executable), await readCmdShim(executable)));
-  if (await isRouter(dirname(destination))) {
+  if (await isRouterTarget(destination)) {
     throw new Error('Recursive npm shim target refused');
   }
   if (/\.(exe|com)$/i.test(destination)) {

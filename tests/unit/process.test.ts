@@ -351,3 +351,46 @@ it('does not escalate when a normal exit becomes visible before close', async ()
   await result;
   disposed();
 });
+
+it('notifies spawn once and waits for settlement before reporting a notification failure', async () => {
+  const failure = new Error('spawn observer failed');
+  const notification = vi.fn(() => {
+    throw failure;
+  });
+  const result = launch(
+    process.execPath,
+    [],
+    process.cwd(),
+    process.env,
+    controller.signal,
+    notification,
+  );
+  const settled = vi.fn();
+  const observed = result.catch((error: unknown) => {
+    settled();
+    return error;
+  });
+  await Promise.resolve();
+  expect(notification).toHaveBeenCalledTimes(1);
+  expect(settled).not.toHaveBeenCalled();
+  expect(child.kill).not.toHaveBeenCalled();
+  child.emit('close', 0, null);
+  expect(await observed).toBe(failure);
+  expect(settled).toHaveBeenCalledTimes(1);
+  disposed();
+});
+
+it('normalizes non-Error spawn notification failures after child settlement', async () => {
+  // Model an untyped callback boundary without weakening production error rules.
+  const failure: unknown = JSON.parse('"notification"');
+  const result = launch(process.execPath, [], process.cwd(), process.env, controller.signal, () => {
+    throw failure;
+  });
+  const observed = result.catch((error: unknown) => error);
+  child.emit('close', 0, null);
+  expect(await observed).toMatchObject({
+    message: 'Spawn notification failed',
+    cause: 'notification',
+  });
+  disposed();
+});

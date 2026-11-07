@@ -1,5 +1,6 @@
-import { readFile } from 'node:fs/promises';
-import { join, resolve, delimiter } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { readFile, realpath, open } from 'node:fs/promises';
+import { join, resolve, delimiter, dirname, basename, isAbsolute } from 'node:path';
 
 export const routerMarker = 'arch-harness-router-v1\n';
 
@@ -34,4 +35,95 @@ export async function nativeEnvironment(
   }
   result[key] = paths.join(delimiter);
   return result;
+}
+
+// Canonical identities and generated launcher signatures are routing safeguards,
+// not deletion authority. Arbitrary third-party scripts are not statically provable.
+export async function isRouterTarget(file: string, seen = new Set<string>()): Promise<boolean> {
+  const target = await realpath(file);
+  const identity = 'win32' === process.platform ? target.toLowerCase() : target;
+  if (seen.has(identity) || (await isRouter(dirname(target)))) {
+    return true;
+  }
+  seen.add(identity);
+  const cli = fileURLToPath(new URL('../cli.js', import.meta.url));
+  const cliIdentity = 'win32' === process.platform ? cli.toLowerCase() : cli;
+  if (identity === cliIdentity) {
+    return true;
+  }
+  const text = await executablePrefix(target);
+  // Follow only the generated shell grammar, then verify the referenced identity.
+  // A similar-looking third-party launcher targeting a native tool remains valid.
+  // Match renderer quote() words, including embedded apostrophes. Splitting on
+  // quote-space-quote would misread that sequence inside a legitimate path.
+  const quotedWord = String.raw`'(?:[^']|'\\'')*'`;
+  const shell = new RegExp(
+    String.raw`^#!/bin/sh\nexec (${quotedWord})(?: (${quotedWord}))? run '[a-zA-Z0-9._-]+' -- "\$@"\n$`,
+  ).exec(text);
+  const shellTarget = shell?.[2] ?? shell?.[1];
+  if (shellTarget) {
+    const path = shellTarget.slice(1, -1).replaceAll("'\\''", "'");
+    // Arch generates absolute operands. Relative foreign wrappers use native cwd,
+    // which need not be Arch's own cwd; their contents cannot establish identity here.
+    if (isAbsolute(path) && (await isRouterTarget(path, seen))) {
+      return true;
+    }
+  }
+  // Scoop launchers carry their generated routing arguments in an adjacent shim.
+  if (/\.exe$/i.test(target)) {
+    try {
+      const shim = await readFile(target.replace(/\.exe$/i, '.shim'), 'utf8');
+      const route = /^path = ([^\r\n]+)\nargs = (?:"([^\r\n]+)" )?run [a-zA-Z0-9._-]+ --\n$/.exec(
+        shim,
+      );
+      const referenced = route?.[2] ?? route?.[1];
+      if (referenced && isAbsolute(referenced) && (await isRouterTarget(referenced, seen))) {
+        return true;
+      }
+    } catch (error) {
+      if ('ENOENT' !== (error as NodeJS.ErrnoException).code) {
+        throw error;
+      }
+    }
+  }
+  // Stable bootstrap aliases resolve beside the installation metadata.
+  if (['arch', 'arch.exe'].includes(basename(identity))) {
+    try {
+      const metadata: unknown = JSON.parse(
+        await readFile(join(dirname(target), 'installation.json'), 'utf8'),
+      );
+      return (
+        !!metadata &&
+        'object' === typeof metadata &&
+        'kind' in metadata &&
+        'arch-stable-installation-v1' === metadata.kind
+      );
+    } catch (error) {
+      if ('ENOENT' !== (error as NodeJS.ErrnoException).code) {
+        throw error;
+      }
+    }
+  }
+  return false;
+}
+
+async function executablePrefix(file: string): Promise<string> {
+  let handle;
+  try {
+    handle = await open(file, 'r');
+  } catch (error) {
+    // Execute permission need not imply read permission. Canonical/marker checks
+    // already ran; unavailable script bytes must not change native PATH precedence.
+    if ('EACCES' === (error as NodeJS.ErrnoException).code) {
+      return '';
+    }
+    throw error;
+  }
+  const buffer = Buffer.alloc(16384);
+  try {
+    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
+    return buffer.subarray(0, bytesRead).toString('utf8');
+  } finally {
+    await handle.close();
+  }
 }

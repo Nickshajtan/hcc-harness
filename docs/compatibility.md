@@ -26,8 +26,9 @@ batch programs, customized shell wrappers, functions and aliases are not emulate
 
 Arguments, cwd, inherited streams and native statuses are preserved. Arch filters
 only directories with its exact router marker from native PATH and rejects recursive
-targets. Supported console cancellation manages the direct child; POSIX has a
-3-second SIGKILL fallback. Windows Ctrl+C/Ctrl+Break can produce 130/149 or native
+targets. POSIX foreground SIGINT is delivered by the terminal group, without wrapper
+forwarding or escalation; PID-only SIGINT after spawn is ignored. SIGTERM/SIGHUP
+manage the direct child with a 3-second SIGKILL fallback. See [signal policy](usage.md#signals-and-nested-execution). Windows Ctrl+C/Ctrl+Break can produce 130/149 or native
 `0xC000013A`. Force termination cannot run finalizers; descendants remain the native
 tool's responsibility. Automated TTY tests do not validate every emulator or AI TUI.
 

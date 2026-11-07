@@ -10,7 +10,14 @@ export function composeLaunchEnvironment(
   const retained = Object.entries(native).filter(
     ([key]) =>
       'win32' !== platform ||
-      !Object.keys(changes).some((name) => name.toUpperCase() === key.toUpperCase()),
+      ![...Object.keys(changes), 'ARCH_ACTIVE', 'ARCH_PARENT_EXECUTION_ID'].some(
+        (name) => name.toUpperCase() === key.toUpperCase(),
+      ),
   );
-  return { ...Object.fromEntries(retained), ...changes, ARCH_ACTIVE: executionId };
+  return {
+    ...Object.fromEntries(retained),
+    ...changes,
+    ARCH_ACTIVE: executionId,
+    ARCH_PARENT_EXECUTION_ID: executionId,
+  };
 }

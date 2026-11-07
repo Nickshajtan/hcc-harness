@@ -154,3 +154,33 @@ it.each(['', '0', '1'])(
     }
   },
 );
+
+it.each([0, 130])(
+  'ignores repeated POSIX SIGINT after spawn and preserves child status %s',
+  async (exitCode) => {
+    Object.defineProperty(process, 'platform', { value: 'linux' });
+    vi.mocked(execute).mockImplementation((options) => {
+      options.onSpawn?.();
+      cancel('SIGINT');
+      cancel('SIGINT');
+      expect(options.signal?.aborted).toBe(false);
+      return Promise.resolve({ exitCode, signal: null });
+    });
+    await runCommand('tool', []);
+    expect(process.exitCode).toBe(exitCode);
+    expectDisposed();
+  },
+);
+
+it('still forwards SIGTERM policy after an ignored post-spawn SIGINT', async () => {
+  Object.defineProperty(process, 'platform', { value: 'linux' });
+  vi.mocked(execute).mockImplementation((options) => {
+    options.onSpawn?.();
+    cancel('SIGINT');
+    cancel('SIGTERM');
+    expect(options.signal?.reason).toBe('SIGTERM');
+    return Promise.resolve({ exitCode: 0, signal: null });
+  });
+  await runCommand('tool', []);
+  expect(process.exitCode).toBe(143);
+});

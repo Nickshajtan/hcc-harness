@@ -1,7 +1,7 @@
 import { access, stat, realpath } from 'node:fs/promises';
 import { constants } from 'node:fs';
-import { delimiter, extname, resolve, dirname } from 'node:path';
-import { isRouter, pathKey } from './native-environment.js';
+import { delimiter, extname, resolve } from 'node:path';
+import { isRouterTarget, pathKey } from './native-environment.js';
 
 export async function resolveExecutable(
   command: string,
@@ -49,7 +49,7 @@ async function readExecutableCandidate(candidate: string): Promise<string | unde
       return undefined;
     }
     const native = await realpath(candidate);
-    if (await isRouter(dirname(native))) {
+    if (await isRouterTarget(native)) {
       return undefined;
     }
     return native;

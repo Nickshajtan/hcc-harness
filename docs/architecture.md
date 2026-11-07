@@ -28,7 +28,7 @@ platforms the direct unconfigured outcome is measured rather than assumed. This
 experimental prototype is test code only. Its output is distinct from the
 acceptance suite, which requires every selected-router scenario to pass.
 
-The dispatcher is the config discovery/native passthrough boundary in `execute()`.
+The dispatcher is the configuration discovery/execution initialization boundary in `execute()`.
 Unix project launchers `exec` Node using `"$@"`. Native Windows launchers reuse
 [Scoop's C++ shim](https://github.com/ScoopInstaller/Shim/tree/cpp/v0.3.0), with no
 runtime dependencies; provenance, checksums and license are in `vendor/`.
@@ -45,13 +45,13 @@ is overwritten. Existing aliases/functions may take precedence over PATH.
 
 ## Lifecycle and contracts
 
-`core.ts` forwards the public API to `core/index.ts`. Its `execute()` prepares the native environment, refuses recursion, then
-discovers the nearest configuration. Without configuration it resolves and launches
-the native command directly, with no configured event lifecycle. Invalid configuration
-and recursion fail before a context exists.
-
-For configured execution, the facade freezes the identity, original arguments, cwd,
-project root and signal into an execution context, then creates one `ExecutionSession`:
+`core.ts` forwards the public API to `core/index.ts`. Its `execute()` prepares the
+native environment and discovers the nearest configuration. Invalid configuration
+fails before context initialization. Every legitimate invocation freezes a fresh
+identity, optional untrusted parent correlation, original arguments, cwd, project
+root and signal into a context, then creates one `ExecutionSession`. Without
+configuration it uses cwd as project root and an empty middleware pipeline.
+Native target recursion checks remain in resolution, independent of ancestry.
 
 - `core/execution-session.ts` owns the execution-local bus, pipeline, current stage and
   native result. `run()` reads as start/observe, register, native lifecycle, finalize,
@@ -62,7 +62,7 @@ project root and signal into an execution context, then creates one `ExecutionSe
   native exit statuses remain results rather than failures.
 - `core/execution-environment.ts` composes a fresh environment: middleware overrides
   replace case-insensitive native keys on Windows and exact keys on POSIX; the
-  execution identity becomes ARCH_ACTIVE. It does not select a runtime or alter PATH.
+  execution identity becomes ARCH_ACTIVE and the child's ARCH_PARENT_EXECUTION_ID. It does not select a runtime or alter PATH.
 
 These are internal modules, not new supported entrypoints. Two small stateful
 objects encapsulate lifecycle and failure history; the environment operation is pure.
@@ -160,17 +160,21 @@ cwd and argument strings, avoids output buffering, and waits for the native chil
 Native resolution checks PATH entries and actual files, avoiding only directories
 with Arch's exact routing marker (including realpath aliases). Directory names such
 as `mise/shims` or `command-wrappers/bin` alone never disqualify a native executable.
-The execution-local `ARCH_ACTIVE` guard remains the last recursion defense when an
-external wrapper routes back into Arch. It is set for both configured execution
-and native passthrough; passthrough emits no harness events or middleware activity.
+`ARCH_ACTIVE` is a current identity field, not a recursion guard.
+Canonical target identity and recognized generated wrapper references prevent
+router reentry. Legitimate nested invocations retain their own middleware/events;
+unknown third-party script behavior cannot be proven universally by static lookup.
 Native executable absence fails explicitly. On Windows, npm's
 `read-cmd-shim` resolves standard `.cmd` launchers to their targets; Node shebang
 scripts use the standard shim's adjacent Node when requested, otherwise native
 PATH Node; neither Arch's runtime nor ARCH_NODE is a fallback. Native targets launch directly.
 Arbitrary `.bat`/non-npm `.cmd` files fail instead of entering a shell.
 
-SIGINT, SIGTERM and SIGHUP abort the current execution. On POSIX, the signal is
-forwarded to the direct child with a 3-second SIGKILL fallback. Cancellation and
+Before spawn, CLI SIGINT cancels preparation. After spawn on POSIX, it is ignored
+by the wrapper: foreground group delivery reaches the child directly, with no
+wrapper forwarding, abort or escalation. PID-only SIGINT is also ignored; use
+SIGTERM for programmatic termination. SIGTERM/SIGHUP retain forwarding and a
+3-second SIGKILL fallback. Windows handling remains unchanged. Cancellation and
 settlement have separate idempotency guards: startup aborts are rechecked, exited
 children are not killed, and at most one escalation timer can exist. Both child
 listeners, the abort listener, and the timer are removed at settlement. A child-originated
@@ -328,3 +332,10 @@ See the [installation layout and safety boundary](runtime-portability.md#stable-
 The [active portability design](runtime-portability.md) records those boundaries.
 Provider SDKs/loops, dynamic downloads, remote events, storage, MCP/skills/context,
 sandbox/DLP/budget systems, persistence and orchestration remain outside this MVP.
+
+## Nested execution decision
+
+See [the stabilization decision](decisions/nested-execution.md) for independent
+execution identity, additive event correlation and native executable identity
+checks. Parent environment metadata has no authorization role. Unconfigured
+invocations now retain the same execution lifecycle with an empty pipeline.
