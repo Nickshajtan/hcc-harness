@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { release } from 'node:os';
-import { basename, resolve, join } from 'node:path';
+import { basename, dirname, resolve, join } from 'node:path';
 import { spawn } from './windows-pty.mjs';
 import { promisify } from 'node:util';
 
@@ -14,6 +14,16 @@ if ('win32' !== process.platform) {
   await mkdir('.test-state', { recursive: true });
   const root = await mkdtemp(resolve('.test-state/pty-cleanup-'));
   const results = [];
+  const coverage = {
+    native: { status: 'FAIL' },
+    stable: {
+      status: 'NOT TESTED',
+      reason: process.env.ARCH_PTY_STABLE_ENTRY
+        ? 'Native regression has not completed; stable PTY scenarios were not reached'
+        : 'ARCH_PTY_STABLE_ENTRY is not configured; native PTY coverage only',
+      generatedStableRuntime: null,
+    },
+  };
   let passed = false;
   try {
     async function check(label, file, args, expected, input) {
@@ -64,6 +74,48 @@ if ('win32' !== process.platform) {
         code,
         'hello\r',
       );
+    }
+    for (const event of ['onExit', 'onData']) {
+      const terminal = spawn(shell, ['/d', '/c', 'echo READY & set /p value= & exit /b 0'], {
+        cwd: root,
+        env: process.env,
+      });
+      const original = new Error(`Deliberate ${event} listener failure`);
+      let throws = 0,
+        exits = 0,
+        output = '',
+        sent = false;
+      terminal[event](() => {
+        if (0 === throws++) {
+          throw original;
+        }
+      });
+      terminal.onData((chunk) => {
+        output += chunk;
+        if (!sent && output.includes('READY')) {
+          sent = true;
+          terminal.write('done\r');
+        }
+      });
+      terminal.onExit(() => {
+        exits++;
+      });
+      await assert.rejects(terminal.settled, (error) => {
+        assert.match(error.message, new RegExp(original.message));
+        assert.ok(
+          error.cause.errors.includes(original),
+          'Original listener error must be retained',
+        );
+        assert.equal(error.evidence.status.code, 0);
+        assert.equal(error.evidence.status.signal, null);
+        assert.equal(error.evidence.result.event.exitCode, 0);
+        assert.deepEqual(error.evidence.residual, []);
+        assert.notEqual(error.evidence.timeoutRecovery, true);
+        assert.equal(exits, 1, 'Later exit listener must run exactly once');
+        assert.ok(sent, 'Later data listener must complete terminal input');
+        results.push({ label: `detected ${event} listener failure`, evidence: error.evidence });
+        return true;
+      });
     }
     const invalid = spawn(join(root, 'missing.exe'), [], { cwd: root, env: process.env });
     await assert.rejects(invalid.settled, (error) => {
@@ -116,8 +168,16 @@ if ('win32' !== process.platform) {
         return true;
       });
     }
+    coverage.native = { status: 'PASS' };
     if (process.env.ARCH_PTY_STABLE_ENTRY) {
       const entry = resolve(process.env.ARCH_PTY_STABLE_ENTRY);
+      coverage.stable = { status: 'FAIL', executable: entry, generatedStableRuntime: null };
+      const installation = JSON.parse(
+        await readFile(join(dirname(entry), 'installation.json'), 'utf8'),
+      );
+      assert.equal(installation.kind, 'arch-stable-installation-v1');
+      assert.equal(installation.platform, 'win32');
+      coverage.stable.generatedStableRuntime = true;
       const management = {
         cwd: root,
         env: { ...process.env, ARCH_NODE: process.execPath },
@@ -149,11 +209,11 @@ if ('win32' !== process.platform) {
       );
       await execute(entry, ['deinit', '--yes'], management);
       results.push({ label: 'stable project deinit', status: 'PASS' });
+      coverage.stable.status = 'PASS';
     } else {
       results.push({
         label: 'stable Arch',
-        status: 'NOT TESTED',
-        reason: 'Set ARCH_PTY_STABLE_ENTRY to isolated stable arch.exe',
+        ...coverage.stable,
       });
     }
     await rm(root, { recursive: true });
@@ -163,13 +223,17 @@ if ('win32' !== process.platform) {
     throw error;
   } finally {
     if (!passed) {
-      await writeFile(join(root, 'results.json'), JSON.stringify({ passed, results }, null, 2));
+      await writeFile(
+        join(root, 'results.json'),
+        JSON.stringify({ passed, coverage, results }, null, 2),
+      );
     }
     await writeFile(
       '.test-state/windows-pty-cleanup.json',
       JSON.stringify(
         {
           passed,
+          coverage,
           windows: release(),
           node: process.version,
           scratch: root,
@@ -179,7 +243,7 @@ if ('win32' !== process.platform) {
         2,
       ),
     );
-    console.log(JSON.stringify({ passed, evidence: root, results }, null, 2));
+    console.log(JSON.stringify({ passed, coverage, evidence: root, results }, null, 2));
     if (passed) {
       console.log('PASS scratch files removed');
     }

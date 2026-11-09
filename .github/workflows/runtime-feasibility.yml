@@ -76,9 +76,15 @@ jobs:
         run: node node_modules/vitest/vitest.mjs run tests/feasibility/runtime-bootstrap.test.ts tests/integration/npm-runtime.test.ts --reporter=default --reporter=json --outputFile=.test-state/m22-b1-executable.json
       - name: Real terminal contract
         run: node scripts/b1/check-runtime-tty.mjs
-      - name: Windows native PTY cleanup regression
+      - name: Windows native and stable Arch PTY cleanup regression
         if: runner.os == 'Windows'
-        run: node scripts/check-pty-cleanup.mjs
+        shell: pwsh
+        run: |
+          $destination = Join-Path $env:RUNNER_TEMP 'arch-pty-cleanup-stable'
+          node dist/install-stable.js --destination $destination
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:ARCH_PTY_STABLE_ENTRY = Join-Path $destination 'arch.exe'
+          node scripts/check-pty-cleanup.mjs
       - name: Publish PASS / FAIL / NOT TESTED evidence
         if: always()
         env:

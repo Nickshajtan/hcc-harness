@@ -143,15 +143,17 @@ termination instructions.
   `scripts/b1/check-runtime-tty.mjs`: Windows isolation and awaited settlement;
   remove explicit supervising-runner exit.
 - `package.json`: `test:pty:windows` script only; dependency policy unchanged.
-- `.github/workflows/runtime-feasibility.yml`: run native cleanup regression on
+- `.github/workflows/runtime-feasibility.yml`: run native and stable cleanup regression on
   Windows and upload its structured evidence; required aggregate unchanged.
 - `docs/testing.md` and this report: lifecycle contract and reproduction.
 
 From a bootstrapped checkout, run `npm.cmd run test:pty:windows`. Only non-Windows
 platforms skip this regression. Missing bindings, unavailable CIM access and
-spawn failures fail explicitly. The native CI check reports stable cases as
-NOT TESTED unless an isolated installed entry is supplied; existing bootstrap
-terminal contracts continue to exercise Arch in the platform matrix.
+spawn failures fail explicitly. A standalone invocation reports stable cases as
+NOT TESTED unless an isolated installed entry is supplied. The Windows CI step
+now provisions a runner-local stable snapshot and supplies that entry explicitly;
+the snapshot remains available through the PTY check and belongs to the disposable
+runner, without altering the separate stable-runtime acceptance fixture.
 
 For stable-install verification, build/install into a fresh absolute destination
 using `npm.cmd run install:stable -- --destination <directory>`, then set the
@@ -159,6 +161,79 @@ process-local `ARCH_PTY_STABLE_ENTRY=<directory>\arch.exe` and run the same test
 The test creates/deinitializes its own project and removes successful scratch
 files. Remove the isolated snapshot separately after all processes settle; it
 does not own or automatically delete a supplied installation.
+
+## PR #26 focused review follow-up
+
+H1: Consumer callbacks previously ran directly in the IPC message handler. An
+`onExit` throw could escape before the release acknowledgement was scheduled;
+an `onData` throw could escape before later input-driving listeners ran. A local
+shared dispatch helper now records synchronous listener exceptions and continues
+dispatch. Ownership capture, result receipt and release remain on the existing
+single-delivery path. Listener errors are raised only after driver close and
+helper settlement. Diagnostics retain their stacks and an AggregateError cause
+containing the original error objects, alongside any infrastructure failure.
+Cleanup success does not convert a listener failure into session success.
+
+Real native PTY negative controls register a deliberately throwing listener before
+another listener. Both the onExit and onData cases reject with the original error,
+deliver the later exit callback exactly once, complete input from the later data
+callback, close the driver with status 0 and settle observed helpers to zero.
+`timeoutRecovery` is recorded only when the driver deadline actually fires; both
+listener controls assert that it did not fire. The deliberate hung-driver control
+still exercises forced failure recovery separately.
+
+Representative follow-up local evidence, from `.test-state/pty-review-native.json`:
+
+| Listener     | Driver | Owned conhost PIDs | Driver status | Residuals | Timeout recovery |
+| ------------ | ------ | ------------------ | ------------- | --------- | ---------------- |
+| onExit throw | 11160  | 5480, 21428        | 0 / no signal | 0         | false            |
+| onData throw | 17556  | 19648, 2968        | 0 / no signal | 0         | false            |
+
+These records also include creation times and executable paths, as in the earlier
+ownership evidence. Both controls were repeated successfully in the configured
+stable run; their expected listener rejection is regression success, not a passing
+PTY session. No global unhandled-exception handler or private node-pty API was added.
+
+H2: Inspection of `stable-runtime.test.ts` found that its `afterAll` calls the
+fixture disposer, removing the stable installation before the later PTY step.
+Reusing its path would require extending another suite's fixture lifetime and
+ownership contract. A disposable local installation from existing build artifacts
+completed in about three seconds, without a rebuild. The narrow CI correction
+therefore creates its own runner-local snapshot with `dist/install-stable.js`,
+using the already recorded npm entry and compiled bootstrap. It does not repeat
+the stable acceptance, copy/build another source checkout or install another Node
+runtime. A failed install fails the step before PTY coverage can be claimed.
+The step sets process-local `ARCH_PTY_STABLE_ENTRY` to the absolute generated
+`arch.exe` and runs the unchanged stable cases in the regression's own project.
+
+Structured evidence separates `coverage.native` and `coverage.stable`. Native
+PASS is assigned only after its completion, listener and fault controls finish.
+Stable PASS is assigned only after its actual PTY cases and project deinit finish.
+When supplied, stable metadata must identify `arch-stable-installation-v1` on
+Windows; evidence records `generatedStableRuntime: true` and the executable path.
+Before identity verification, or when unexecuted, that field is null. Missing
+configuration reports NOT TESTED with a reason; configuration/identity or case
+failure reports FAIL, independently of native PASS.
+
+Follow-up local checks (Windows, Node and node-pty versions unchanged):
+
+- PASS: native completion 0/7, both listener controls, initialization failure,
+  Ctrl+C, cancellation, premature driver exit and hang detection.
+- PASS: configured generated stable router completion 0/7 and stable Arch Ctrl+C,
+  zero observed owned residuals, project deinit and successful scratch removal.
+- PASS: native-only run reports stable NOT TESTED with an explicit missing-entry
+  reason; configured run reports stable PASS and generated-runtime identity.
+- PASS: focused ESLint, typecheck, formatting and diff whitespace checks.
+- NOT TESTED locally: POSIX execution; its terminal fixtures/import paths are
+  unchanged by this review pass. No broad stabilization or mutation campaign ran.
+
+Hosted evidence must be attributed to its actual head. The pre-review commit
+`d86fc4168cff59a7b3852c95b8343638f1816fbe` had successful Windows/Linux/macOS
+[runtime portability CI](https://github.com/Nickshajtan/hcc-harness/actions/runs/42699818697)
+when inspected through gh. That workflow did not configure stable PTY cases and
+did not contain the listener controls. It is not proof of the new coverage.
+The follow-up results above are local evidence; the changed workflow requires
+inspection of the final PR head's completed checks before a merge recommendation.
 
 ## Limitations and verdict
 
@@ -175,6 +250,7 @@ the restricted execution sandbox denied it, so process tests ran with approval
 outside that sandbox. Successful process exit releases owned handles by OS
 contract; no system-wide handle enumeration is claimed. POSIX keeps its original
 node-pty implementation and signal path, but local execution cannot establish
-Linux/macOS regression results. No hosted CI result is claimed. Future node-pty
+Linux/macOS regression results. Hosted evidence is scoped to the inspected commit
+as described above. Future node-pty
 changes should rerun these checks and reconsider whether boundary disposal is
 still necessary. Public-kill console-agent diagnostics remain documented.

@@ -41,6 +41,20 @@ export function spawn(
   });
   const dataListeners = new Set();
   const exitListeners = new Set();
+  const listenerErrors = [];
+  function dispatch(listeners, value) {
+    for (const listener of listeners) {
+      try {
+        listener(value);
+      } catch (error) {
+        // Consumer assertions must fail settlement, never interrupt release or
+        // prevent other listeners from completing the deterministic fixture.
+        listenerErrors.push(
+          error instanceof Error ? error : new Error(String(error), { cause: error }),
+        );
+      }
+    }
+  }
   let stderr = '',
     result,
     spawned,
@@ -94,9 +108,7 @@ export function spawn(
       if ('result' === message.type) {
         result = message;
         if (message.event) {
-          for (const listener of exitListeners) {
-            listener(message.event);
-          }
+          dispatch(exitListeners, message.event);
         }
         void captured.then(() => {
           if (driver.connected) {
@@ -105,13 +117,12 @@ export function spawn(
         });
       }
     } else if ('data' === message.type) {
-      for (const listener of dataListeners) {
-        listener(message.data);
-      }
+      dispatch(dataListeners, message.data);
     }
   });
   driver.on('close', (code, signal) => resolveClosed({ code, signal }));
   const deadline = setTimeout(() => {
+    evidence.timeoutRecovery = true;
     failure = new Error('PTY driver settlement deadline exceeded');
     // Direct captured child only; this is failure recovery and cannot pass.
     driver.kill();
@@ -152,10 +163,18 @@ export function spawn(
       if (!spawned || !evidence.driver) {
         throw new Error('Missing PTY ownership evidence');
       }
+      if (listenerErrors.length) {
+        throw listenerErrors[0];
+      }
       return { ...result.event, evidence };
     } catch (error) {
+      evidence.listenerErrors = listenerErrors.map((failure) => failure.stack ?? String(failure));
+      const causes = listenerErrors.includes(error) ? listenerErrors : [...listenerErrors, error];
+      const cause = listenerErrors.length
+        ? new AggregateError(causes, 'PTY consumer listener failure', { cause: listenerErrors[0] })
+        : error;
       const diagnostic = new Error(`${error.message}\n${JSON.stringify(evidence)}`, {
-        cause: error,
+        cause,
       });
       diagnostic.evidence = evidence;
       throw diagnostic;
