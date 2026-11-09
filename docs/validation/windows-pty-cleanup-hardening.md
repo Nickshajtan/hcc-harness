@@ -235,6 +235,20 @@ did not contain the listener controls. It is not proof of the new coverage.
 The follow-up results above are local evidence; the changed workflow requires
 inspection of the final PR head's completed checks before a merge recommendation.
 
+After pushing implementation commit `d476f02011139b2d47855667d0779777e15e7e37`,
+the [updated hosted runtime run](https://github.com/Nickshajtan/hcc-harness/actions/runs/42706749574)
+completed successfully on Windows, Linux and macOS, including the required aggregate.
+Its downloaded `m22-runtime-windows-latest/windows-pty-cleanup.json` was inspected:
+native and stable coverage both report PASS; the stable executable is the generated
+`D:\a\_temp\arch-pty-cleanup-stable\arch.exe`, with `generatedStableRuntime: true`.
+Both listener controls retain their errors, close drivers with status 0 / no signal,
+and report zero residuals without timeout recovery. Actual stable PTY exits are
+0, 7 and 130, with zero residuals and successful project deinit. This verifies
+the new scenarios themselves, independently of the other stable-runtime tests.
+All checks for that implementation head succeeded; the unrelated effects job was
+SKIPPED by its existing workflow policy. Any subsequent documentation head still
+requires its own final-head status inspection before declaring readiness.
+
 ## Limitations and verdict
 
 **GO for this focused Windows test-infrastructure correction.** The root cause
