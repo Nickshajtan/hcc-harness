@@ -3,7 +3,8 @@ import { copyFile, cp, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from '
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
-import * as pty from 'node-pty';
+const pty =
+  'win32' === process.platform ? await import('../windows-pty.mjs') : await import('node-pty');
 
 // Like the wizard checker, keep node-pty outside Vitest worker threads.
 assert.equal(process.platform, 'win32', 'B1 bootstrap PTY check is Windows-only');
@@ -62,6 +63,7 @@ try {
       done(event.exitCode);
     });
   });
+  await term.settled;
   const text = stripVTControlCharacters(output);
   assert.match(text, /"stdin":true,"stdout":true,"stderr":true,"node":"v20\./);
   assert.ok(text.includes('received:terminal-input'), text);
@@ -80,11 +82,6 @@ try {
   if (term && !ended) {
     term.kill();
   }
+  await term?.settled;
   await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 }
-// All child exits and cleanup are awaited. Like check-wizard.mjs, explicitly end
-// the standalone runner because node-pty 1.1 retains Windows worker handles.
-await Promise.all(
-  [process.stdout, process.stderr].map((stream) => new Promise((done) => stream.write('', done))),
-);
-process.exit(0);

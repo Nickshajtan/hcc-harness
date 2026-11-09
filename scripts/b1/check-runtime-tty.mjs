@@ -13,8 +13,9 @@ import {
 import { tmpdir } from 'node:os';
 import { delimiter, join, resolve } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
-import * as pty from 'node-pty';
 import { createRequire } from 'node:module';
+const pty =
+  'win32' === process.platform ? await import('../windows-pty.mjs') : await import('node-pty');
 
 assert.ok(['win32', 'darwin', 'linux'].includes(process.platform), 'Unsupported contract platform');
 const windows = 'win32' === process.platform;
@@ -121,6 +122,7 @@ try {
       done(event.exitCode);
     });
   });
+  await term.settled;
   const text = stripVTControlCharacters(output);
   assert.match(text, /"stdin":true,"stdout":true,"stderr":true,"node":"v22\./);
   assert.ok(text.includes('received:terminal-input'), text);
@@ -139,12 +141,9 @@ try {
   if (term && !ended) {
     term.kill();
   }
+  await term?.settled;
   await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   await mkdir('.test-state', { recursive: true });
   await writeFile('.test-state/m22-runtime-tty.json', JSON.stringify(evidence, null, 2));
 }
 console.log('PASS runtime TTY, keyboard input, independent Node 22 and native exit 9');
-await Promise.all(
-  [process.stdout, process.stderr].map((stream) => new Promise((done) => stream.write('', done))),
-);
-process.exit(0);
