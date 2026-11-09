@@ -202,8 +202,15 @@ node scripts/b1/summarize-runtime.mjs
 
 The supplemental `check-tty.mjs` retains original Node 20 ConPTY coverage;
 `check-runtime-tty.mjs` is the permanent three-platform Node 22 terminal contract.
-Both run outside Vitest workers, await exits/cleanup, then explicitly exit to release
-node-pty 1.1 Windows handles. The version-compatibility test uses real binaries,
+Both run outside Vitest workers. On Windows, each PTY has a dedicated driver;
+the parent awaits driver close and identity-based helper settlement. The driver
+exits only after reporting its result and receiving the parent's release
+acknowledgement; the supervising runner exits naturally. POSIX retains its
+existing node-pty path. `npm run test:pty:windows` exercises native cleanup and
+premature-exit/hang detection. Set process-local `ARCH_PTY_STABLE_ENTRY` to an
+isolated installed `arch.exe` to additionally exercise stable project routers.
+See [cleanup evidence and limitations](validation/windows-pty-cleanup-hardening.md).
+The version-compatibility test uses real binaries,
 not fake version strings alone. See [active design limits](runtime-portability.md).
 
 ## Wizard and manual integration

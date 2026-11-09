@@ -17,12 +17,13 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve, delimiter } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 import { pathToFileURL } from 'node:url';
-import * as pty from 'node-pty';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+const pty =
+  'win32' === process.platform ? await import('./windows-pty.mjs') : await import('node-pty');
 
 // Standalone rather than a Vitest worker: node-pty's native bindings are not
-// thread-safe. All sessions below run serially in this process, without a shell.
+// thread-safe. Windows sessions each own a dedicated PTY subprocess.
 const evidence = resolve('.test-state/wizard');
 const temporary = await realpath(tmpdir());
 const sandbox = await realpath(await mkdtemp(join(temporary, 'arch-wizard-ci-')));
@@ -163,6 +164,7 @@ function terminal(label, args, command = process.execPath) {
           clearTimeout(timer);
         }
       }
+      await child.settled;
       data.dispose();
       ended.dispose();
     },
@@ -472,10 +474,4 @@ try {
   assert.ok(basename(sandbox).startsWith('arch-wizard-ci-'));
   await rm(sandbox, { recursive: true, force: true });
 }
-// Every CLI exit has been awaited, all evidence is saved, and scratch files are
-// removed. node-pty 1.1 can retain Windows worker handles after child exit; end
-// this standalone runner explicitly (its own test suite likewise uses --exit).
-await Promise.all(
-  [process.stdout, process.stderr].map((stream) => new Promise((done) => stream.write('', done))),
-);
-process.exit(failure ? 1 : 0);
+process.exitCode = failure ? 1 : 0;
