@@ -113,7 +113,7 @@ it('serializes policy failures without raw exception or request payload', async 
     requestId: 'one',
     permitted: false,
     denials: [],
-    failures: [{ stage: 'handler', middlewareId: 'broken' }],
+    failures: [{ stage: 'handler', code: 'exception', middlewareId: 'broken' }],
   });
   expect(diagnostics.text()).toContain('policy-error');
   expect(output.text()).not.toContain('secret');
@@ -216,4 +216,98 @@ it('keeps a denial distinct from infrastructure errors', async () => {
     denials: [{ middlewareId: 'deny', reason: 'approval' }],
   });
   expect(diagnostics.text()).toBe('[arch mock hook] deny\n');
+});
+
+it.each(['missing', 'no-handler', 'invalid-timeout'] as const)(
+  'refuses trusted configuration failure %s',
+  async (scenario) => {
+    const modules: Registry = new Map([
+      [
+        'required',
+        () => ({ id: 'required', register: () => undefined, registerPolicy: () => undefined }),
+      ],
+    ]);
+    const { settings, output, diagnostics } = options(
+      request,
+      'missing' === scenario ? new Map() : modules,
+    );
+    expect(
+      await runMockHook({
+        ...settings,
+        policyOptions: {
+          requiredPolicies: ['required'],
+          timeoutMs: 'invalid-timeout' === scenario ? 0 : 20,
+        },
+      }),
+    ).toBe(7);
+    expect(JSON.parse(output.text())).toMatchObject({
+      outcome: 'policy-error',
+      permitted: false,
+      failures: [{ code: 'configuration-error' }],
+    });
+    expect(diagnostics.text()).toBe('[arch mock hook] policy-error\n');
+  },
+);
+
+it('refuses invalid async registration even when it registered an allow handler first', async () => {
+  const modules: Registry = new Map([
+    [
+      'required',
+      () => ({
+        id: 'required',
+        register: () => undefined,
+        registerPolicy(api) {
+          api.on('agent.beforeSpawn', () => ({ action: 'allow' }));
+          return Promise.reject(new Error('private detail'));
+        },
+      }),
+    ],
+  ]);
+  const { settings, output } = options(request, modules);
+  expect(
+    await runMockHook({ ...settings, policyOptions: { requiredPolicies: ['required'] } }),
+  ).toBe(3);
+  expect(JSON.parse(output.text())).toMatchObject({
+    outcome: 'policy-error',
+    permitted: false,
+    failures: [{ code: 'registration-contract', middlewareId: 'required' }],
+  });
+  expect(output.text()).not.toContain('private detail');
+});
+
+it('refuses a timed-out mandatory handler and preserves the distinct timeout exit status', async () => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
+  try {
+    const modules: Registry = new Map([
+      [
+        'required',
+        () => ({
+          id: 'required',
+          register: () => undefined,
+          registerPolicy(api) {
+            api.on('agent.beforeSpawn', () => new Promise(() => undefined));
+            api.cleanup(() => {
+              expect(api.signal?.aborted).toBe(true);
+            });
+          },
+        }),
+      ],
+    ]);
+    const { settings, output, diagnostics } = options(request, modules);
+    const pending = runMockHook({
+      ...settings,
+      policyOptions: { requiredPolicies: ['required'], timeoutMs: 20, cleanupGraceMs: 10 },
+    });
+    await vi.advanceTimersByTimeAsync(20);
+    expect(await pending).toBe(6);
+    expect(JSON.parse(output.text())).toMatchObject({
+      outcome: 'policy-error',
+      permitted: false,
+      failures: [{ code: 'timeout', stage: 'handler', middlewareId: 'required' }],
+    });
+    expect(diagnostics.text()).toBe('[arch mock hook] policy-error\n');
+    expect(vi.getTimerCount()).toBe(0);
+  } finally {
+    vi.useRealTimers();
+  }
 });

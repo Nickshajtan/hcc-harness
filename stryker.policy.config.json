@@ -8,9 +8,11 @@
     "vitest.policy.config.ts",
     "src/**/*.ts",
     "tests/unit/policy.test.ts",
+    "tests/unit/policy-hardening.test.ts",
+    "tests/unit/policy-deadline.test.ts",
     "tests/unit/mock-provider.test.ts"
   ],
-  "mutate": ["src/policy.ts", "src/mock-provider.ts"],
+  "mutate": ["src/policy.ts", "src/policy-deadline.ts", "src/mock-provider.ts"],
   "vitest": { "configFile": "vitest.policy.config.ts" },
   "coverageAnalysis": "perTest",
   "concurrency": 2,

@@ -1,5 +1,7 @@
 import type { Configuration } from './config.js';
 import type { Registry } from './middleware.js';
+import { isPromise } from 'node:util/types';
+import { PolicyDeadline } from './policy-deadline.js';
 
 import type {
   AgentBeforeSpawn,
@@ -7,12 +9,14 @@ import type {
   PolicyDenial,
   PolicyFailure,
   PolicyResult,
+  PolicyDispatchOptions,
 } from './policy-contract.js';
 export type {
   AgentBeforeSpawn,
   PolicyAPI,
   PolicyDecision,
   PolicyResult,
+  PolicyDispatchOptions,
 } from './policy-contract.js';
 const requestFields = [
   'type',
@@ -79,15 +83,59 @@ function validDecision(value: unknown): value is PolicyDecision {
   );
 }
 
+function dispatchOptions(options: PolicyDispatchOptions) {
+  const { timeoutMs = 5000, cleanupGraceMs = 100, requiredPolicies: candidate = [] } = options;
+  if (
+    !Number.isInteger(timeoutMs) ||
+    1 > timeoutMs ||
+    60_000 < timeoutMs ||
+    !Number.isInteger(cleanupGraceMs) ||
+    1 > cleanupGraceMs ||
+    1000 < cleanupGraceMs ||
+    !Array.isArray(candidate) ||
+    64 < candidate.length
+  ) {
+    throw new Error('Invalid policy dispatch options');
+  }
+  const requirements: readonly unknown[] = candidate;
+  const requiredPolicies = requirements.map((id) => {
+    if ('string' !== typeof id || !/^[a-z][a-z0-9-]*$/.test(id)) {
+      throw new Error('Invalid policy requirement');
+    }
+    return id;
+  });
+  if (new Set(requiredPolicies).size !== requiredPolicies.length) {
+    throw new Error('Duplicate policy requirement');
+  }
+  return { timeoutMs, cleanupGraceMs, requiredPolicies };
+}
+
+function assertSynchronousRegistration(returned: unknown): void {
+  if (undefined === returned) {
+    return;
+  }
+  if (isPromise(returned)) {
+    // Do not invoke a user-defined then/catch or assimilate arbitrary thenables.
+    // Observe genuine rejected async registrations, including their late API errors.
+    void Promise.prototype.then.call(
+      returned,
+      () => undefined,
+      () => undefined,
+    );
+  }
+  throw new Error('Policy registration must return undefined synchronously');
+}
+
 /** One invocation owns all handlers and cleanup. EventBus deliberately has no role here. */
 export async function dispatchPolicy(
   input: unknown,
   configuration: Pick<Configuration, 'middleware'>,
   registry: Registry,
+  options: PolicyDispatchOptions = {},
 ): Promise<PolicyResult> {
   const request = parsePolicyRequest(input);
   if (!request) {
-    return { outcome: 'invalid-request' };
+    return Object.freeze({ outcome: 'invalid-request' });
   }
   const handlers: {
     id: string;
@@ -96,10 +144,31 @@ export async function dispatchPolicy(
   const cleanups: { id: string; run: () => void | Promise<void> }[] = [];
   const denials: PolicyDenial[] = [];
   const failures: PolicyFailure[] = [];
-  let state: 'registration' | 'handlers' | 'cleanup' | 'closed' = 'registration';
+  let state: 'configuration' | 'registration' | 'handler' | 'cleanup' | 'closed' = 'configuration';
   let currentId = '';
+  let code: PolicyFailure['code'] = 'configuration-error';
+  let deadline: PolicyDeadline | undefined;
   try {
-    for (const entry of configuration.middleware) {
+    const settings = dispatchOptions(options);
+    const entries = configuration.middleware.map((entry) => ({ ...entry }));
+    if (new Set(entries.map((entry) => entry.id)).size !== entries.length) {
+      throw new Error('Duplicate middleware configuration');
+    }
+    for (const id of settings.requiredPolicies) {
+      currentId = id;
+      const entry = entries.find((entry) => entry.id === id);
+      if (!entry || !registry.has(id)) {
+        throw new Error('Required policy is missing');
+      }
+      if (!entry.enabled) {
+        throw new Error('Required policy is disabled');
+      }
+    }
+    deadline = new PolicyDeadline(settings.timeoutMs, settings.cleanupGraceMs);
+    const activeDeadline = deadline;
+    state = 'registration';
+    code = 'exception';
+    for (const entry of entries) {
       if (!entry.enabled) {
         continue;
       }
@@ -110,56 +179,122 @@ export async function dispatchPolicy(
       }
       const middleware = factory();
       if (middleware.id !== entry.id) {
+        code = 'configuration-error';
         throw new Error('Middleware registration id mismatch');
       }
       const id = entry.id;
-      middleware.registerPolicy?.(
-        Object.freeze({
-          on(
-            type: string,
-            run: (request: AgentBeforeSpawn) => PolicyDecision | Promise<PolicyDecision>,
-          ) {
-            if ('registration' !== state || 'agent.beforeSpawn' !== type) {
-              throw new Error('Invalid policy hook registration');
-            }
-            handlers.push({ id, run });
-          },
-          cleanup(run: () => void | Promise<void>) {
-            if ('cleanup' === state || 'closed' === state) {
-              throw new Error('Policy cleanup registration has ended');
-            }
-            cleanups.push({ id, run });
-          },
-        }),
-      );
+      let registering = true;
+      try {
+        const returned: unknown = middleware.registerPolicy?.(
+          Object.freeze({
+            signal: activeDeadline.signal,
+            on(
+              type: string,
+              run: (request: AgentBeforeSpawn) => PolicyDecision | Promise<PolicyDecision>,
+            ) {
+              if (
+                !registering ||
+                'registration' !== state ||
+                activeDeadline.hasExpired() ||
+                'agent.beforeSpawn' !== type
+              ) {
+                throw new Error('Invalid policy hook registration');
+              }
+              handlers.push({ id, run });
+            },
+            cleanup(run: () => void | Promise<void>) {
+              if ('cleanup' === state || 'closed' === state || activeDeadline.hasExpired()) {
+                throw new Error('Policy cleanup registration has ended');
+              }
+              cleanups.push({ id, run });
+            },
+          }),
+        );
+        code = 'registration-contract';
+        assertSynchronousRegistration(returned);
+        code = 'exception';
+      } finally {
+        registering = false;
+      }
+      if (deadline.hasExpired()) {
+        code = 'timeout';
+        throw new Error('Policy dispatch deadline exceeded');
+      }
     }
-    state = 'handlers';
+    for (const id of settings.requiredPolicies) {
+      if (!handlers.some((handler) => handler.id === id)) {
+        currentId = id;
+        code = 'configuration-error';
+        throw new Error('Required policy has no applicable handler');
+      }
+    }
+    state = 'handler';
     for (const handler of handlers) {
       currentId = handler.id;
-      const decision: unknown = await handler.run(request);
+      if (deadline.hasExpired()) {
+        code = 'timeout';
+        throw new Error('Policy dispatch deadline exceeded');
+      }
+      const settlement = await deadline.wait(() => handler.run(request), 'handler');
+      if ('timeout' === settlement.status || deadline.hasExpired()) {
+        code = 'timeout';
+        throw new Error('Policy dispatch deadline exceeded');
+      }
+      if ('rejected' === settlement.status) {
+        failures.push({
+          stage: 'handler',
+          code: 'exception',
+          middlewareId: handler.id,
+          cause: settlement.cause,
+        });
+        break;
+      }
+      const decision: unknown = settlement.value;
       if (!validDecision(decision)) {
+        code = 'invalid-decision';
         throw new Error('Invalid policy decision');
       }
       if ('deny' === decision.action) {
         denials.push(Object.freeze({ middlewareId: handler.id, reason: decision.reason }));
       }
     }
+    if (deadline.hasExpired() && !failures.length) {
+      code = 'timeout';
+      throw new Error('Policy dispatch deadline exceeded');
+    }
   } catch (cause) {
     failures.push({
-      stage: 'registration' === state ? 'registration' : 'handler',
+      stage: state,
+      code,
       middlewareId: currentId,
       cause,
     });
   } finally {
     state = 'cleanup';
-    for (const cleanup of cleanups.reverse()) {
-      try {
-        await cleanup.run();
-      } catch (cause) {
-        failures.push({ stage: 'cleanup', middlewareId: cleanup.id, cause });
+    if (deadline) {
+      for (const cleanup of cleanups.reverse()) {
+        const alreadyExpired = deadline.hasExpired();
+        const settlement = await deadline.wait(cleanup.run, 'cleanup');
+        if ('timeout' === settlement.status || (!alreadyExpired && deadline.hasExpired())) {
+          failures.push({
+            stage: 'cleanup',
+            code: 'timeout',
+            middlewareId: cleanup.id,
+            cause: new Error('Policy cleanup deadline exceeded'),
+          });
+        }
+        if ('rejected' === settlement.status) {
+          failures.push({
+            stage: 'cleanup',
+            code: 'exception',
+            middlewareId: cleanup.id,
+            cause: settlement.cause,
+          });
+        }
       }
     }
     state = 'closed';
+    deadline?.dispose();
   }
   let outcome: 'allow' | 'deny' | 'policy-error' = 'allow';
   if (denials.length) {
@@ -172,6 +307,6 @@ export async function dispatchPolicy(
     outcome,
     requestId: request.requestId,
     denials: Object.freeze(denials),
-    failures: Object.freeze(failures),
+    failures: Object.freeze(failures.map((failure) => Object.freeze(failure))),
   });
 }

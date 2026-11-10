@@ -1,7 +1,12 @@
 import type { Readable, Writable } from 'node:stream';
 import type { Configuration } from './config.js';
 import type { Registry } from './middleware.js';
-import { dispatchPolicy, parsePolicyRequest, type PolicyResult } from './policy.js';
+import {
+  dispatchPolicy,
+  parsePolicyRequest,
+  type PolicyResult,
+  type PolicyDispatchOptions,
+} from './policy.js';
 
 /** This describes only the local mock's refusal behavior, not any real provider. */
 export const mockProviderCapabilities = Object.freeze({ 'agent.beforeSpawn': true });
@@ -14,6 +19,7 @@ export interface MockHookOptions {
   readonly diagnostics: Writable;
   readonly configuration: Pick<Configuration, 'middleware'>;
   readonly registry: Registry;
+  readonly policyOptions?: PolicyDispatchOptions;
   /** Trusted adapter binding, never read from the provider request. */
   readonly capabilities: { readonly 'agent.beforeSpawn': boolean };
 }
@@ -66,7 +72,11 @@ function response(result: PolicyResult): object {
     requestId: result.requestId,
     // Policy reasons are trusted module diagnostics, not echoed provider payloads.
     denials: result.denials,
-    failures: result.failures.map(({ stage, middlewareId }) => ({ stage, middlewareId })),
+    failures: result.failures.map(({ stage, code, middlewareId }) => ({
+      stage,
+      code,
+      middlewareId,
+    })),
     permitted: 'allow' === result.outcome,
   };
 }
@@ -93,7 +103,12 @@ export async function runMockHook(options: MockHookOptions): Promise<number> {
   } else if (!options.capabilities['agent.beforeSpawn']) {
     result = { outcome: 'unsupported', requestId: request.requestId, permitted: false };
   } else {
-    result = await dispatchPolicy(request, options.configuration, options.registry);
+    result = await dispatchPolicy(
+      request,
+      options.configuration,
+      options.registry,
+      options.policyOptions,
+    );
   }
   try {
     await write(
@@ -118,6 +133,12 @@ export async function runMockHook(options: MockHookOptions): Promise<number> {
     case 'invalid-request':
       return 2;
     case 'policy-error':
+      if ('timeout' === result.failures[0]?.code) {
+        return 6;
+      }
+      if ('configuration-error' === result.failures[0]?.code) {
+        return 7;
+      }
       return 3;
     case 'unsupported':
       return 4;

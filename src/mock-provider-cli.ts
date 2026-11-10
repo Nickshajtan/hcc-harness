@@ -22,6 +22,11 @@ try {
     output: process.stdout,
     diagnostics: process.stderr,
     capabilities: mockProviderCapabilities,
+    policyOptions: {
+      requiredPolicies: ['economy-delegation'],
+      timeoutMs: 5000,
+      cleanupGraceMs: 100,
+    },
     configuration: { middleware: [{ id: 'economy-delegation', enabled: true }] },
     registry: new Map([['economy-delegation', economyDelegation]]),
   });

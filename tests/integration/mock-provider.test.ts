@@ -12,8 +12,9 @@ const request = {
   parentAgentId: 'economy-main',
 };
 
-async function hook(input: string, cwd: string) {
-  const child = spawn(process.execPath, [entry], { cwd, stdio: ['pipe', 'pipe', 'pipe'] });
+async function hook(input: string, cwd: string, scenario?: string) {
+  const args = scenario ? [resolve('tests/fixtures/policy-hook.mjs'), scenario] : [entry];
+  const child = spawn(process.execPath, args, { cwd, stdio: ['pipe', 'pipe', 'pipe'] });
   let stdout = '',
     stderr = '';
   child.stdout.setEncoding('utf8').on('data', (chunk: string) => {
@@ -80,4 +81,43 @@ it.each([
   expect(result.code).toBe(2);
   expect(JSON.parse(result.stdout)).toEqual({ outcome: 'invalid-request' });
   expect(result.stderr).toBe('[arch mock hook] invalid-request\n');
+});
+
+it.each([
+  ['async-registration', 3, 'registration-contract'],
+  ['missing-policy', 7, 'configuration-error'],
+  ['handler-timeout', 6, 'timeout'],
+] as const)('the real mock transport refuses %s', async (scenario, code, failureCode) => {
+  const result = await hook(JSON.stringify(request), tmpdir(), scenario);
+  expect(result.code).toBe(code);
+  expect(result.stdout.trim().split('\n')).toHaveLength(1);
+  const response: unknown = JSON.parse(result.stdout);
+  expect(response).toMatchObject({
+    outcome: 'policy-error',
+    permitted: false,
+    requestId: request.requestId,
+  });
+  const failures = (response as { failures: unknown[] }).failures;
+  const primaryStage = 'async-registration' === scenario ? 'registration' : 'configuration';
+  if ('handler-timeout' === scenario) {
+    const primary = failures[0] as { stage: unknown };
+    expect(['registration', 'handler']).toContain(primary.stage);
+    expect(primary).toEqual({
+      code: 'timeout',
+      middlewareId: 'required',
+      stage: primary.stage,
+    });
+    // Scheduler delay can exhaust the same grace before even synchronous cleanup settles.
+    // Keep the exact primary refusal and validate any secondary diagnostic, without retries.
+    expect(failures.length).toBeLessThanOrEqual(2);
+    for (const secondary of failures.slice(1)) {
+      expect(secondary).toEqual({ code: 'timeout', middlewareId: 'required', stage: 'cleanup' });
+    }
+  } else {
+    expect(failures).toEqual([
+      { code: failureCode, middlewareId: 'required', stage: primaryStage },
+    ]);
+  }
+  expect(result.stderr).toBe('[arch mock hook] policy-error\n');
+  expect(result.stdout + result.stderr).not.toContain('private');
 });
