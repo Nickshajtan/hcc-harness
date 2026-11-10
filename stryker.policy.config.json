@@ -1,0 +1,30 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "testRunner": "vitest",
+  "plugins": ["@stryker-mutator/vitest-runner"],
+  "files": [
+    "package.json",
+    "tsconfig.json",
+    "vitest.policy.config.ts",
+    "src/**/*.ts",
+    "tests/unit/policy.test.ts",
+    "tests/unit/policy-hardening.test.ts",
+    "tests/unit/policy-deadline.test.ts",
+    "tests/unit/policy-cleanup.test.ts",
+    "tests/unit/mock-transport.test.ts",
+    "tests/unit/mock-provider.test.ts"
+  ],
+  "mutate": [
+    "src/policy.ts",
+    "src/policy-deadline.ts",
+    "src/mock-provider.ts",
+    "src/mock-transport.ts"
+  ],
+  "vitest": { "configFile": "vitest.policy.config.ts" },
+  "coverageAnalysis": "perTest",
+  "concurrency": 2,
+  "reporters": ["clear-text", "json", "html"],
+  "jsonReporter": { "fileName": "reports/mutation-policy/mutation.json" },
+  "htmlReporter": { "fileName": "reports/mutation-policy/index.html" },
+  "thresholds": { "break": 0 }
+}

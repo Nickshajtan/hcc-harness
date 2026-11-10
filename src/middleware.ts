@@ -1,6 +1,7 @@
 import { createHooks } from 'hookable';
 import type { EventBus } from './events.js';
 import { event } from './events.js';
+import type { PolicyAPI } from './policy-contract.js';
 
 export interface ExecutionContext {
   readonly executionId: string;
@@ -22,6 +23,7 @@ export interface MiddlewareAPI {
 export interface ArchMiddleware {
   readonly id: string;
   register(api: MiddlewareAPI): void;
+  registerPolicy?(api: PolicyAPI): void;
 }
 export type Registry = ReadonlyMap<string, () => ArchMiddleware>;
 

@@ -88,6 +88,10 @@ or dependency graph is implied.
 
 ## Events
 
+Provider-originated policy requests use a separate typed decision channel; see
+[provider policy dispatch](provider-policy.md). They do not create an execution
+session or publish enforcement requests through the observational bus below.
+
 Emittery 2.1 supplies the underlying bus. Its listener API delivers `{ name, data }`;
 the adapter exposes only typed Arch event envelopes. The four types are
 `execution.started`, `middleware.completed`, `execution.completed`, and
