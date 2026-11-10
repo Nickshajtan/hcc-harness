@@ -515,7 +515,7 @@ it('appends cleanup rejection after a primary handler timeout', async () => {
   ]);
 });
 
-it('bounds all cleanup with one shared grace, attempts every callback and contains late rejection', async () => {
+it('bounds cleanup with shared grace, skips late callbacks and contains late rejection', async () => {
   const gate = deferred<undefined>();
   const calls: number[] = [];
   const pending = policy((api) => {
@@ -533,9 +533,13 @@ it('bounds all cleanup with one shared grace, attempts every callback and contai
   expect(result.failures).toMatchObject([
     { stage: 'handler', code: 'timeout' },
     { stage: 'cleanup', code: 'timeout' },
-    { stage: 'cleanup', code: 'timeout' },
+    { stage: 'cleanup', code: 'cleanup-skipped' },
   ]);
-  expect(calls).toEqual([2, 1]);
+  expect(calls).toEqual([2]);
+  expect(result.cleanup).toEqual([
+    { middlewareId: 'required', registrationIndex: 1, status: 'timed-out' },
+    { middlewareId: 'required', registrationIndex: 0, status: 'skipped-deadline' },
+  ]);
   const snapshot = [...result.failures];
   gate.reject(new Error('late cleanup'));
   await vi.advanceTimersByTimeAsync(0);

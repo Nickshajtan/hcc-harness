@@ -1,6 +1,26 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { PolicyDeadline } from '../../src/policy-deadline.js';
 
+it.each(['handler', 'cleanup'] as const)(
+  'refuses %s admission at its exact end without waiting for timer delivery',
+  async (phase) => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
+    const deadline = new PolicyDeadline(20, 10);
+    const operation = vi.fn();
+    const clock = vi.spyOn(performance, 'now').mockReturnValue('cleanup' === phase ? 30 : 20);
+    try {
+      expect(await deadline.wait(operation, phase)).toEqual({
+        status: 'cleanup' === phase ? 'skipped-deadline' : 'timeout',
+      });
+      expect(operation).not.toHaveBeenCalled();
+      expect(deadline.signal.aborted).toBe(true);
+    } finally {
+      clock.mockRestore();
+      deadline.dispose();
+    }
+  },
+);
+
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
 });

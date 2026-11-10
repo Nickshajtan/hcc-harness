@@ -12,7 +12,12 @@ const request = {
   parentAgentId: 'economy-main',
 };
 
-async function hook(input: string, cwd: string, scenario?: string) {
+async function hook(
+  input: string,
+  cwd: string,
+  scenario?: string,
+  control: { keepInputOpen?: boolean; closeOutput?: boolean } = {},
+) {
   const args = scenario ? [resolve('tests/fixtures/policy-hook.mjs'), scenario] : [entry];
   const child = spawn(process.execPath, args, { cwd, stdio: ['pipe', 'pipe', 'pipe'] });
   let stdout = '',
@@ -29,13 +34,49 @@ async function hook(input: string, cwd: string, scenario?: string) {
       throw error;
     }
   });
-  const closed = new Promise<number | null>((resolve, reject) => {
-    child.once('error', reject);
+  let spawnError: Error | undefined;
+  child.once('error', (error) => {
+    spawnError = error;
+  });
+  const closed = new Promise<number | null>((resolve) => {
     child.once('close', resolve);
   });
-  child.stdin.end(input);
-  const code = await closed;
-  return { code, stdout, stderr };
+  let watchdogRecovery = false;
+  const watchdog = setTimeout(() => {
+    watchdogRecovery = true;
+    child.kill();
+  }, 5000);
+  try {
+    if (control.closeOutput) {
+      child.stdout.destroy();
+    }
+    if (control.keepInputOpen) {
+      if (input) {
+        child.stdin.write(input);
+      }
+    } else {
+      child.stdin.end(input);
+    }
+    const code = await closed;
+    if (watchdogRecovery) {
+      throw new Error('Test watchdog killed the mock: lifecycle did not complete');
+    }
+    if (spawnError) {
+      throw spawnError;
+    }
+    expect(child.exitCode).not.toBeNull();
+    expect(child.signalCode).toBeNull();
+    return { code, stdout, stderr };
+  } finally {
+    clearTimeout(watchdog);
+    if (null === child.exitCode && null === child.signalCode) {
+      child.kill();
+      await closed;
+    }
+    child.stdin.destroy();
+    child.stdout.destroy();
+    child.stderr.destroy();
+  }
 }
 
 it.each([
@@ -83,6 +124,32 @@ it.each([
   expect(result.stderr).toBe('[arch mock hook] invalid-request\n');
 });
 
+it.each(['', '{'])(
+  'the actual CLI exits with input-timeout while stdin stays open %#',
+  async (partial) => {
+    const result = await hook(partial, tmpdir(), undefined, { keepInputOpen: true });
+    expect(result.code).toBe(5);
+    expect(JSON.parse(result.stdout)).toEqual({
+      outcome: 'transport-error',
+      permitted: false,
+      failure: { stage: 'input', code: 'input-timeout' },
+    });
+    expect(result.stderr).toBe('[arch mock hook] input-timeout\n');
+  },
+);
+
+it('the actual CLI fails transport when its response pipe is closed', async () => {
+  const result = await hook(
+    JSON.stringify({ ...request, requestedModel: 'economy' }),
+    tmpdir(),
+    undefined,
+    { closeOutput: true },
+  );
+  expect(result.code).toBe(5);
+  expect(result.stdout).toBe('');
+  expect(result.stderr).toBe('[arch mock hook] transport-error\n');
+});
+
 it.each([
   ['async-registration', 3, 'registration-contract'],
   ['missing-policy', 7, 'configuration-error'],
@@ -98,6 +165,7 @@ it.each([
     requestId: request.requestId,
   });
   const failures = (response as { failures: unknown[] }).failures;
+  const cleanup = (response as { cleanup: unknown[] }).cleanup;
   const primaryStage = 'async-registration' === scenario ? 'registration' : 'configuration';
   if ('handler-timeout' === scenario) {
     const primary = failures[0] as { stage: unknown };
@@ -109,14 +177,45 @@ it.each([
     });
     // Scheduler delay can exhaust the same grace before even synchronous cleanup settles.
     // Keep the exact primary refusal and validate any secondary diagnostic, without retries.
+  } else {
+    expect(failures[0]).toEqual({
+      code: failureCode,
+      middlewareId: 'required',
+      stage: primaryStage,
+    });
+  }
+  if ('missing-policy' === scenario) {
+    expect(cleanup).toEqual([]);
+    expect(failures).toHaveLength(1);
+  } else {
     expect(failures.length).toBeLessThanOrEqual(2);
     for (const secondary of failures.slice(1)) {
-      expect(secondary).toEqual({ code: 'timeout', middlewareId: 'required', stage: 'cleanup' });
+      const diagnostic = secondary as { code: unknown };
+      expect(['timeout', 'cleanup-skipped']).toContain(diagnostic.code);
+      expect(secondary).toEqual({
+        code: diagnostic.code,
+        middlewareId: 'required',
+        stage: 'cleanup',
+      });
     }
-  } else {
-    expect(failures).toEqual([
-      { code: failureCode, middlewareId: 'required', stage: primaryStage },
-    ]);
+    expect(cleanup).toHaveLength(1);
+    const recorded = cleanup[0] as { status: unknown };
+    expect(['completed', 'timed-out', 'skipped-deadline']).toContain(recorded.status);
+    expect(cleanup[0]).toEqual({
+      middlewareId: 'required',
+      registrationIndex: 0,
+      status: recorded.status,
+    });
+    if ('skipped-deadline' === recorded.status) {
+      expect(failures[1]).toEqual({
+        code: 'cleanup-skipped',
+        middlewareId: 'required',
+        stage: 'cleanup',
+      });
+    }
+    if ('timed-out' === recorded.status) {
+      expect(failures[1]).toEqual({ code: 'timeout', middlewareId: 'required', stage: 'cleanup' });
+    }
   }
   expect(result.stderr).toBe('[arch mock hook] policy-error\n');
   expect(result.stdout + result.stderr).not.toContain('private');

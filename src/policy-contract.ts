@@ -28,10 +28,21 @@ export interface PolicyDenial {
 export interface PolicyFailure {
   readonly stage: 'configuration' | 'registration' | 'handler' | 'cleanup';
   readonly code:
-    'configuration-error' | 'registration-contract' | 'invalid-decision' | 'exception' | 'timeout';
+    | 'configuration-error'
+    | 'registration-contract'
+    | 'invalid-decision'
+    | 'exception'
+    | 'timeout'
+    | 'cleanup-skipped';
   readonly middlewareId: string;
   /** Local diagnostics only: adapters must not serialize raw exceptions. */
   readonly cause: unknown;
+}
+export interface PolicyCleanupResult {
+  readonly middlewareId: string;
+  /** Zero-based position in the dispatch's cleanup registration list. */
+  readonly registrationIndex: number;
+  readonly status: 'completed' | 'failed' | 'timed-out' | 'skipped-deadline';
 }
 export interface PolicyDispatchOptions {
   /** Trusted local requirements for this event, never taken from request fields. */
@@ -48,4 +59,5 @@ export type PolicyResult =
       readonly requestId: string;
       readonly denials: readonly PolicyDenial[];
       readonly failures: readonly PolicyFailure[];
+      readonly cleanup: readonly PolicyCleanupResult[];
     };

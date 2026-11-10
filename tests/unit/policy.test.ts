@@ -39,6 +39,7 @@ it('allows independently without creating identities or a model, with a frozen c
   expect(await dispatchPolicy(request, config('inspect'), modules)).toEqual({
     outcome: 'allow',
     requestId: 'request-1',
+    cleanup: [],
     denials: [],
     failures: [],
   });
@@ -70,6 +71,10 @@ it('uses configuration then handler order, retains every denial, and cleans once
   expect(result).toEqual({
     outcome: 'deny',
     requestId: request.requestId,
+    cleanup: [
+      { middlewareId: 'first', registrationIndex: 1, status: 'completed' },
+      { middlewareId: 'second', registrationIndex: 0, status: 'completed' },
+    ],
     denials: [
       { middlewareId: 'second', reason: 'second' },
       { middlewareId: 'first', reason: 'first' },

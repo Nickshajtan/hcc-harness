@@ -33,4 +33,11 @@ try {
 } catch {
   // stderr itself may be unavailable. A failed transport must never exit successfully.
   process.exitCode = 5;
+} finally {
+  // Only this executable owns its stdio. Library callers retain their own streams.
+  process.stdin.destroy();
+  if (5 === process.exitCode) {
+    process.stdout.destroy();
+    process.stderr.destroy();
+  }
 }

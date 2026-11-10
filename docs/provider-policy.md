@@ -143,15 +143,32 @@ registerPolicy(api) {
 // With timeoutMs: 20, this handler yields a timeout refusal, not an indefinite await.
 ```
 
-Cleanup is attempted once in reverse registration order. It shares the original
+Cleanup admission is checked in `PolicyDeadline` immediately before each callback
+could start. Cleanup runs in reverse registration order and shares the original
 budget plus one overall cleanup grace interval, not a new interval per callback.
 If cleanup crosses the original deadline, the result fails closed even if cleanup
 finishes during grace. After handler timeout, cooperative cleanup may finish during
 grace without erasing the primary timeout. Rejections and cleanup timeouts append
-as secondary failures. When grace is exhausted, remaining callbacks are still
-attempted once with an aborted signal, but their promises are no longer awaited;
-late rejections are observed without modifying returned diagnostics. Cleanup that
-ignores cancellation may outlive the decision; resource release is not guaranteed.
+as secondary failures. Grace is the fixed interval from `dispatch start + timeoutMs`
+through `dispatch start + timeoutMs + cleanupGraceMs`, even when handlers finish
+early. At the exact grace end, admission closes: no additional callback is invoked,
+retried or rescheduled. Each remaining callback adds a `cleanup-skipped` failure.
+
+Correlated results include frozen `cleanup` entries in attempted/skipped reverse
+order: `{ middlewareId, registrationIndex, status }`. `registrationIndex` is the
+zero-based position in this dispatch's cleanup registration list. Status is:
+
+- `completed`: the callback fulfilled within its cleanup window. A completion during
+  grace can still accompany a dispatch timeout for crossing the original deadline.
+- `failed`: it threw or rejected before its cleanup window expired.
+- `timed-out`: it started while admission was open but did not settle within the window.
+- `skipped-deadline`: it did not start because the shared cleanup window had closed.
+
+Skipped callbacks are never reported as completed. Any unfinished/skipped cleanup
+blocks allow; earlier handler failures/timeouts remain primary and denials remain
+recorded. A callback already running when its deadline expires is not terminated;
+its late settlement/rejection is observed without changing the frozen result.
+Resources owned by cancellation-ignoring middleware are not guaranteed to be released.
 
 At a responsive event loop, the policy wait budget is at most `timeoutMs +
 cleanupGraceMs` (5100 ms by default), subject to timer scheduling and bounded
@@ -159,7 +176,7 @@ synchronous callback work. Timers cannot preempt CPU-bound JavaScript, native
 blocking calls or an infinite microtask loop. No handler is forcibly stopped.
 Noncooperative code may also retain active Node handles after a refusal; neither
 process exit latency nor arbitrary JavaScript isolation is guaranteed. Stdin framing
-and stdout transport are outside the policy execution budget. No workers, subprocess
+and stdout transport have their own adapter budget below. No workers, subprocess
 isolation, daemons or orchestration were introduced. Existing process middleware
 receives no new deadline or policy signal, and Core/ExecutionSession are unchanged.
 
@@ -176,7 +193,7 @@ Precedence is explicit:
   failure takes transport precedence over any result it could not reliably deliver.
 
 Codes are `configuration-error`, `registration-contract`, `exception`,
-`invalid-decision` and `timeout`. Stages are `configuration`, `registration`,
+`invalid-decision`, `timeout` and `cleanup-skipped`. Stages are `configuration`, `registration`,
 `handler`, and `cleanup`. Empty middleware ID means options/configuration failure
 before a module could be attributed; provider identities are never used instead.
 
@@ -220,21 +237,104 @@ callers may pass `policyOptions`; omitting requirements retains optional behavio
 This binding describes implementation behavior;
 it is not proof that a remote caller really enforces the result.
 
-The transport accepts at most 16 KiB and emits one JSON response on stdout.
+The transport accepts at most 16 KiB and attempts at most one JSON response on stdout.
 Diagnostics contain outcome codes on stderr, with no raw exception or input dump.
 Policy reasons are trusted module output and must not include sensitive request data.
 Exit statuses are 0 allow, 1 intentional deny, 2 invalid JSON/request/oversize,
 3 policy/registration/cleanup error, 4 unsupported enforcement, 5 transport failure,
-6 primary policy timeout, 7 primary configuration/requirement failure. Every
+6 primary policy timeout/incomplete cleanup, 7 primary configuration/requirement failure. Every
 policy-error response has `permitted: false` and sanitized failure codes/stages/IDs.
 Secondary cleanup timeouts do not overwrite an earlier primary exception's exit 3.
-Input stream failures are distinct from invalid JSON. Output/serialization failure
-returns 5 after engine cleanup; a failed output cannot guarantee delivery of JSON.
-If stderr also fails, the executable still exits 5. EOF is the framing boundary;
-callers must close stdin. A request is not replayed or retried after transport failure.
+Input stream failures/timeouts are distinct from invalid JSON. Output/serialization
+failure or diagnostic failure returns 5; a failed output cannot guarantee delivery
+of JSON. No second JSON response is attempted after possible partial delivery.
+EOF remains the framing boundary: exactly one complete UTF-8 JSON document is
+required. Partial JSON, an empty stream, or a full document without EOF times out;
+no middleware is instantiated after an input timeout. Invalid UTF-8, invalid JSON,
+multiple documents, invalid request fields and oversized input return 2; oversize
+is rejected immediately without waiting for EOF. A request is never retried.
 Callers must require exit 0, complete valid JSON, `outcome: "allow"`, `permitted: true`
 and the matching request ID before proceeding. Partial output or a nonzero status
 must block even if some allow-response bytes have already arrived.
+
+## Adapter transport budget and stream ownership
+
+`MockHookOptions.transportOptions?` is trusted local configuration. It is independent
+of `policyOptions`, and provider JSON cannot declare either. Defaults are:
+
+```ts
+transportOptions: {
+  timeoutMs: 10_000,          // overall runMockHook budget
+  inputTimeoutMs: 1000,      // bytes, EOF, UTF-8 and JSON decoding
+  outputTimeoutMs: 1000,     // serialization and writable callback
+  diagnosticTimeoutMs: 100,  // bounded stderr reporting
+}
+```
+
+Values must be positive integers up to 120000 ms. Nulls, arrays, primitives,
+unknown keys, nonnumbers and fractions are configuration errors. The overall
+budget must cover the input/output/diagnostic limits and, before middleware starts,
+the configured policy timeout plus cleanup grace. With default policy limits the
+reservation is `1000 + 5000 + 100 + 1000 + 100 = 7200 ms`, within 10000 ms.
+Custom longer policy budgets require a correspondingly larger overall adapter budget.
+These are reservations, not sleeps; fast stages return immediately.
+The exported `resolvePolicyOptions(options)` validates and copies trusted policy
+options using the same defaults as `dispatchPolicy`; the adapter uses it before
+budget admission so validation and policy execution cannot select different limits.
+
+One monotonic end is fixed when `runMockHook` constructs its transport. Every stream
+phase uses the smaller of its own limit and the remaining overall budget. Input
+and output leave the diagnostic reserve intact. Policy admission additionally
+checks that the remaining overall time can cover the unchanged policy budget,
+cleanup grace and reserved output/diagnostic time. If overhead has consumed that
+reservation, it refuses with `adapter-timeout` without instantiating middleware.
+The engine's own deadline remains the owner of policy execution and cleanup timing;
+there is no independent full-budget restart at each phase.
+
+Invalid trusted transport configuration is reported as `configuration-error`, exit
+7, using fixed default output/diagnostic limits without reading stdin or running
+policies. This fallback cannot disable bounded error reporting. A valid request with
+an incompatible policy/transport reservation returns the existing
+`policy-error/configuration-error`, exit 7.
+
+Input transport failures emit a refusal, when output is available, such as:
+
+```json
+{
+  "outcome": "transport-error",
+  "permitted": false,
+  "failure": { "stage": "input", "code": "input-timeout" }
+}
+```
+
+All transport failures use exit 5. Failure codes distinguish `input-timeout`,
+`output-timeout`, `diagnostic-timeout`, `adapter-timeout`, `serialization-error`
+and other `transport-error`. Stages identify input, output, diagnostics or policy
+admission. A successful `stream.write()` return value is never delivery success:
+the callback must complete before both deadlines. Even a successful callback proves
+only local writable completion, not provider receipt, parsing or enforcement.
+
+Precedence: input failure prevents policy execution; a completed policy refusal
+retains its status only if JSON delivery and required diagnostics succeed. Output
+failure/timeout overrides any policy status with exit 5 and only bounded stderr
+reporting is attempted. Diagnostic failure also returns 5 and does not recursively
+report itself. Error text never includes raw input or exception payloads.
+
+The library removes its phase listeners/timers and pauses input on completion or
+refusal. It does not destroy externally owned streams. Their owners retain ordinary
+stream error/lifetime responsibility after handoff. A pending write cannot be
+cancelled portably: its callback remains observed, including late callback errors;
+a temporary error guard is removed by the resulting error event or next event-loop
+turn, rather than retained on a permanently stalled stream. Late callbacks do not
+write another response or change the returned status. Other independently emitted
+errors after handoff belong to the external stream owner.
+
+The dedicated CLI owns its stdio: it closes stdin at terminal return, and closes
+stdout/stderr after transport failure to abandon failed delivery. Normal outcomes
+await write callbacks and natural process close; there is no new supervisor or
+unconditional forced exit. CPU-bound/microtask-starving/native-blocking code and
+noncooperative active resources can still prevent process termination. Timers provide
+cooperative bounds at a responsive event loop, not hard process termination.
 
 The mock only demonstrates the local protocol and refusal decision. Compatibility
 and enforcement with Claude, Codex or Gemini have **not** been validated. Real adapters
@@ -245,12 +345,12 @@ configuration. Unsupported hooks must never be presented as enforced decisions.
 
 ```sh
 npm run build
-npx vitest run tests/unit/policy.test.ts tests/unit/policy-hardening.test.ts tests/unit/mock-provider.test.ts tests/integration/mock-provider.test.ts tests/unit/core.test.ts tests/unit/execution-policy.test.ts tests/unit/environment.test.ts tests/unit/events.test.ts --exclude '**/.test-state/**'
+npx vitest run tests/unit/policy.test.ts tests/unit/policy-hardening.test.ts tests/unit/policy-deadline.test.ts tests/unit/policy-cleanup.test.ts tests/unit/mock-provider.test.ts tests/unit/mock-transport.test.ts tests/integration/mock-provider.test.ts tests/unit/core.test.ts tests/unit/execution-policy.test.ts tests/unit/environment.test.ts tests/unit/events.test.ts --exclude '**/.test-state/**'
 npx vitest run --config vitest.policy.config.ts --coverage
 npx stryker run stryker.policy.config.json
 ```
 
-The focused coverage configuration gates the engine, deadline helper and adapter at
+The focused coverage configuration gates the engine, deadline helper, adapter and transport at
 95% lines / 90% branches per file; existing repository gates remain unchanged.
 The separate mutation pilot measures complete modules with no source exclusions
 or timeout credit. It does not replace established Core middleware regression gates.

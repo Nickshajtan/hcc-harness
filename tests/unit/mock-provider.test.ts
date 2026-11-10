@@ -111,6 +111,7 @@ it('serializes policy failures without raw exception or request payload', async 
   expect(JSON.parse(output.text())).toEqual({
     outcome: 'policy-error',
     requestId: 'one',
+    cleanup: [],
     permitted: false,
     denials: [],
     failures: [{ stage: 'handler', code: 'exception', middlewareId: 'broken' }],
@@ -125,6 +126,7 @@ it('writes one allow response without diagnostics', async () => {
   expect(JSON.parse(output.text())).toEqual({
     outcome: 'allow',
     requestId: 'one',
+    cleanup: [],
     denials: [],
     failures: [],
     permitted: true,
@@ -189,7 +191,11 @@ it('distinguishes input transport failure from invalid JSON', async () => {
     },
   });
   expect(await runMockHook({ ...settings, input })).toBe(5);
-  expect(JSON.parse(output.text())).toEqual({ outcome: 'transport-error', permitted: false });
+  expect(JSON.parse(output.text())).toEqual({
+    outcome: 'transport-error',
+    permitted: false,
+    failure: { code: 'transport-error', stage: 'input' },
+  });
   expect(diagnostics.text()).toBe('[arch mock hook] transport-error\n');
 });
 

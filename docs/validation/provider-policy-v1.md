@@ -1,6 +1,121 @@
 # Provider policy vertical slice 1: validation
 
-## H1–H3 hardening (current contract)
+## H4–H5 lifecycle and transport hardening (current contract)
+
+Reviewed baseline: `99bd0d3dea74a6af340f605f78ed106417e9ef7e`, PR #27,
+same feature branch. Both remaining gaps existed at that head. H1–H3 remain
+covered by the focused regressions. The sections below this record are historical
+measurements, not the current cleanup or transport contract.
+
+- H4: `PolicyDeadline` checks admission before invoking each callback. Cleanup
+  remains reverse ordered, with one absolute end at dispatch start + timeout +
+  grace. Grace is available only in that final interval; early cleanup does not
+  restart either budget. Correlated results add frozen `cleanup` records with
+  middleware ID, zero-based registration index and `completed`, `failed`,
+  `timed-out` or `skipped-deadline`. Skipped callbacks add `cleanup-skipped`
+  failures and never run implicitly. Started, noncooperative operations may
+  continue; their late settlement cannot change the result. Incomplete cleanup
+  blocks allow, preserving the primary failure and collected denials.
+- H5: `MockHookOptions.transportOptions` is trusted local configuration. Defaults
+  are 10,000 ms overall, 1,000 ms input, 1,000 ms output and 100 ms diagnostics.
+  Limits must be integer milliseconds in [1, 120000], with sufficient total
+  reservation. Policy admission reserves its unchanged timeout/grace plus output
+  and diagnostics, and fails before instantiation if insufficient time remains.
+  The adapter uses a monotonic absolute end; no phase restarts the total budget.
+  EOF framing, fatal UTF-8 decoding and the 16 KiB limit precede policy execution.
+  Output completion requires the write callback, not the write boolean. There is
+  at most one JSON delivery attempt; partial delivery is not retried. Input/output
+  timeout, adapter admission exhaustion, serialization and stream errors return
+  transport status 5, including failed diagnostics. Invalid transport options
+  produce a bounded configuration refusal (7) before reading input.
+
+Tests exercise exact admission boundaries, hung/late/rejected cleanup, preserved
+primary failures, frozen results, independent concurrent budgets, input without
+EOF, malformed UTF-8/JSON, immediate oversize rejection, stream failures, delayed
+and never-completing writes, late callback errors, serialization overhead,
+diagnostic failure, and listener/timer release. Real CLI children cover allow,
+deny, empty/partial open stdin and a closed response pipe. The test watchdog is
+failure recovery only: use is an explicit test failure, never successful cleanup.
+Normal passing cases await natural subprocess close and release test-owned pipes.
+
+Consumers must validate complete JSON, the matching request ID, `outcome: allow`,
+`permitted: true` and successful exit status before acting. A policy decision
+alone does not establish delivery. A transport error overrides the exit status
+even if a decision was computed or some bytes delivered; stdout is never retried.
+Existing statuses 0–7 remain unchanged. No raw request or exception is serialized.
+
+Engine cleanup and library transport release owned listeners/timers. External
+stream owners remain responsible for independent errors after handoff. A late
+owned write-callback error gets a temporary same-turn error guard, removed on
+error or the next event-loop turn. The CLI releases its own stdin on completion
+and its output streams on transport failure. No global hooks, filesystem setup,
+provider process, process supervisor or background driver was introduced.
+
+Validation was executed on Windows / Node 24.19.0 on 2026-11-10. Earlier failed runs
+are retained as diagnostic history: additive cleanup metadata required updating
+exact response assertions; loaded H3 subprocess timing can validly skip cleanup
+after grace, so assertions now verify the exact primary refusal and only the
+matching secondary timeout/skipped diagnostic. No deadline was increased.
+The first mutation run exposed transport assertion gaps and five runner errors
+when mutated error containment emitted unhandled stream errors. Tests now retain
+an external error owner and assert the adapter's temporary containment listener,
+making containment defects assertion failures rather than runner crashes.
+
+| Check                                                    | Result | Final evidence                                                                                                                                     |
+| -------------------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Typecheck / build                                        | PASS   | Strict compiler settings; mock CLI compiled                                                                                                        |
+| ESLint / warning baseline                                | PASS   | Zero errors and zero known/new warnings; test shorthand lint errors corrected before final run                                                     |
+| Formatting / `git diff --check`                          | PASS   | Repository formatting and whitespace checks                                                                                                        |
+| Focused regression command in provider-policy.md         | PASS   | 260 tests / 11 files, zero skips: 198 policy/adapter units, 49 existing process tests, 13 real subprocess cases                                    |
+| Focused coverage                                         | PASS   | Four full production modules: 100% lines, 99.16% aggregate branches; per-file 95%/90% gates unchanged; adapter branches 94.59%, other modules 100% |
+| Existing scoped Core/middleware/EventBus coverage        | PASS   | 49 tests; middleware 100% lines / 95.83% branches, session 98.21% / 91.66%, other scopes 100% / 100%                                               |
+| Dependency boundaries                                    | PASS   | 70 modules / 189 dependencies, no violations                                                                                                       |
+| Quality-tooling tests                                    | PASS   | 24 tests, zero skips                                                                                                                               |
+| Focused mutation                                         | PASS   | 805 assertion kills / 876 mutants (91.89%); 67 survived, 4 no coverage, zero timeouts/errors/exclusions; 5m31s                                     |
+| Mutation source matching / assertion-only per-file check | PASS   | Existing evidence helpers match all four current sources; every file exceeds 85% without timeout credit                                            |
+
+Per-file mutation scores: policy 380/403 (94.29%), deadline 63/71 (88.73%),
+adapter 117/127 (92.13%), transport 245/275 (89.09%). No source ranges or
+production branches were excluded. The first run's deadline score (84.51%) and
+transport score (80.16%, excluding five runner errors) did not pass. Exact-boundary,
+budget-reservation, stream ownership and delayed-input tests improved the final
+measurement without lowering thresholds. Nonfatal Stryker `files` deprecation and
+Windows symlink warnings remain visible. The final report used 198 tests; subsequent
+test-only ESLint brace formatting changed no assertions or production sources.
+
+All surviving/no-coverage mutations were reviewed at their exact report locations;
+IDs refer only to this local report, not exclusions:
+
+| Scope / IDs                                        | Review and residual measurement limits                                                                                                                                                                                    |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Policy 141, 165, 247, 308, 360                     | Redundant type/registration guards, caught TypeError instead of deliberate contract error, non-cleanup phase label and empty cleanup loop; fail-closed behavior remains tested.                                           |
+| Policy 302–303, 311–319                            | Independent deadline admission/elapsed checks still prevent handler execution or authorization when an overlapping check is removed.                                                                                      |
+| Policy 169, 207, 213, 285, 306, 323, 354, 377, 406 | Local exception message mutations; stable failure codes/stages/IDs remain asserted and messages are not serialized.                                                                                                       |
+| Deadline 464–466, 471, 473, 475, 486–487           | Promise settlement/abort idempotence and overlapping timeout-tag/monotonic checks; timer callbacks still run at their absolute end. Strict pre-invocation admission is separately killed by boundary tests.               |
+| Adapter 878–879, 884                               | Missing exact assertions for empty configuration-failure diagnostic arrays and private cause text; configuration refusal, no instantiation and nonzero status remain asserted.                                            |
+| Adapter 895, 902, 904                              | Every policy-error has a primary failure; cleanup-skipped as primary is defensive because a dispatch timeout is already primary.                                                                                          |
+| Adapter 815–817, 926 (no coverage)                 | Defensive fallback for unexpected non-transport exceptions; ordinary transport paths produce typed errors. Retained and reported without claiming branch coverage.                                                        |
+| Transport 515, 530–531, 548–549, 558–559           | Null still throws during key inspection and is caught as configuration refusal. Internal configuration-error stage/code mutations are normalized by that same refusal; exact helper diagnostics have remaining test gaps. |
+| Transport 562, 564–565                             | Node `once` already removes the callback error listener; leftover immediate release is finite and idempotent. Explicit cleanup is retained.                                                                               |
+| Transport 632–634, 695, 769–771, 793–794, 806      | Native Promise settlement and listener removal preserve the final decision under redundant settlement-guard mutations; late results remain contained.                                                                     |
+| Transport 663–664, 672, 686, 693, 731              | Remaining exact internal error tag/message assertion gaps; observed paths still refuse, without policy instantiation or false transport success.                                                                          |
+| Transport 684                                      | Removing JSON catch handling returns undefined; request validation still refuses. Explicit invalid-input classification remains clearer and is retained.                                                                  |
+| Transport 739                                      | Replacing diagnostic window with an empty string causes immediate diagnostic refusal instead of waiting; no false success, but this timing mutation is not distinguished by current tests.                                |
+| Transport 797–798                                  | A callback error is also emitted through Node's writable error event, preserving transport failure.                                                                                                                       |
+
+Recommendation: **CONDITIONAL GO** for the tested cooperative in-process
+contract, pending hosted review/checks and supported POSIX verification. No tested
+incomplete-cleanup or transport failure authorizes an operation. The limitations
+below concern execution isolation and untested environments, not an allow fallback.
+
+In-process JavaScript cannot preempt CPU-bound synchronous code, infinite
+microtasks, blocking native calls or noncooperative resources. All timing claims
+require a responsive event loop. No real Claude/Codex/Gemini enforcement or hard
+process termination is claimed. POSIX execution is NOT TESTED locally: the
+existing Ubuntu/WSL environment has no Node installation; none was provisioned.
+Hosted CI and the full acceptance matrix are NOT TESTED in this focused task.
+
+## H1–H3 hardening (historical contract)
 
 Reviewed head: `93710fc887de4ed09f54d525d0411c8320c63fae`. None of H1–H3 was
 resolved at that head. The record below describes the focused hardening on the same

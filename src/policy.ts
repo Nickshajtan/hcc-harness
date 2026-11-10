@@ -10,6 +10,7 @@ import type {
   PolicyFailure,
   PolicyResult,
   PolicyDispatchOptions,
+  PolicyCleanupResult,
 } from './policy-contract.js';
 export type {
   AgentBeforeSpawn,
@@ -17,6 +18,7 @@ export type {
   PolicyDecision,
   PolicyResult,
   PolicyDispatchOptions,
+  PolicyCleanupResult,
 } from './policy-contract.js';
 const requestFields = [
   'type',
@@ -83,7 +85,7 @@ function validDecision(value: unknown): value is PolicyDecision {
   );
 }
 
-function dispatchOptions(options: PolicyDispatchOptions) {
+export function resolvePolicyOptions(options: PolicyDispatchOptions) {
   const { timeoutMs = 5000, cleanupGraceMs = 100, requiredPolicies: candidate = [] } = options;
   if (
     !Number.isInteger(timeoutMs) ||
@@ -141,7 +143,8 @@ export async function dispatchPolicy(
     id: string;
     run: (request: AgentBeforeSpawn) => PolicyDecision | Promise<PolicyDecision>;
   }[] = [];
-  const cleanups: { id: string; run: () => void | Promise<void> }[] = [];
+  const cleanups: { id: string; registrationIndex: number; run: () => void | Promise<void> }[] = [];
+  const cleanupResults: PolicyCleanupResult[] = [];
   const denials: PolicyDenial[] = [];
   const failures: PolicyFailure[] = [];
   let state: 'configuration' | 'registration' | 'handler' | 'cleanup' | 'closed' = 'configuration';
@@ -149,7 +152,7 @@ export async function dispatchPolicy(
   let code: PolicyFailure['code'] = 'configuration-error';
   let deadline: PolicyDeadline | undefined;
   try {
-    const settings = dispatchOptions(options);
+    const settings = resolvePolicyOptions(options);
     const entries = configuration.middleware.map((entry) => ({ ...entry }));
     if (new Set(entries.map((entry) => entry.id)).size !== entries.length) {
       throw new Error('Duplicate middleware configuration');
@@ -206,7 +209,7 @@ export async function dispatchPolicy(
               if ('cleanup' === state || 'closed' === state || activeDeadline.hasExpired()) {
                 throw new Error('Policy cleanup registration has ended');
               }
-              cleanups.push({ id, run });
+              cleanups.push({ id, registrationIndex: cleanups.length, run });
             },
           }),
         );
@@ -236,7 +239,11 @@ export async function dispatchPolicy(
         throw new Error('Policy dispatch deadline exceeded');
       }
       const settlement = await deadline.wait(() => handler.run(request), 'handler');
-      if ('timeout' === settlement.status || deadline.hasExpired()) {
+      if (
+        'timeout' === settlement.status ||
+        'skipped-deadline' === settlement.status ||
+        deadline.hasExpired()
+      ) {
         code = 'timeout';
         throw new Error('Policy dispatch deadline exceeded');
       }
@@ -275,6 +282,27 @@ export async function dispatchPolicy(
       for (const cleanup of cleanups.reverse()) {
         const alreadyExpired = deadline.hasExpired();
         const settlement = await deadline.wait(cleanup.run, 'cleanup');
+        let status: PolicyCleanupResult['status'] = 'completed';
+        if ('skipped-deadline' === settlement.status) {
+          status = 'skipped-deadline';
+          failures.push({
+            stage: 'cleanup',
+            code: 'cleanup-skipped',
+            middlewareId: cleanup.id,
+            cause: new Error('Policy cleanup skipped after deadline'),
+          });
+        } else if ('timeout' === settlement.status) {
+          status = 'timed-out';
+        } else if ('rejected' === settlement.status) {
+          status = 'failed';
+        }
+        cleanupResults.push(
+          Object.freeze({
+            middlewareId: cleanup.id,
+            registrationIndex: cleanup.registrationIndex,
+            status,
+          }),
+        );
         if ('timeout' === settlement.status || (!alreadyExpired && deadline.hasExpired())) {
           failures.push({
             stage: 'cleanup',
@@ -308,5 +336,6 @@ export async function dispatchPolicy(
     requestId: request.requestId,
     denials: Object.freeze(denials),
     failures: Object.freeze(failures.map((failure) => Object.freeze(failure))),
+    cleanup: Object.freeze(cleanupResults),
   });
 }

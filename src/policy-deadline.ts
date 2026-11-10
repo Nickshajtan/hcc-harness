@@ -1,7 +1,8 @@
 type Settlement<T> =
   | { readonly status: 'fulfilled'; readonly value: T }
   | { readonly status: 'rejected'; readonly cause: unknown }
-  | { readonly status: 'timeout' };
+  | { readonly status: 'timeout' }
+  | { readonly status: 'skipped-deadline' };
 
 /** One dispatch owns the absolute deadline, cancellation signal and shared cleanup grace. */
 export class PolicyDeadline {
@@ -33,6 +34,10 @@ export class PolicyDeadline {
 
   wait<T>(operation: () => T | Promise<T>, phase: 'handler' | 'cleanup'): Promise<Settlement<T>> {
     const end = this.expiresAt + ('cleanup' === phase ? this.cleanupGraceMs : 0);
+    if (performance.now() >= end) {
+      this.controller.abort();
+      return Promise.resolve({ status: 'cleanup' === phase ? 'skipped-deadline' : 'timeout' });
+    }
     return new Promise((resolve) => {
       let settled = false;
       const finish = (result: Settlement<T>) => {
