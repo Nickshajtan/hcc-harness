@@ -1,270 +1,210 @@
 # Windows PTY cleanup hardening
 
-Date: 2026-11-09. Tested base commit:
-`65ff0a3b429f781d7c2f8a5a70dc3ff8809d0b8b`, plus the uncommitted changes listed below.
-This records working-tree verification, not a claim that those changes already
-belong to that commit. Verification preceded the implementation commit.
+2026-11-09. **Verdict: GO for the isolated Windows test-driver contract.**
+The driver uses supported Node process APIs and node-pty public APIs only.
+It exits explicitly after verified session completion; it does not exit naturally.
+The parent independently verifies actual exit and captured process settlement.
+No Arch production source, provider configuration, PATH configuration or security
+setting was changed. No merge or commit was made.
 
-Environment: Windows 10 x64, OS release `10.0.19045`; Node `24.19.0`;
-development-only `node-pty` **1.1.0**. The existing supplemental bootstrap
-fixture also used real Node `20.19.0`. Windows SDK `10.0.17763.0` built the
-publication helper and stable bootstrap. The default SDK `10.0.19041.0` failed
-on missing `specstrings_strict.h`; selecting an already installed SDK resolved
-that build prerequisite without system configuration changes.
+## Tested revision and prerequisites
 
-## Existing design and defect
+Exact base commit: `d028df2d4d76da17bc730234a866316449c04d53` in
+`Nickshajtan/hcc-harness`, checkout `arch-windows-control-source`.
+Results describe this base plus the uncommitted files listed below, not an
+invented post-change commit. The previous lifecycle report, observer, adapter and
+driver were already untracked when this task began; they were inspected directly.
+The original acceptance report was read from the surrounding acceptance workspace.
+Its diagnostic environment is not a prerequisite of the new regression.
 
-The two supplied historical report paths, `arch-windows-control-acceptance.md`
-and `windows-pty-lifecycle.md`, do not exist in this checkout. Their unpublished
-adapters were not assumed available. Repository search found no `inSocket` or
-`ConoutConnection` adapter outside installed dependencies.
+| Component   | Tested                                             |
+| ----------- | -------------------------------------------------- |
+| Windows     | Windows 10 x64, 10.0.19045.0                       |
+| Node        | Native Windows v24.19.0                            |
+| node-pty    | 1.1.0, unchanged exact development dependency      |
+| ConPTY      | System backend, useConpty=true, useConptyDll=false |
+| Compiler    | .NET Framework64 v4.0.30319 C# compiler            |
+| Windows SDK | 10.0.17763.0, invocation-local selection           |
 
-PTY owners were `scripts/check-wizard.mjs`, `scripts/b1/check-tty.mjs`,
-`scripts/b1/check-runtime-tty.mjs`, and the POSIX-only foreground Ctrl+C case
-in `tests/integration/stabilization.test.ts`. The standalone drivers imported
-node-pty in their own process, waited for `onExit`, killed only unfinished
-sessions, and finally called `process.exit`. Wizard stdin belongs to the PTY;
-the new dedicated driver has ignored host stdin/stdout and reports over IPC.
+Reproduce from a dependency-prepared checkout with the existing Windows native
+build prerequisites and cached production dependencies:
 
-Inspection of installed `typings/node-pty.d.ts`, `lib/windowsTerminal.js`,
-`lib/windowsPtyAgent.js` and `lib/windowsConoutConnection.js` established:
+```powershell
+$env:ARCH_WINDOWS_SDK='10.0.17763.0'
+npm run test:pty:cleanup
+```
 
-- Public `onExit` reports PTY exit, not complete native-resource settlement.
-- Event subscriptions have `dispose()`. The public terminal interface has no
-  terminal `dispose()`; an implementation `destroy()` is not that public contract.
-- The default ConPTY normal-exit path closes its output socket after draining,
-  but does not destroy its input socket or dispose its output worker connection.
-- Public `kill()` has additional teardown effects, including a console-list
-  subprocess and delayed fallback. It is not equivalent to listener disposal.
+This builds Arch and its existing bootstrap/publication helpers, compiles the two
+test fixtures, installs an isolated stable Arch snapshot and initializes a scratch
+project. It needs no provider executable, authentication or inference. The compiler
+and bootstrap build are real prerequisites: missing prerequisites fail, not skip.
+The runner uses offline npm materialization. Linux/macOS skip this Windows-only
+ConPTY regression; their existing terminal contracts remain unchanged.
 
-A native `cmd.exe` fixture printed READY and exited 7. `onExit` reported 7,
-but its Node driver and two owned conhost processes remained alive eight seconds
-later. The diagnostic parent then terminated only its captured direct child;
-all three observed identities disappeared. This was a failing baseline with
-bounded recovery, not successful cleanup. No Arch code was involved.
+## Existing ownership and root cause
 
-## Approaches A / B / C
+Imports are in `scripts/check-wizard.mjs`, `scripts/b1/check-tty.mjs`,
+`scripts/b1/check-runtime-tty.mjs`, the focused Windows fixture, and the POSIX-only
+foreground-PTY test in `tests/integration/stabilization.test.ts`. No runtime Arch
+module imports node-pty. Wizard/B1 already use standalone drivers and explicit
+process exit; they do not independently prove ConPTY helper settlement. This work
+does not claim a new acceptance run of those entire suites.
 
-| Approach                                 | Evidence and decision                                                                                                                                                                                                                                                                    |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A: public PTY APIs in the existing owner | `onExit` alone reproduced the hang. Subscription disposal cannot close native resources. Post-exit `kill()` allowed a probe to finish, but emitted `AttachConsole failed` from node-pty's console-list agent and took its five-second fallback path. Rejected for normal completion.     |
-| B: dedicated process per PTY             | Selected. Public spawn/write/onData/onExit and subscription disposal provide session behavior; OS process teardown releases this process's remaining native handles and worker threads. Parent independently checks results, child `close` status and observed owned process identities. |
-| C: version-pinned private adapter        | Not needed. No private-field access, native ConPTY implementation, dependency replacement or upgrade was introduced. The existing exact dev dependency remains unchanged.                                                                                                                |
+The previous focused fixture owned one PTY per subprocess, ignored driver stdin,
+retained subscriptions and used a pinned private adapter after onExit. Historical
+acceptance originally treated onExit as sufficient and discarded subscriptions.
+The standalone driver is the smallest existing owner suitable for this correction;
+no PTY proxy, replacement driver or general framework was introduced.
 
-The explicit `process.exit(0)` is confined to the dedicated Windows driver,
-after the parent has received its structured result, captured ownership and
-acknowledged release. It is deliberate disposal of one session's process
-boundary. IPC ordering preserves output before the result; the acknowledgement
-proves receipt before exit. Driver status 0 is transport completion, not the
-shell status or a passing test. Spawn failures still reject in the parent.
-The supervising test runners exit naturally.
+Installed `typings/node-pty.d.ts` exposes onData/onExit listener disposables and
+kill(), but no IPty.dispose(). Inspection of installed Windows JS confirms that
+natural exit closes the output socket, while the input pipe and conout worker can
+remain referenced. The public shell exit notification is not full settlement.
+The native pseudoconsole is also contained by driver process lifetime. This is
+an upstream dependency lifetime limitation, independently reproducible without Arch.
 
-Successful sessions never use parent-forced termination or post-exit PTY kill.
-The parent waits for actual driver `close`, requires a result and clean driver
-status, then condition-polls for recorded processes to disappear. The normal
-driver budget is 30 seconds; helper settlement has a 10-second budget, with
-individual CIM queries bounded to 10 seconds. The 100 ms polling interval is
-condition-based, not a fixed wait assumed to prove cleanup.
+## Approaches A, B and C
 
-## Ownership and recovery
+| Approach              | Evidence and decision                                                                                                                                                                                                                                                                                                                      |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| A: public PTY cleanup | Listener disposal alone is insufficient. The fresh native cmd probe returned PTY status 7, disposed both listeners, disconnected IPC, and still held PipeWrap/MessagePort/PipeWrap after five seconds, without beforeExit. Its recovery timer was unreferenced, so it could not itself prevent natural exit. No public PTY dispose exists. |
+| A: post-exit kill     | Installed code enumerates the exited shell console and has a five-second PID fallback. The earlier lifecycle investigation observed AttachConsole failure. Not a safe post-exit disposal contract; no new kill experiment was necessary.                                                                                                   |
+| B: dedicated driver   | Selected with an explicit Node process-exit contract. Natural driver exit remains insufficient, as the fresh public-only probe demonstrates. OS process teardown releases only this driver's workers, pipes and native handles; no process enumeration is used to terminate anything. All eleven final cases verify helpers separately.    |
+| C: private adapter    | Unnecessary under B's tested process boundary. Removed all private field access from `scripts/windows-pty-resources.mjs`; no adapter compatibility surface or dependency upgrade is needed. The older report remains historical evidence.                                                                                                  |
 
-Read-only `Win32_Process` CIM snapshots record PID, parent PID, creation time,
-executable path and name. Snapshot presence records an observed process, rather
-than CPU activity; driver close status records its terminated state. Descendant attribution checks
-parent relationships and creation ordering. Settlement matches PID, creation time
-and executable path together, including observed Arch/native descendants.
-Input is held until initial capture completes, keeping deterministic fixtures
-alive for attribution. A second capture precedes driver release.
+The deliberate `process.exit(code)` is confined to the dedicated IPC driver and
+runs after session verification, synchronous evidence writing, subscription disposal,
+stdout/stderr flushing, and completion-message delivery. Shell code 7 is a tested
+session result; driver code 0 means the expected result was verified, not that the
+shell returned zero. Initialization failure returns driver 2 without fabricating a
+PTY exit. Parent acceptance additionally requires the completion event, correct PTY
+status, real child close, no signal, expected output/route identity and helper waits.
+Thus a premature successful process exit cannot satisfy the test.
 
-Normal cleanup disposes listeners and releases the process boundary after PTY
-exit. Controlled cancellation calls public `kill()` while the fixture is active,
-then follows the same exit/settlement protocol. node-pty can emit
-`AttachConsole failed` even on this path; stderr is retained, not suppressed.
-Cancellation returned native status `-1073741510` (`0xC000013A`) with zero
-observed residuals. This upstream diagnostic is a remaining failure-path limit,
-not evidence used to pass normal lifecycle tests.
+This is not an in-process resource-release API and must not be used inside Vitest
+workers or long-lived applications. Existing multi-session wizard/B1 scripts were
+not rewritten. The helper's one-session subprocess boundary is its public contract.
 
-For a hung driver, the parent terminates its captured `ChildProcess`, never a
-PID found by process-name search. The resulting lifecycle rejects regardless
-of subsequent settlement. It does not terminate helpers. Persistent observed
-helpers cause failure with identity diagnostics and retained fixtures; no
-emergency process-tree or global process cleanup is implemented.
+## Normal completion, failure and interruption
 
-## Focused verification
+Driver stdin is ignored; stdout/stderr/IPC belong to the parent. Subscriptions are
+disposed, streams flushed, and IPC disconnected before explicit driver exit.
+The parent waits for `close`, not just `exit` or printed success text. It samples
+process identities at driver-ready, fixture-ready, PTY exit and driver-complete.
+A native fixture reports its executable image, Arch execution identity and echoed
+terminal input. Routed tests assert the same native image and a nonempty ARCH_ACTIVE.
 
-| Check                                                                       | Result                                                                                                    |
-| --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| Native shell normal/nonzero completion, input echoed as `RECEIVED:hello`    | PASS: PTY 0 / 7; drivers 0; zero observed residuals                                                       |
-| Missing executable / PTY initialization failure                             | PASS: explicit spawn error; driver closed; zero observed residuals                                        |
-| Native Ctrl+C fixture                                                       | PASS: `INTERRUPTED`, PTY 130; driver 0; zero observed residuals                                           |
-| Controlled live-session public kill                                         | PASS settlement, with upstream console-agent diagnostic retained                                          |
-| Premature driver exit negative control                                      | PASS detector: driver 0 without result rejected; zero observed residuals                                  |
-| Hung driver negative control                                                | PASS detector: deadline rejection; direct-child forced recovery is explicitly not clean lifecycle success |
-| Stable-installed generated `cmd.exe` router, input and exit 0 / 7           | PASS: intended system cmd executable observed; drivers 0; zero observed residuals                         |
-| Stable Arch `run node.exe` Ctrl+C                                           | PASS: intended Node executable observed; PTY 130; driver 0; zero observed residuals                       |
-| Isolated project deinit, scratch and stable snapshot removal                | PASS                                                                                                      |
-| Existing Node 20 B1 PTY driver                                              | PASS: TTY handles, keyboard input and exit 9                                                              |
-| Existing wizard terminal regression                                         | PASS                                                                                                      |
-| Build, typecheck, lint, warning baseline, formatter and diff whitespace     | PASS after selecting installed SDK for bootstrap build                                                    |
-| Linux/macOS execution and independent Node 22 terminal fixture on this host | NOT TESTED                                                                                                |
+The controlled timeout begins after confirmed terminal input. Its 250 ms duration
+is the intentional fixture deadline, not a sleep used to assume resource cleanup.
+It sends a real PTY Ctrl+C. The fixture otherwise waits indefinitely, so cancellation
+is observable. Native cancellation additionally requires PTY_INTERRUPTED output.
+Arch may terminate its native child before that message is written: routed checks
+require exit 130, completed I/O and absence of the whole captured route chain.
+This follows the existing Windows console cancellation contract, rather than
+requiring a new child-handler-delivery guarantee from Core.
 
-The initial Arch fixture attempted an absolute `run` target, then attempted to
-register reserved `node` routing. Both were fixture errors rejected by existing
-public contracts. Corrected fixtures route `cmd` and use public `run node.exe`
-for Ctrl+C. Their failed logs were retained locally; no production behavior was
-changed to accommodate them. `node` is deliberately not registered as a route.
+Normal cleanup and failure recovery are separate. A twelve-second driver watchdog
+records failure, requests Ctrl+C and uses a three-second diagnostic self-exit bound.
+If the watchdog fires, session verification fails even if the expected code later
+arrives. The parent allows twenty seconds for actual close and five seconds for
+captured identity settlement. Observer subprocesses have ten-second bounds. No
+parent/helper termination path exists. If normal cleanup fails, evidence and scratch
+installation are retained and the test fails. Emergency cleanup is intentionally
+not automated; arbitrary unresponsive applications are not promised clean recovery.
 
-Representative observed ownership from the successful full run:
+## Focused regression results
 
-- Native driver 6612, created `1794257434347` ms since Unix epoch,
-  executable `<Node>/node.exe`; helpers 18668 and 7276, parent 6612,
-  created `1794257434352` and `1794257434428`, system `conhost.exe` paths;
-  native cmd 892, parent 6612, created `1794257434474`. All absent after settlement.
-- Stable routed chain: driver 15480 → generated cmd router 13252 →
-  stable arch 6160 → Arch Node 19384 → system cmd 10320. Conhost helpers
-  4028 and 20236 were direct children of driver 15480. All absent afterward.
-  PID 4028 had previously identified another driver; differing creation time
-  and executable path kept the two identities distinct.
+| Case                              | Shell/native PTY exit | Driver exit | Residual captured processes |
+| --------------------------------- | --------------------- | ----------- | --------------------------- |
+| Native cmd normal                 | 0                     | 0           | 0                           |
+| Native cmd controlled nonzero     | 7                     | 0           | 0                           |
+| Native executable normal          | 0                     | 0           | 0                           |
+| Native executable nonzero         | 7                     | 0           | 0                           |
+| Native Ctrl+C                     | 130                   | 0           | 0                           |
+| Native controlled deadline        | 130                   | 0           | 0                           |
+| Missing executable initialization | No PTY exit           | 2           | 0                           |
+| Stable Arch routed normal         | 0                     | 0           | 0                           |
+| Stable Arch routed nonzero        | 7                     | 0           | 0                           |
+| Stable Arch routed Ctrl+C         | 130                   | 0           | 0                           |
+| Stable Arch routed deadline       | 130                   | 0           | 0                           |
 
-Full local evidence is generated at `.test-state/windows-pty-cleanup.json`;
-console logs, baseline evidence and failed fixtures stay in ignored `.test-state`.
-No environment dump or temporary process log is committed. Later reruns have
-different identities; the examples above are historical observations, never
-termination instructions.
+**PASS: eleven cases**, final run `run-00s755` after the watchdog failure guard
+was added. Native cases complete before routed cases. Every captured
+identity settled; the unrelated sentinel remained alive with unchanged creation
+time and image, then exited on its own stdin EOF. Stable deinit and first-attempt
+removal of the complete scratch installation, fixture executables and observer
+succeeded. Diagnostic JSON is retained under ignored `.test-state/windows-pty-cleanup/run-*`.
+No raw environment dump or temporary process log is included in deliverables.
 
-## Changed files and reproduction
+Additional checks: **PASS** TypeScript no-emit typecheck, scoped ESLint, scoped
+Prettier, build and native bootstrap/publication builds with the selected SDK.
+**PASS** existing Windows Ctrl+C/Ctrl+Break integration test: one passed, sixteen
+selection skips. **NOT TESTED:** Linux/macOS execution, full wizard/B1 acceptance,
+Windows 11, other node-pty versions/backends, provider TUIs or full reliability suite.
+POSIX PTY/signal code and skips are unchanged; no private Windows APIs were added
+to any POSIX path. The existing Windows C# observer is read-only process inspection.
 
-- `scripts/pty-driver.mjs`: one-session Windows owner and result/release protocol.
-- `scripts/windows-pty.mjs`: narrow existing-driver facade, ownership snapshots,
-  settlement deadline and diagnostic promise; alternate driver entry is a fault-test seam.
-- `scripts/check-pty-cleanup.mjs`: native cases, protocol negative controls and
-  optional isolated-stable-install cases through the same public test interface.
-- `scripts/check-wizard.mjs`, `scripts/b1/check-tty.mjs`,
-  `scripts/b1/check-runtime-tty.mjs`: Windows isolation and awaited settlement;
-  remove explicit supervising-runner exit.
-- `package.json`: `test:pty:windows` script only; dependency policy unchanged.
-- `.github/workflows/runtime-feasibility.yml`: run native and stable cleanup regression on
-  Windows and upload its structured evidence; required aggregate unchanged.
-- `docs/testing.md` and this report: lifecycle contract and reproduction.
+## Process ownership evidence
 
-From a bootstrapped checkout, run `npm.cmd run test:pty:windows`. Only non-Windows
-platforms skip this regression. Missing bindings, unavailable CIM access and
-spawn failures fail explicitly. A standalone invocation reports stable cases as
-NOT TESTED unless an isolated installed entry is supplied. The Windows CI step
-now provisions a runner-local stable snapshot and supplies that entry explicitly;
-the snapshot remains available through the PTY check and belongs to the disposable
-runner, without altering the separate stable-runtime acceptance fixture.
+Every captured identity includes PID, parent PID, creation FILETIME/UTC, full image
+path, executable category and current exited state. Waits open a process handle,
+check captured creation time against the current process, and classify reused PIDs
+as not owned. A PID alone is never termination authority. This test terminates no
+process, owned or foreign. Snapshot disappearance races are represented explicitly.
 
-For stable-install verification, build/install into a fresh absolute destination
-using `npm.cmd run install:stable -- --destination <directory>`, then set the
-process-local `ARCH_PTY_STABLE_ENTRY=<directory>\arch.exe` and run the same test.
-The test creates/deinitializes its own project and removes successful scratch
-files. Remove the isolated snapshot separately after all processes settle; it
-does not own or automatically delete a supplied installation.
+For example, the passing `run-DfCzk7` native-normal snapshot observed driver 12672
+created at FILETIME 134387283225008286, startup conhost 892 at
+134387283225063259 and PTY conhost 18264 at 134387283227754756, both with parent
+12672 and image `%SystemRoot%\System32\conhost.exe`. Fixture 16316 was beneath the
+same driver and had the exact generated scratch executable image.
+The routed snapshot showed driver 4276, its two conhosts, generated route 15708,
+stable arch.exe 17944, CLI Node 10344 and the intended native executable 9308.
+All were absent after completion. These numbers identify historical evidence only.
+The final verification also writes a separate run directory rather than overwriting
+a failed attempt. Native helper topology was four captured processes; routed was
+seven; initialization captured two. These counts are observations, not hardcoded
+platform assumptions. No continuous kernel trace or complete handle inventory is claimed.
 
-## PR #26 focused review follow-up
+## Failed attempts retained
 
-H1: Consumer callbacks previously ran directly in the IPC message handler. An
-`onExit` throw could escape before the release acknowledgement was scheduled;
-an `onData` throw could escape before later input-driving listeners ran. A local
-shared dispatch helper now records synchronous listener exceptions and continues
-dispatch. Ownership capture, result receipt and release remain on the existing
-single-delivery path. Listener errors are raised only after driver close and
-helper settlement. Diagnostics retain their stacks and an AggregateError cause
-containing the original error objects, alongside any infrastructure failure.
-Cleanup success does not convert a listener failure into session success.
+The initial default-SDK build failed on missing `specstrings_strict.h` in SDK
+10.0.19041.0. The already-documented 10.0.17763.0 selection built successfully.
+An initial native assertion failed because Node's VT stripping left an X from a
+ConPTY control sequence; the fixture now uses the prior report's explicit OSC/CSI
+removal. A later routed-interrupt assertion required a native handler's output;
+its failure evidence was copied before adjustment into
+`.test-state/windows-pty-cleanup-interrupt-diagnostic`. Exit was 130 and residue zero.
+Existing console integration assertions confirmed the platform's termination
+contract. No Core change was made. Invalid compiler-relative-path and inherited
+`--input-type` probe invocations created no PTY and are not lifecycle evidence.
+The corrected public-only probe is `.test-state/public-api-result.json`; it records
+retention followed by diagnostic driver exit 2 and captured process settlement.
+Failed fixtures are retained, not counted as clean passes.
 
-Real native PTY negative controls register a deliberately throwing listener before
-another listener. Both the onExit and onData cases reject with the original error,
-deliver the later exit callback exactly once, complete input from the later data
-callback, close the driver with status 0 and settle observed helpers to zero.
-`timeoutRecovery` is recorded only when the driver deadline actually fires; both
-listener controls assert that it did not fire. The deliberate hung-driver control
-still exercises forced failure recovery separately.
+## Changed files and limitations
 
-Representative follow-up local evidence, from `.test-state/pty-review-native.json`:
+- `package.json`: reproducible `test:pty:cleanup` entry point; no dependency change.
+- `scripts/test-windows-pty-cleanup.mjs`: self-contained compilation, isolated stable
+  installation, route setup, regression invocation and successful fixture removal.
+- `scripts/check-windows-pty-lifecycle.mjs`: permanent eleven-case parent observer,
+  bounded real-close/helper checks, sentinel and per-run diagnostics.
+- `scripts/fixtures/windows-pty-driver.mjs`: deterministic one-session driver,
+  public subscriptions, input/cancellation validation and explicit failure recovery.
+- `scripts/windows-pty-resources.mjs`: public process-boundary completion helper,
+  replacing the experimental private adapter.
+- `tests/fixtures/windows-pty-session.cs`: native executable with explicit lifetime,
+  identity, input and cancellation behavior.
+- `tests/fixtures/windows-pty-processes.cs`: existing untracked read-only observer,
+  retained unchanged as a required reproducible fixture.
+- `docs/testing.md`, this report and the historical lifecycle report's supersession note.
 
-| Listener     | Driver | Owned conhost PIDs | Driver status | Residuals | Timeout recovery |
-| ------------ | ------ | ------------------ | ------------- | --------- | ---------------- |
-| onExit throw | 11160  | 5480, 21428        | 0 / no signal | 0         | false            |
-| onData throw | 17556  | 19648, 2968        | 0 / no signal | 0         | false            |
+The limitation is explicit self-exit of a dedicated Windows driver, not a repaired
+node-pty native implementation. The dependency remains development-only and pinned
+at 1.1.0; later upgrades should rerun this regression and reevaluate natural exit.
+Snapshot-based observation cannot prove absence of an entirely transient process
+that appears and disappears between barriers. Unexpected persistent descendants
+are checked at the final scan as well as through captured identity waits.
+There is no indiscriminate kill, private-field dependency or forced-cleanup PASS.
 
-These records also include creation times and executable paths, as in the earlier
-ownership evidence. Both controls were repeated successfully in the configured
-stable run; their expected listener rejection is regression success, not a passing
-PTY session. No global unhandled-exception handler or private node-pty API was added.
-
-H2: Inspection of `stable-runtime.test.ts` found that its `afterAll` calls the
-fixture disposer, removing the stable installation before the later PTY step.
-Reusing its path would require extending another suite's fixture lifetime and
-ownership contract. A disposable local installation from existing build artifacts
-completed in about three seconds, without a rebuild. The narrow CI correction
-therefore creates its own runner-local snapshot with `dist/install-stable.js`,
-using the already recorded npm entry and compiled bootstrap. It does not repeat
-the stable acceptance, copy/build another source checkout or install another Node
-runtime. A failed install fails the step before PTY coverage can be claimed.
-The step sets process-local `ARCH_PTY_STABLE_ENTRY` to the absolute generated
-`arch.exe` and runs the unchanged stable cases in the regression's own project.
-
-Structured evidence separates `coverage.native` and `coverage.stable`. Native
-PASS is assigned only after its completion, listener and fault controls finish.
-Stable PASS is assigned only after its actual PTY cases and project deinit finish.
-When supplied, stable metadata must identify `arch-stable-installation-v1` on
-Windows; evidence records `generatedStableRuntime: true` and the executable path.
-Before identity verification, or when unexecuted, that field is null. Missing
-configuration reports NOT TESTED with a reason; configuration/identity or case
-failure reports FAIL, independently of native PASS.
-
-Follow-up local checks (Windows, Node and node-pty versions unchanged):
-
-- PASS: native completion 0/7, both listener controls, initialization failure,
-  Ctrl+C, cancellation, premature driver exit and hang detection.
-- PASS: configured generated stable router completion 0/7 and stable Arch Ctrl+C,
-  zero observed owned residuals, project deinit and successful scratch removal.
-- PASS: native-only run reports stable NOT TESTED with an explicit missing-entry
-  reason; configured run reports stable PASS and generated-runtime identity.
-- PASS: focused ESLint, typecheck, formatting and diff whitespace checks.
-- NOT TESTED locally: POSIX execution; its terminal fixtures/import paths are
-  unchanged by this review pass. No broad stabilization or mutation campaign ran.
-
-Hosted evidence must be attributed to its actual head. The pre-review commit
-`d86fc4168cff59a7b3852c95b8343638f1816fbe` had successful Windows/Linux/macOS
-[runtime portability CI](https://github.com/Nickshajtan/hcc-harness/actions/runs/42699818697)
-when inspected through gh. That workflow did not configure stable PTY cases and
-did not contain the listener controls. It is not proof of the new coverage.
-The follow-up results above are local evidence; the changed workflow requires
-inspection of the final PR head's completed checks before a merge recommendation.
-
-After pushing implementation commit `d476f02011139b2d47855667d0779777e15e7e37`,
-the [updated hosted runtime run](https://github.com/Nickshajtan/hcc-harness/actions/runs/42706749574)
-completed successfully on Windows, Linux and macOS, including the required aggregate.
-Its downloaded `m22-runtime-windows-latest/windows-pty-cleanup.json` was inspected:
-native and stable coverage both report PASS; the stable executable is the generated
-`D:\a\_temp\arch-pty-cleanup-stable\arch.exe`, with `generatedStableRuntime: true`.
-Both listener controls retain their errors, close drivers with status 0 / no signal,
-and report zero residuals without timeout recovery. Actual stable PTY exits are
-0, 7 and 130, with zero residuals and successful project deinit. This verifies
-the new scenarios themselves, independently of the other stable-runtime tests.
-All checks for that implementation head succeeded; the unrelated effects job was
-SKIPPED by its existing workflow policy. Any subsequent documentation head still
-requires its own final-head status inspection before declaring readiness.
-
-## Limitations and verdict
-
-**GO for this focused Windows test-infrastructure correction.** The root cause
-is reproduced independently of Arch; normal sessions and real stable-routed
-sessions settle without private APIs or parent-forced cleanup. Driver behavior
-and transport success are independently asserted. Production `src/`, middleware,
-providers, PATH/profile configuration and antivirus settings are unchanged.
-
-Process observation targets deterministic, non-detaching fixtures and ConPTY
-helpers. It is not general descendant interception or proof about arbitrary
-detached workloads. CIM observation adds Windows test cost and requires access;
-the restricted execution sandbox denied it, so process tests ran with approval
-outside that sandbox. Successful process exit releases owned handles by OS
-contract; no system-wide handle enumeration is claimed. POSIX keeps its original
-node-pty implementation and signal path, but local execution cannot establish
-Linux/macOS regression results. Hosted evidence is scoped to the inspected commit
-as described above. Future node-pty
-changes should rerun these checks and reconsider whether boundary disposal is
-still necessary. Public-kill console-agent diagnostics remain documented.
+**Final verdict: GO**, scoped to this process-isolated public lifecycle contract
+on the tested Windows environment. Linux/macOS runtime evidence remains NOT TESTED.
