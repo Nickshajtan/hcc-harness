@@ -1,4 +1,11 @@
-# Provider policy dispatch: vertical slice 1
+# Provider policy dispatch and mock adapter
+
+Canonical API guide for merged PR #27 through H1-H5 (`3f6aa20`, merge `87c3480`).
+Contracts: [policy types](../src/policy-contract.ts), [engine](../src/policy.ts),
+[deadline](../src/policy-deadline.ts), [mock adapter](../src/mock-provider.ts),
+[transport](../src/mock-transport.ts). Native Claude/Codex/Gemini adapters and
+blocking enforcement are **not implemented or verified** by this vertical slice.
+See [capabilities](capabilities.md) for evidence scope.
 
 Process middleware still uses `register(api)`, `ExecutionContext`, hookable phases
 `preflight -> prepareLaunch -> native -> finalize`, and execution-local cleanup.
@@ -356,3 +363,71 @@ The separate mutation pilot measures complete modules with no source exclusions
 or timeout credit. It does not replace established Core middleware regression gates.
 See [the executed validation record](validation/provider-policy-v1.md) for results,
 survivor review and platform limits.
+
+## Provider request and decision sequence
+
+The native-hook participant below is conceptual. Only the mock EOF-framed local
+protocol and engine are implemented. Policy dispatch does not run Core or publish
+EventBus events.
+
+```mermaid
+sequenceDiagram
+  participant P as Hypothetical native blocking hook
+  participant A as Mock adapter / future native adapter
+  participant E as HCC Policy Engine
+  participant M as Policy modules
+  P-->>A: Conceptual request boundary - native integration unverified
+  A->>A: Frame and validate request, check trusted capability
+  A->>A: Validate trusted budgets and reserve transport time
+  A->>E: dispatchPolicy with trusted requirements
+  E->>E: Copy request, validate options and configured required IDs
+  E->>M: Instantiate enabled factories and synchronously registerPolicy
+  E->>E: Check every required ID contributed an applicable handler
+  E->>M: Sequential handlers under one policy deadline
+  M-->>E: allow / deny / exception / invalid decision / timeout
+  E->>M: Reverse cleanup with shared deadline and grace admission
+  E->>E: Compose policy-error before deny before allow, freeze result
+  E-->>A: Correlated result and cleanup statuses
+  A->>A: At most one bounded JSON write, bounded diagnostics on refusal
+  A-->>P: Mock response and exit status, native mapping remains future work
+```
+
+Missing/disabled/unregistered required IDs fail at `configuration` before factory
+execution. A required module with no applicable handler fails with
+`configuration-error` at **`registration`**, after registration but before any
+handler. A mismatched factory ID also fails at registration. Do not collapse
+failure `code` and lifecycle `stage` into the same concept.
+
+## Policy failure lifecycle
+
+```mermaid
+flowchart TD
+  V[Validated supported request] --> R{Trusted required configuration valid?}
+  R -->|no| F[policy-error]
+  R -->|yes| G[Synchronous registration and required handler check]
+  G -->|failure| F
+  G --> H[Sequential handlers under shared deadline]
+  H -->|allow or deny| C[Reverse cleanup before shared grace end]
+  H -->|exception or invalid decision| F
+  H -->|timeout - abort signal| F
+  F --> C
+  C -->|admission closed| S[Mark remaining cleanup skipped-deadline]
+  S --> E[policy-error; retain primary failure and prior denials]
+  C -->|cleanup failure or crossed policy deadline| E
+  C -->|complete| D{Any failure?}
+  D -->|yes| E
+  D -->|no, any denial| Deny[deny]
+  D -->|no failures or denials| Allow[allow]
+  E --> T[Bounded adapter output and diagnostics]
+  Deny --> T
+  Allow --> T
+  T -->|delivery failure| TF[Transport exit 5; no reliable authorization delivery]
+  T -->|delivery completes| Response[Return local response and mapped status]
+```
+
+The diagram summarizes precedence, not forced termination. Running JavaScript
+continues if it ignores cancellation; remaining cleanup is never silently reported
+as complete. A transport failure can override delivery of either allow or refusal.
+The native caller must actually block on a non-allow/invalid/missing response for
+this to become provider enforcement. No native provider has established that
+contract in this repository.

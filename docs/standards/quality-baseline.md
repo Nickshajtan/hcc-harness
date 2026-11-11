@@ -1,5 +1,12 @@
 # Quality baseline
 
+> Revision-scoped measurement and incident ledger. Statements such as B2 NOT READY
+> below describe their historical assessment, not a new verdict for current main.
+> Later [validation evidence](../validation/README.md) qualifies readiness by scope;
+> [capabilities](../capabilities.md) is the canonical current guarantee matrix.
+> Historical executable-access/npm-help incidents remain unresolved unless a
+> later report establishes their specific cause and safe correction.
+
 ## M2.2 B2 stable runtime baseline
 
 Starting main: `78aeb389ea9af7d09d97e91298b20bbdffe1d6f9` (PR #17 merged).

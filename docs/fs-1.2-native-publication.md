@@ -1,5 +1,9 @@
 # FS-1.2: production exclusive publication
 
+> Historical implementation/investigation record. Original observations and verdicts
+> below retain their revision and scope. Current guidance: [architecture](architecture.md),
+> [compatibility](compatibility.md), and [validation index](validation/README.md).
+
 Implementation baseline: upstream main `e7d4dabbe0017571167830b0192b158326febd35`,
 fetched before implementation. PR #20 and #22 are incorporated. GitHub marks #21
 merged, but its `a21ee7960c8c21ea0cbdec895d1818ca3ac638e7` research tree is absent

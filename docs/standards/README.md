@@ -76,4 +76,4 @@ Explain consequential decisions that are not self-evident from the code.
    use evidence to decide dependency tooling and broader mutation gates.
 
 Quality enforcement and structural refactoring remain separate tasks. This
-standard does not authorize M2.2 B2 or extend Arch into provider/runtime management.
+standard does not authorize new behavior or extend Arch into provider/runtime management.

@@ -1,12 +1,16 @@
-# Active M2.2 runtime portability design
+# Runtime portability and stable installation
 
-**VERIFIED FEASIBILITY:** B1 prototypes and native runtime independence pass the
-mandatory Ubuntu/macOS/Windows contract. **IMPLEMENTED / VALIDATING:** B2 stable
-installation and production bootstrap integration. Migration is not in B2. B2 implementation is
-authorized; authorization does not establish readiness or passing acceptance.
-The scope corrections below override conflicting earlier requirements. B2 hosted
-acceptance must be inspected at the implementation commit; B1 evidence alone is insufficient.
-See [testing and evidence](testing.md).
+Canonical installation/runtime contract with retained B1/B2 design rationale.
+Stable installation and bootstrap integration are implemented on main `b562cbf`.
+B1 is historical verified feasibility, not the present implementation ceiling.
+Later [control and consumer acceptance](validation/README.md) includes scoped
+Windows and WSL2 execution; it does not establish universal stability, Docker,
+ARM64 bootstrap or native provider enforcement.
+
+The B2 scope restrictions below describe that implementation milestone. Subsequent
+real-provider process validation and independent policy VS1 are separate merged
+work, not retroactive B2 acceptance criteria. See [capabilities](capabilities.md),
+[current architecture](architecture.md) and [compatibility](compatibility.md).
 
 ## B2 scope and acceptance corrections
 
@@ -17,12 +21,11 @@ Stable installation -> Runtime bootstrap -> Arch execution core
                     -> Project routing -> Controlled native CLI fixture
 ```
 
-Use controlled, deterministic fixture executables and supported npm shims. Real
-AI CLI integration is out of scope: do not install, configure, authenticate or
-execute Claude Code, Codex CLI, Gemini CLI or other real AI agent CLIs. Do not
-require provider credentials or add provider-specific adapters, policies or
-behavior. Authentication, API availability, model behavior, rate limits and usage
-costs must not block B2.
+B2 used controlled, deterministic fixture executables and supported npm shims.
+Real AI CLI integration was excluded from that milestone; provider credentials,
+authentication, API availability, model behavior, rate limits and usage costs were
+not B2 gates. Later consumer reports document real CLI routing independently.
+No native provider enforcement adapter is implied by either scope.
 
 B2 acceptance requires verified stable installation, independent bootstrap,
 source relocation, isolated native fixture execution, safe installation conflict
@@ -98,7 +101,7 @@ validates the executing Node before dynamically importing the application.
 | Implicit mise execution/discovery | Reject: manager/config/download coupling and possible native PATH changes                                                             |
 | Arch-managed Node copy            | Reject: security updates and lifecycle become a custom runtime manager                                                                |
 | Independent narrow bootstrap      | B1 demonstrates explicit override + first PATH policy without native environment substitution; does not alone solve checkout location |
-| Stable app plus narrow bootstrap  | Preferred B2 direction, subject to approval and complete installation evidence                                                        |
+| Stable app plus narrow bootstrap  | Implemented B2 direction; acceptance remains revision/platform-scoped                                                                 |
 
 `ARCH_NODE` is an **explicit absolute executable override**, not manager discovery.
 An invalid, empty, missing or incompatible override must fail without fallback.
@@ -196,7 +199,8 @@ source-path references are refused. Exact hashes are recorded before exclusive
 creation of `.arch-ready` publishes completion. Entrypoints reject incomplete
 installations. No directory rename can replace a late empty destination; no
 cross-filesystem atomic rename or hard-link capability is needed for installation.
-Routing reconciliation's hard-link requirement is unchanged.
+POSIX routing reconciliation still requires hard links; Windows x64 uses the
+packaged native no-replace helper under FS-1.2.
 
 After readiness publication, the installer invokes the actual installed entrypoint
 with `--help` and the installation-time compatible Node supplied only to that
@@ -246,7 +250,7 @@ rewrite, runtime acquisition, package manager, updater, daemon or remote service
   the packaged Windows x64 native no-replace helper for NTFS/exFAT; POSIX retains
   hard links. Deinit can require publication to finish pending reconciliation.
 
-## Remaining integration gates
+## Acceptance provenance and remaining integration limits
 
 B1 proves real compatible/unsupported runtime selection, original runtime removal,
 checkout relocation recovery, native independence, args/env/cwd/stdio/exit, supported
@@ -255,11 +259,12 @@ distinct from PATH simulation. Important run links and reproduction are in
 [testing](testing.md). Historical Windows executable evidence includes bootstrap
 SHA-256 `92f27a929f437ddfbaeb1155d7c7c5a4ced6a13c2812306e014bcd20df07c826`.
 
-Before B2 completion, execute the self-contained snapshot installation and
-delete/relocate the source checkout; prove runtime replacement/removal and
-invalid selection, modified-launcher refusal, interrupted route/uninstall recovery,
-repeated deinit, native isolation, full regression, wizard and mandatory matrix.
-Record executable/build provenance and PASS / FAIL / NOT TESTED for each area.
+The original B2 completion gate required self-contained snapshot installation,
+source deletion/relocation, runtime replacement/removal, invalid selection,
+modified-launcher refusal, interrupted route/uninstall recovery, repeated deinit,
+native isolation, full regression, wizard and the mandatory matrix. Executable/build
+provenance and PASS / FAIL / NOT TESTED were required for each area. Later evidence
+is indexed separately; these historical requirements are not newly executed results.
 
 Known B1 limits: POSIX prototype probing is not timeout-bounded; both prototypes have
 fixed range logic needing drift protection. Windows arbitrary cmd/PowerShell runtime

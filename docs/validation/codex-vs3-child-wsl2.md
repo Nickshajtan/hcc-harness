@@ -34,13 +34,13 @@ enabled = false
 
 Only synthetic fixtures are involved: `W/task/entries.txt` contains four unordered name/value entries; `W/outside-canary.txt` is a non-secret file outside the permitted root. Ordinary `/bin/cat` reads both successfully, exit 0 (`logs-current/control.json`). Thus both exist and ordinary Unix permissions permit reading.
 
-| Current probe | Exit | Interpretation |
-| --- | --- | --- |
-| Ordinary allowed + canary read | 0 | Both readable outside intended sandbox |
-| Native sandbox allowed read | 1 | Startup failure |
-| Native sandbox canary read | 1 | Same startup failure; no denial proof |
-| Arch-routed sandbox allowed read | 1 | Same startup failure |
-| Arch-routed sandbox canary read | 1 | Same startup failure |
+| Current probe                    | Exit | Interpretation                         |
+| -------------------------------- | ---- | -------------------------------------- |
+| Ordinary allowed + canary read   | 0    | Both readable outside intended sandbox |
+| Native sandbox allowed read      | 1    | Startup failure                        |
+| Native sandbox canary read       | 1    | Same startup failure; no denial proof  |
+| Arch-routed sandbox allowed read | 1    | Same startup failure                   |
+| Arch-routed sandbox canary read  | 1    | Same startup failure                   |
 
 All four sandbox attempts return:
 
@@ -66,7 +66,6 @@ Current and reused parent-state observations show protected config/auth unchange
 
 **BLOCKED. Can a real Codex child agent safely execute the synthetic tool-using task through Arch on this WSL2 executor? Not established.** The native restricted-read sandbox cannot prepare, equally through Arch and directly. This prevents the required security controls and correctly stops model execution. It is not a demonstrated Arch routing defect. A future separately executed test must first pass permitted-read and enforced-denial controls in a supported environment. Linux results do not resolve the Windows sandbox limitation.
 
-
 ## VS-4.0 focused sandbox diagnostic addition — 2026-11-05
 
 Original report above preserved. Scope: non-inference sandbox diagnosis only; no provider-routing suite repeated, production source changes, commits or PRs. Evidence root remains **W** above; new raw evidence is `W/logs-sandbox-addition/`, reproducible driver `W/sandbox-addition.py`. Independently installed `W/installed-offline/arch` supplied a disposable route in `W/sandbox-addition-consumer`; deinit completed with exit 0 afterward.
@@ -75,13 +74,13 @@ Original report above preserved. Scope: non-inference sandbox diagnosis only; no
 
 Compared ordinary nested shell-tool execution with an explicitly approved execution outside the parent sandbox, using `/usr/bin/python3` and the same native provider, fixtures, child profile and controlled Linux PATH. The outside control is a noninteractive host-shell invocation through the executor's escalation facility, not a separately opened interactive terminal; it demonstrably uses a different mount namespace. No inference, unrestricted Codex mode, socket chmod/chown, host-policy modification, or protected-directory mutation was used.
 
-| Observation | Inside parent execution sandbox | Outside parent execution sandbox |
-| --- | --- | --- |
-| Mount namespace | `mnt:[4026532212]` | `mnt:[4026532206]` |
-| Socket directory | `/tmp/codex-daemon-1000` | Same path |
-| Directory owner/group | UID/GID 1000/1000, same as process | UID/GID 1000/1000, same as process |
-| Effective mode | `000` | `0700` |
-| Mounts directly masking directory | Two read-only tmpfs mounts, both `mode=000` | None |
+| Observation                       | Inside parent execution sandbox             | Outside parent execution sandbox   |
+| --------------------------------- | ------------------------------------------- | ---------------------------------- |
+| Mount namespace                   | `mnt:[4026532212]`                          | `mnt:[4026532206]`                 |
+| Socket directory                  | `/tmp/codex-daemon-1000`                    | Same path                          |
+| Directory owner/group             | UID/GID 1000/1000, same as process          | UID/GID 1000/1000, same as process |
+| Effective mode                    | `000`                                       | `0700`                             |
+| Mounts directly masking directory | Two read-only tmpfs mounts, both `mode=000` | None                               |
 
 `nested-context.json` and `host-context.json` capture stat and matching mountinfo records. Ownership is correct in both views; permissions and visibility differ because of mounts. No socket contents or credential values were collected. Child `CODEX_HOME` is isolated, PATH is Linux-only, `CODEX_THREAD_ID` inheritance is recorded only as a boolean. Neither TMPDIR nor XDG_RUNTIME_DIR nor the two recorded CODEX_SANDBOX flags were present. The runtime-grant controls use a second isolated home `W/sandbox-addition-home`, containing only a synthetic config. The context snapshots precede that home substitution; effective home/config are shown by the driver and retained config. Environment adjustments are identical between execution boundaries.
 
@@ -97,12 +96,12 @@ A second isolated profile adds **read access to exactly one installed runtime bi
 
 Final controls are `host-runtime-profile-v2-*.json` and `nested-runtime-profile-v2-*.json`:
 
-| Boundary / route | Allowed entries read | Outside canary read |
-| --- | --- | --- |
-| Outside / native | Exit 0, exact fixture contents | Exit 1, hidden by sandbox filesystem view |
-| Outside / Arch | Exit 0, same exact contents | Exit 1, same hidden-file result |
-| Nested / native | Exit 1, socket-mode startup error | Same startup error |
-| Nested / Arch | Exit 1, socket-mode startup error | Same startup error |
+| Boundary / route | Allowed entries read              | Outside canary read                       |
+| ---------------- | --------------------------------- | ----------------------------------------- |
+| Outside / native | Exit 0, exact fixture contents    | Exit 1, hidden by sandbox filesystem view |
+| Outside / Arch   | Exit 0, same exact contents       | Exit 1, same hidden-file result           |
+| Nested / native  | Exit 1, socket-mode startup error | Same startup error                        |
+| Nested / Arch    | Exit 1, socket-mode startup error | Same startup error                        |
 
 Both ordinary controls read both files with exit 0. In successful outside sandbox runs, cat executes and reports the canary as `No such file or directory`: this is **sandbox-enforced hiding**, not a nonexistent host fixture or ordinary Unix permission failure. The existing host canary was readable immediately before those runs. Successful allowed reads distinguish these results from startup failure. This control establishes the intended synthetic boundary; it does not exhaustively audit every accessible runtime path.
 

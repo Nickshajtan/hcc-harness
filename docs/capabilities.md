@@ -1,0 +1,50 @@
+# Capabilities and verified guarantee boundaries
+
+Implementation baseline: main `b562cbf86a884c98325b855dfc9dd02f4ac6a727`.
+This matrix separates source inspection from historical execution evidence. No full
+acceptance campaign was repeated for documentation consolidation. Exact provider,
+runtime, filesystem and revision details are in the [validation index](validation/README.md).
+
+**Implemented** means present in source; **verified** means exercised within a named
+scope. **Conditionally verified** retains the report's limitations. **Unverified**
+means no sufficient execution evidence here. **Planned** means no shipping integration.
+**Unsupported** means the current contract refuses or does not provide that behavior.
+
+| Mechanism                                            | Implemented?                                                                                         | Verified scope                                                                                  | Guarantee boundary                                                                                        |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Routed process execution                             | Yes: [Core](../src/core/index.ts), [launch](../src/process/launch.ts)                                | Conditional Windows 10 and GO Ubuntu 22.04 WSL2/ext4 control acceptance at `d028df2`            | Only actual routed invocations; source presence does not certify every CLI/TUI                            |
+| Nested routed execution                              | Yes: fresh session per invocation, F3                                                                | F1-F5 control reports at `d028df2`; consumer child-process observations at `b4c3523` are older  | Separate actual process invocation; not an internal logical subagent or model request                     |
+| Native in-process subagents                          | Provider-owned; no Arch execution creation                                                           | Routing investigation identifies the responsibility boundary; no native enforcement acceptance  | No automatic interception, synthetic child identity, shared budget or agent tree                          |
+| Native provider process routing                      | Generic routing implemented; no provider adapter needed                                              | Conditional Claude/Codex/Gemini consumer reports on Windows and WSL2; versions/revisions differ | CLI startup/transport observations do not establish authenticated TUI or semantic delegation              |
+| Provider policy dispatch                             | Yes: [engine](../src/policy.ts); PR #27 merged                                                       | Windows Node 24.19.0 mock VS1/H1-H5 record; later implementation `3f6aa20`                      | Local policy result, not native provider enforcement; no cross-platform acceptance inferred               |
+| `agent.beforeSpawn`                                  | Yes: [typed request](../src/policy-contract.ts) and runtime validation                               | Local mock only                                                                                 | No presumed Claude/Codex/Gemini hook capability                                                           |
+| Real provider blocking adapter                       | Planned; none in current source                                                                      | Unverified                                                                                      | Requires native protocol, capability, refusal and transport verification per provider/version             |
+| Observational EventBus                               | Yes: [events](../src/events.ts)                                                                      | Core/event regressions and process acceptance                                                   | Awaited observation; subscriber/reporter failures isolated; never authorization; no durable transport     |
+| Explicit routing                                     | Yes: `arch run`, generated launcher, activated `mise exec`                                           | Control acceptance and macOS routing spike                                                      | Entry must execute successfully; explicit native invocation can bypass                                    |
+| Implicit PATH routing                                | Yes, cooperative activation                                                                          | macOS routing spike at `69969af`; Windows/WSL2 shell activation reports at their own SHAs       | Not an OS security boundary; provider shell snapshots, rc files and aliases may defeat activation         |
+| Required policies                                    | Yes: trusted `requiredPolicies` option                                                               | H1-H5 focused mock regressions                                                                  | Requirements are not inferred from request IDs; optional empty handler set allows                         |
+| Policy deadlines                                     | Yes: [PolicyDeadline](../src/policy-deadline.ts)                                                     | Focused Windows cooperative regressions                                                         | Shared wait budget, not forced JavaScript termination; blocking code or active handles can outlive result |
+| Policy cleanup                                       | Yes: reverse order and strict admission                                                              | H4 mock cleanup regressions                                                                     | Shared grace; skipped callbacks reported; no guarantee cancellation-ignoring resources release            |
+| Policy transport                                     | Mock only: [transport](../src/mock-transport.ts)                                                     | H5 framing/write/diagnostic negative controls                                                   | Local write completion is not provider receipt or enforcement                                             |
+| Stable installation and runtime isolation            | Yes: [installer](../src/installation/stable-install.ts), [renderer](../src/installation/renderer.ts) | Recorded runtime CI; conditional Windows and targeted WSL2 control/consumer acceptance          | Independent snapshot; no migration/updater/runtime acquisition; keep referenced installation available    |
+| Ownership and recovery                               | Yes: [lifecycle](../src/lifecycle/index.ts)                                                          | Publication/setup/stabilization and platform records                                            | Recorded hashes and provenance; checkpoints, not atomic route-set or power-loss durability; one mutator   |
+| Windows PTY cleanup                                  | Test infrastructure only                                                                             | 2026-11-09 local working-tree report and PR #26 hosted evidence                                 | Dedicated node-pty driver isolation; not production interception or a general descendant killer           |
+| Restricted Codex child task                          | No new Arch sandbox implementation                                                                   | Windows and WSL2 prerequisite BLOCKED at `b4c3523`; semantic task NOT TESTED                    | Native backend inability remains open; CLI routing passes do not supersede it                             |
+| FinOps / DLP / RTK                                   | Planned interchangeable policy modules                                                               | Unverified; fictional example only                                                              | Dispatch support is not implementation of a policy product                                                |
+| Windows ARM64 stable bootstrap                       | Unsupported by current independent-bootstrap build                                                   | NOT TESTED; vendor route artifact alone is insufficient                                         | Do not infer execution support from packaged shim files                                                   |
+| Arbitrary batch/aliases or mandatory OS interception | Unsupported                                                                                          | Outside established contract                                                                    | No shell emulation, universal wrapper analysis or security sandbox                                        |
+
+## Current readiness interpretation
+
+**CONDITIONAL GO for this documentation baseline.** Core routing and mock policy
+contracts are implemented and distinguishable from planned enforcement. Remaining
+evidence gaps prevent a universal release, provider-enforcement or compatibility
+claim. Windows active-Avast behavior ([issue #25](https://github.com/Nickshajtan/hcc-harness/issues/25)),
+older executable-access/npm-help incidents, terminal limitations and blocked Codex
+child sandboxes are not closed by unrelated green tests.
+
+[#24](https://github.com/Nickshajtan/hcc-harness/pull/24),
+[#26](https://github.com/Nickshajtan/hcc-harness/pull/26) and
+[#27](https://github.com/Nickshajtan/hcc-harness/pull/27) are merged and ancestors of
+this baseline. Merge status establishes shipping source, not fresh execution evidence.
+See [audit provenance](documentation-audit.md) and [extension decisions](decisions/README.md).

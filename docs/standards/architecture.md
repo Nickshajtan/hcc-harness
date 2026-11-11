@@ -70,7 +70,7 @@ filesystem implementations supply effects; CLI presentation calls application
 operations and translates results into messages/status. Generic Core MUST NOT gain
 provider-specific or platform policy simply to make an adapter convenient.
 
-Provider-specific adapters, if separately authorized in the future, depend on shared
+Provider-specific adapters, when implemented, depend on shared
 contracts; domain/Core must not import them. This standard does not authorize
 provider work. Avoid cycles and presentation imports from domain/infrastructure.
 Current files mix some roles: these directions are future review rules, not claims
@@ -102,7 +102,7 @@ preserve execute(), middleware, events, CLI/exit codes, status JSON, manifests a
 native arguments/env/cwd/stdio/signals. Tests must establish relevant boundaries
 before structural change; a source split alone does not prove equivalence.
 
-M2.2 B1 remains verified feasibility; B2 installation/bootstrap is authorized. Preserve
+M2.2 B1 remains historical verified feasibility; B2 installation/bootstrap is implemented. Preserve
 Arch/project/native runtime independence, explicit ARCH_NODE policy, native PATH
 selection, authoritative legacy ownership hashes, modified-file protection and
 edited middleware through existing deinit/init operations. No B2 migration/rebind

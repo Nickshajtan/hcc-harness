@@ -1,6 +1,10 @@
 # Platform and filesystem compatibility
 
-## Current production
+## Current implementation and scoped acceptance
+
+Use the [capability matrix](capabilities.md) for current boundaries and the
+[validation index](validation/README.md) for original platform/provider verdicts.
+An implemented contract is not universal release acceptance.
 
 Arch requires Node **>=24.15.0 <25**. The checked-in toolchain uses Node 24.19.0 and
 mise 2026.10.11. Ubuntu, macOS and Windows run the existing regression and wizard
@@ -91,8 +95,9 @@ and PR, not inferred from B1. Stable initialization uses that snapshot's bootstr
 existing captured launchers are not rewritten or migrated. See the
 [installation contract](runtime-portability.md#stable-installation-contract).
 Independent Windows bootstrap execution currently requires x64; ARM64 vendor
-packaging is not evidence of ARM64 bootstrap execution. WSL2/Docker and real AI
-CLI integration are separate milestones.
+packaging is not evidence of ARM64 bootstrap execution. Targeted WSL2/ext4 process acceptance and real AI CLI consumer routing now have
+separate reports; Docker remains unverified. These do not establish native provider
+policy enforcement or unrestricted TUI support.
 
 Stable installation does not need hard links: exclusive destination reservation
 and completion-directory publication provide its no-clobber boundary. The parent
@@ -102,3 +107,28 @@ use the packaged helper included in the stable resource integrity closure; POSIX
 still requires hard links. Unknown helper outcomes require filesystem/object
 attribution or preservation for inspection, never a blind retry or cleanup.
 No power-loss durability or adversarial same-user filesystem-race protection is claimed.
+
+## Provider and terminal evidence limits
+
+| Environment                                  | Accepted evidence                                                  | Outstanding boundary                                                                                   |
+| -------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| Windows 10 x64 control, `d028df2`            | CONDITIONAL GO; selected W1-W4 and non-inference routing           | Active Avast unverified; not Windows 11 or full authenticated TUI acceptance                           |
+| Ubuntu 22.04 WSL2/ext4 control, `d028df2`    | GO for targeted process, nested execution and ownership acceptance | Not Windows-mounted DrvFS, Docker, model inference or all WSL versions                                 |
+| Windows PowerShell 5.1, Claude/Gemini/Codex  | Measured CLI subsets in individual consumer reports                | Native entry quoting/empty-argument differences; no universal argument parity                          |
+| Windows Git Bash/MSYS2                       | Conditional actual Windows-provider CLI routing                    | MSYS conversion, shell PATH growth and where.exe disagreement; mintty/Windows Terminal gaps            |
+| WSL2 Claude 2.1.318                          | Conditional CLI, lifecycle and mise                                | Onboarding cancellation did not settle in direct or routed controls; full authenticated TUI unaccepted |
+| WSL2 Gemini 0.67.0 / Codex 0.166.0           | Conditional native Linux CLI routing                               | Mature TUI, inference and shared authenticated state unverified                                        |
+| Codex restricted child sandbox, Windows/WSL2 | Native and routed prerequisite checks                              | BLOCKED elevated/MXC or bubblewrap backend; semantic child task NOT TESTED                             |
+| Native provider policy hooks                 | None validated                                                     | Mock `agent.beforeSpawn` is not provider enforcement                                                   |
+
+Original reports and exact versions/dates are linked from the
+[validation index](validation/README.md). Later WSL2 routing does not supersede
+Windows failures; later Windows PTY isolation does not repair a provider TUI.
+
+The F1-F5 controlled Avast comparison changed that PR's recommendation to
+CONDITIONAL GO, followed by environment-limited Windows acceptance. It did not
+prove active-Avast compatibility or causally close every historical executable lock
+or npm-help incident. Keep [issue #25](https://github.com/Nickshajtan/hcc-harness/issues/25)
+and the [historical investigation](stabilization-f1-f5.md) visible. The earlier
+FS-1.2 exFAT execution/sharing failures remain historical evidence; later VS-1R
+NTFS-installation/exFAT-consumer results qualify that scope, not every exFAT device.

@@ -27,22 +27,22 @@ Fresh command: `git clone --branch main --single-branch https://github.com/Nicks
 
 Raw inventory: `logs/inventory.json`. Evidence workspace (**W**) is `/home/nikita/arch-validation/vs-1.1b`. Paths below are relative to W unless otherwise stated.
 
-| Component | Observed |
-| --- | --- |
-| Distribution | Ubuntu 22.04.4 LTS, Jammy |
-| Kernel | `5.10.102.1-microsoft-standard-WSL2`, x86_64 |
-| WSL version | WSL2 established by kernel; Windows WSL package version NOT TESTED, no Windows executable substituted |
-| Consumer filesystem | `findmnt -T .`: `/dev/sdb[/home/nikita/arch-validation/vs-1.1b]`, **ext4**, writable |
-| Mount options | `rw,nosuid,nodev,relatime,discard,errors=remount-ro,data=ordered` |
-| Secondary filesystem identifier | `stat -f` says `ext2/ext3` (shared filesystem magic); ext4 claim comes from mount inventory |
-| Report filesystem | `findmnt`: 9p, `aname=drvfs;path=D:\`, rw; read-only inspection plus final report write only |
-| Node / npm | Linux Node `v24.22.2`, npm `11.19.1`; repository requires Node >=24.15.0 <25 |
-| Git | Linux `2.34.1` |
-| mise | Linux `2026.11.0 linux-x64` |
-| Claude | Linux-native `2.1.318`, locally installed `@anthropic-ai/claude-code` |
-| Codex | Linux CLI `0.166.0`; warning about unavailable home PATH-alias writes retained |
-| Compiler/interpreter tools | Existing `/usr/bin/g++`, make, Python 3.10.12; no apt/sudo operation |
-| Terminal | Controlled Linux node-pty, Bash 5.1, TERM=xterm-256color; not proof of a particular Windows GUI terminal host |
+| Component                       | Observed                                                                                                      |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Distribution                    | Ubuntu 22.04.4 LTS, Jammy                                                                                     |
+| Kernel                          | `5.10.102.1-microsoft-standard-WSL2`, x86_64                                                                  |
+| WSL version                     | WSL2 established by kernel; Windows WSL package version NOT TESTED, no Windows executable substituted         |
+| Consumer filesystem             | `findmnt -T .`: `/dev/sdb[/home/nikita/arch-validation/vs-1.1b]`, **ext4**, writable                          |
+| Mount options                   | `rw,nosuid,nodev,relatime,discard,errors=remount-ro,data=ordered`                                             |
+| Secondary filesystem identifier | `stat -f` says `ext2/ext3` (shared filesystem magic); ext4 claim comes from mount inventory                   |
+| Report filesystem               | `findmnt`: 9p, `aname=drvfs;path=D:\`, rw; read-only inspection plus final report write only                  |
+| Node / npm                      | Linux Node `v24.22.2`, npm `11.19.1`; repository requires Node >=24.15.0 <25                                  |
+| Git                             | Linux `2.34.1`                                                                                                |
+| mise                            | Linux `2026.11.0 linux-x64`                                                                                   |
+| Claude                          | Linux-native `2.1.318`, locally installed `@anthropic-ai/claude-code`                                         |
+| Codex                           | Linux CLI `0.166.0`; warning about unavailable home PATH-alias writes retained                                |
+| Compiler/interpreter tools      | Existing `/usr/bin/g++`, make, Python 3.10.12; no apt/sudo operation                                          |
+| Terminal                        | Controlled Linux node-pty, Bash 5.1, TERM=xterm-256color; not proof of a particular Windows GUI terminal host |
 
 A write probe passed in W before installation. Actual Codex shell HTTPS requests to GitHub and registry.npmjs.org returned HTTP 200. Fresh cloning and npm downloads succeeded. Node, mise, Git, Bash and Claude were checked with `file` or `/proc/.../exe`. Node/mise/Claude are Linux ELF x86-64 executables. Arch and project launchers are executable POSIX shell scripts with Linux interpreters. Claude's npm package internally calls its Linux ELF file `bin/claude.exe`; the suffix is **not** Windows executable evidence. `/proc` confirms that exact ELF in the routed process tree.
 
@@ -74,19 +74,19 @@ The entire `source/` directory was reversibly renamed to `source-isolated/`; ins
 
 Driver: `validate.mjs`; commands/streams/status/PIDs in `logs/consumer.json`, checkpoint in `logs/interruption.json`.
 
-| Transition | Result |
-| --- | --- |
-| Initial `arch init claude`, JSON status | PASS; initialized, owned resources valid |
-| `.arch/setup-claim` removed after success | PASS, checked filesystem absence |
-| Repeated identical init | PASS |
-| Add codex / remove codex | PASS |
-| Controlled interruption | PASS: installed lifecycle API reached persisted `published:.arch/bin/codex` checkpoint, then only the owned worker received SIGKILL |
-| Pending journal status | PASS; recovery pending observed before recovery |
-| `configure claude codex`, remove recovered codex | PASS; journal recovery completes |
-| Foreign file collision | PASS; add refused with exit 1, original inode and bytes preserved through deinit |
-| Foreign symlink to `/bin/true` | PASS; route add refused with exit 1 |
-| Deinit and clean reinit | PASS |
-| Final state | Initialized; Claude and owned diagnostic vsprobe routes, no pending recovery |
+| Transition                                       | Result                                                                                                                              |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Initial `arch init claude`, JSON status          | PASS; initialized, owned resources valid                                                                                            |
+| `.arch/setup-claim` removed after success        | PASS, checked filesystem absence                                                                                                    |
+| Repeated identical init                          | PASS                                                                                                                                |
+| Add codex / remove codex                         | PASS                                                                                                                                |
+| Controlled interruption                          | PASS: installed lifecycle API reached persisted `published:.arch/bin/codex` checkpoint, then only the owned worker received SIGKILL |
+| Pending journal status                           | PASS; recovery pending observed before recovery                                                                                     |
+| `configure claude codex`, remove recovered codex | PASS; journal recovery completes                                                                                                    |
+| Foreign file collision                           | PASS; add refused with exit 1, original inode and bytes preserved through deinit                                                    |
+| Foreign symlink to `/bin/true`                   | PASS; route add refused with exit 1                                                                                                 |
+| Deinit and clean reinit                          | PASS                                                                                                                                |
+| Final state                                      | Initialized; Claude and owned diagnostic vsprobe routes, no pending recovery                                                        |
 
 The interruption uses `source/tests/fixtures/routing-worker.mjs` as a driver importing **installed** lifecycle code. IPC acknowledges the actual persisted checkpoint; there is no guessed race or hand-written journal. No ambiguous setup claim was manually cleared. The ordinary suite covers durable setup authority, publication boundaries, ownership, routing journals and fail-closed recovery. Source-independent execution was separate from the mutation sequence.
 
@@ -96,15 +96,15 @@ POSIX probe `publication.mjs` calls installed `publishExclusive` against a compl
 
 Real baseline precedes setup. Each operation has a 20-second timeout, captured streams, cwd, PID, termination status and duration.
 
-| Check | Direct native | Installed launcher | Judgment |
-| --- | --- | --- | --- |
-| `--version` | 0, 2.1.318 | 0, same stdout | PASS |
-| `--help` | 0 | 0, byte-identical stdout | PASS |
-| `--vs1-invalid` | 1 | 1, same stdout, native error retained | PASS |
-| Extra stderr | Native diagnostics | Arch trace/demo lifecycle messages added | Expected middleware behavior, not byte-identical stderr claim |
-| Exact argv/empty/quotes/Unicode | Fixture | Fixture | PASS, separate from real Claude proof |
-| stdin/stdout/stderr/cwd/environment | Fixture | Fixture | PASS |
-| Exit 7 | Fixture 7 | Fixture 7 | PASS |
+| Check                               | Direct native      | Installed launcher                       | Judgment                                                      |
+| ----------------------------------- | ------------------ | ---------------------------------------- | ------------------------------------------------------------- |
+| `--version`                         | 0, 2.1.318         | 0, same stdout                           | PASS                                                          |
+| `--help`                            | 0                  | 0, byte-identical stdout                 | PASS                                                          |
+| `--vs1-invalid`                     | 1                  | 1, same stdout, native error retained    | PASS                                                          |
+| Extra stderr                        | Native diagnostics | Arch trace/demo lifecycle messages added | Expected middleware behavior, not byte-identical stderr claim |
+| Exact argv/empty/quotes/Unicode     | Fixture            | Fixture                                  | PASS, separate from real Claude proof                         |
+| stdin/stdout/stderr/cwd/environment | Fixture            | Fixture                                  | PASS                                                          |
+| Exit 7                              | Fixture 7          | Fixture 7                                | PASS                                                          |
 
 `transport.mjs` creates an executable Linux Node fixture. Exact tested argv: spaced string, Ukrainian text, empty argument, embedded single/double quotes, literal `$HOME`, `/tmp/path`. Both paths produce identical JSON for argv, project cwd, harmless sentinel and stdin, identical stderr and exit 7. Real Claude does not expose these exact transport values; fixture success is not substituted for real provider execution. No inference was requested.
 
@@ -148,13 +148,13 @@ Fixture signal tests are separate and pass: direct native Node dies by SIGINT/SI
 
 No retry-until-success. Real direct and explicit-launcher repetitions are five independent processes each, fixed 20-second timeouts, all stdout/version/status/closure captured. Accepted automatic activation attempts are five commands in the clean interactive Bash session, each bounded by the PTY driver's 20-second command deadline. They are distinct real Claude executions with trace, not five independent shell startups.
 
-| Attempt | Direct ms / code | Launcher ms / code | Clean interactive mise |
-| --- | --- | --- | --- |
-| 1 | 20 / 0 | 206 / 0 | exit 0, real version, one Arch start |
-| 2 | 9 / 0 | 277 / 0 | exit 0, real version, one Arch start |
-| 3 | 10 / 0 | 285 / 0 | exit 0, real version, one Arch start |
-| 4 | 9 / 0 | 211 / 0 | exit 0, real version, one Arch start |
-| 5 | 10 / 0 | 191 / 0 | exit 0, real version, one Arch start |
+| Attempt | Direct ms / code | Launcher ms / code | Clean interactive mise               |
+| ------- | ---------------- | ------------------ | ------------------------------------ |
+| 1       | 20 / 0           | 206 / 0            | exit 0, real version, one Arch start |
+| 2       | 9 / 0            | 277 / 0            | exit 0, real version, one Arch start |
+| 3       | 10 / 0           | 285 / 0            | exit 0, real version, one Arch start |
+| 4       | 9 / 0            | 211 / 0            | exit 0, real version, one Arch start |
+| 5       | 10 / 0           | 191 / 0            | exit 0, real version, one Arch start |
 
 CLI acceptance: **15/15**, no timeout or unexplained CLI residue. The five inherited-state hook attempts are explicitly excluded. The TUI settlement failures remain failures, not included in the CLI success count. No Windows exFAT causal explanation is inferred.
 
@@ -177,17 +177,17 @@ VS-1 established historical paid-inference/edit and explicit Windows routing on 
 
 This slice adds actual Ubuntu processes, Linux ELF Claude, ext4 hard links, native POSIX signals and supported Linux mise activation. There is no MSYS argument conversion, Windows publication helper or NTFS-installation dependency in the accepted Linux path. It does not resolve Windows incidents, Linux onboarding cancellation, or the Git Bash PATH/terminal findings. Claude versions differ (prior Windows 2.1.280 versus Linux 2.1.318), so platform-only causation cannot be inferred.
 
-| Gate | Verdict |
-| --- | --- |
-| A Native Ubuntu execution | PASS |
-| B Linux filesystem | PASS, ext4 verified |
-| C Independent installation | PASS, hashes and reversible source isolation |
-| D Genuine mise activation | PASS for controlled fresh Bash environment; inherited-state harness failures retained |
-| E Claude CLI parity | PASS non-inference CLI and separate deterministic transport |
-| F Lifecycle/ownership | PASS measured lifecycle, recovery and POSIX publication |
-| G Interactive runtime | PARTIAL; onboarding rendering/input/resize pass; cancellation settlement FAIL in both paths; normal/authenticated workflow NOT TESTED |
-| H Reliability | PASS bounded CLI; PARTIAL overall because TUI settlement requires termination |
-| I Evidence | PASS with explicit environmental/harness failures, skips and limitations |
+| Gate                       | Verdict                                                                                                                               |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| A Native Ubuntu execution  | PASS                                                                                                                                  |
+| B Linux filesystem         | PASS, ext4 verified                                                                                                                   |
+| C Independent installation | PASS, hashes and reversible source isolation                                                                                          |
+| D Genuine mise activation  | PASS for controlled fresh Bash environment; inherited-state harness failures retained                                                 |
+| E Claude CLI parity        | PASS non-inference CLI and separate deterministic transport                                                                           |
+| F Lifecycle/ownership      | PASS measured lifecycle, recovery and POSIX publication                                                                               |
+| G Interactive runtime      | PARTIAL; onboarding rendering/input/resize pass; cancellation settlement FAIL in both paths; normal/authenticated workflow NOT TESTED |
+| H Reliability              | PASS bounded CLI; PARTIAL overall because TUI settlement requires termination                                                         |
+| I Evidence                 | PASS with explicit environmental/harness failures, skips and limitations                                                              |
 
 **Confirmed Arch product defects: none established.** Outstanding: diagnose native/routed onboarding Ctrl+C settlement; authenticate Linux Claude only through an explicitly authorized interactive login to complete project trust, idle cancellation, `/exit` and prompt return; establish actual GUI terminal host if required. No inference budget is needed for those idle checks. No destructive or security-sensitive workaround was attempted.
 

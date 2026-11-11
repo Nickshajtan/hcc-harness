@@ -1,6 +1,7 @@
 # Usage and recovery
 
-This guide describes **current production**. Installation prerequisites and npm
+This guide describes the implemented main-branch contract; validation is scoped in
+the [capability matrix](capabilities.md). Installation prerequisites and npm
 link/unlink are in the [README](../README.md); the stable installation and runtime
 selection contract is in the [active design](runtime-portability.md).
 
@@ -98,7 +99,9 @@ hard links on POSIX); see [compatibility](compatibility.md).
 
 ## Missing historical Node or moved checkout
 
-Current production routes capture absolute Node/checkout paths. Missing targets do
+Development-generated routes capture absolute Node/checkout paths. Stable-generated
+routes point to their installed independent bootstrap, which selects Arch Node
+at invocation time using explicit `ARCH_NODE` or the first eligible PATH Node. Missing targets do
 not invalidate matching ownership hashes and do not authorize rewriting/deletion.
 Use a working current Arch checkout with compatible Node, without running the old
 launchers:
@@ -115,7 +118,9 @@ interruption between deinit/init leaves routing absent; inspect state and retry 
 Edited middleware bytes survive deinit/init; unchanged generated defaults may be
 removed/recreated. Modified managed launchers still block removal. CLI link loss
 after a Node-prefix switch needs explicit relinking with a working checkout, not
-automatic runtime discovery. B1's `ARCH_NODE` policy is not a production launcher fix.
+automatic runtime discovery. `ARCH_NODE` applies to the stable bootstrap; it cannot
+repair development-generated launchers that directly reference a missing Node.
+There is no automatic migration or rebind API.
 
 ## Signals and nested execution
 
@@ -251,3 +256,13 @@ For older projects intentionally replace the middleware list with `middleware = 
 or disable the demo entry. No automatic migration occurs. Deinit recognizes exact
 unchanged legacy and new generated starter bytes only when `createdHarness` records
 ownership. Customized starters and foreign configurations are preserved.
+
+## Choosing a process or policy extension
+
+The default CLI registry contains only `demo`. A TOML ID does not import a module:
+library callers supply a trusted factory registry to `execute()` or `dispatchPolicy()`.
+Process extensions use `register()` and the three process phases; provider decisions
+use synchronous `registerPolicy()` and asynchronous handlers. The latter does not
+receive execution context or environment mutation. See the
+[policy API and fictional example](provider-policy.md); its mock executable is not
+an `arch` subcommand and does not create a native provider subagent.

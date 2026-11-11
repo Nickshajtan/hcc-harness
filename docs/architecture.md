@@ -1,5 +1,112 @@
 # Architecture
 
+Canonical overview of main `b562cbf86a884c98325b855dfc9dd02f4ac6a727`.
+Source contracts govern behavior; historical acceptance retains its own revision.
+See [capabilities](capabilities.md), [decisions](decisions/README.md) and
+[validation evidence](validation/README.md).
+
+## Components and responsibility
+
+Arch routes OS process invocations, not logical agent identities. An execution is
+one `execute()` invocation, with fresh context, process pipeline and observational
+bus. A policy request is one independent `dispatchPolicy()` call. Neither creates
+a universal provider-agent tree.
+
+```mermaid
+flowchart LR
+  C[CLI / project launcher / execute caller] --> Core[Arch Core]
+  Core --> PM[Process middleware pipeline]
+  Core --> Proc[Native resolver and direct-child lifecycle]
+  Core --> Bus[Observational EventBus]
+  Proc --> N[Native provider runtime]
+  N --> Sub[Internal subagents and model orchestration - provider-owned]
+  Mock[Implemented local mock adapter] --> PE[Independent policy dispatch engine]
+  PE --> Reg[Per-request registry and handlers]
+  PE --> DL[Cooperative deadline and cleanup]
+  N -. future native hook .-> Adapter[Planned provider adapter]
+  Adapter -. trusted capability and requirements .-> PE
+  Reg -. future extension .-> Modules[FinOps / DLP / RTK]
+```
+
+Solid edges are implemented dependencies or execution paths; dotted edges are
+planned integrations. Core owns entry routing, resolution, process lifecycle,
+execution identity and project ownership/recovery. The middleware subsystem owns
+per-invocation registration and typed dispatch: process phases use `register()`,
+provider decisions use `registerPolicy()`. They share module/registry types, not
+a session, context or event transport. EventBus subscriber failures are isolated
+and cannot authorize an operation. Native adapters must translate verified
+provider capabilities into shared contracts; none ships here except the mock.
+
+## Process execution sequence
+
+Source: [Core](../src/core/index.ts),
+[ExecutionSession](../src/core/execution-session.ts),
+[pipeline](../src/middleware.ts), [launch](../src/process/launch.ts).
+
+```mermaid
+sequenceDiagram
+  participant C as Caller or activated launcher
+  participant A as Arch Core
+  participant B as Observational EventBus
+  participant M as Process middleware
+  participant P as Native direct child
+  C->>A: Explicit run or project PATH route
+  A->>A: Filter native PATH, discover config, freeze fresh context
+  Note over A: Invalid config fails before session allocation
+  A->>B: Initialize observers and await execution.started
+  A->>M: Instantiate and register enabled modules in TOML order
+  A->>A: Resolve native executable and reject router reentry
+  A->>M: preflight, then prepareLaunch
+  M->>B: middleware.completed after each successful handler
+  A->>P: shell-free spawn, inherited stdio, composed env and cwd
+  Note over A,P: Direct-child cancellation and platform signal contract
+  P-->>A: Native exit or signal / launch failure
+  A->>M: finalize even after registration, resolution or launch failure
+  A->>M: Reverse-order cleanup, collect secondary failures
+  A->>B: execution.completed or execution.failed after cleanup attempt
+  A->>B: Dispose listeners even if terminal publication rejects
+  A-->>C: Native result or aggregated execution failure
+```
+
+Resolution precedes `preflight`; no middleware changes executable/arguments.
+A nonzero native exit is a result, not an execution exception. Finalizers attempt
+all registered finalize handlers; disposal collects cleanup failures. Preparation
+can deny launch by throwing. Failures before a child exists still finalize the
+allocated pipeline. Event delivery is awaited, so a never-settling trusted observer
+can delay progress; failure isolation is not a deadline.
+
+## Execution and delegation boundaries
+
+```mermaid
+flowchart TD
+  User[Calling tool] --> A[Arch execution A]
+  A --> P[Native provider OS process]
+  P --> Internal[In-process native subagent - provider owns it]
+  P --> Routed[Explicit Arch run for a separate OS invocation]
+  Routed --> B[Arch execution B - fresh identity and middleware]
+  B --> Child[Native child OS process]
+  P --> Bypass[Absolute native path or unactivated tool shell]
+  Bypass --> Other[Separate OS process - no Arch execution]
+  P -. observation-only hook .-> Telemetry[Telemetry - no authorization]
+  P -. hypothetical blocking hook .-> Adapter[Future adapter must await decision and refuse non-allow]
+```
+
+| Case                               | Arch responsibility                                                         | Boundary                                                            |
+| ---------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Main routed process                | Own execution/session and native direct child                               | Not every descendant                                                |
+| In-process native subagent         | No automatic new execution                                                  | Provider owns creation, model and delegation                        |
+| Separate child routed through Arch | New session with optional parent correlation                                | Requires actual explicit or activated invocation                    |
+| Separate child bypassing Arch      | No middleware or execution events for that invocation                       | PATH is cooperative; absolute paths bypass it                       |
+| Observational provider hook        | Possible future telemetry input                                             | Emission alone does not establish blocking support                  |
+| Blocking provider hook             | Future adapter can translate a decision only if native protocol enforces it | Must verify provider/version/failure behavior; mock is insufficient |
+
+Native PATH filtering deliberately removes marked routing directories. A provider
+tool shell may also replace PATH or load user rc files; implicit nested interception
+is not guaranteed. Use the installed Arch entry explicitly when nested routing is
+required. Parent correlation is untrusted and grants no policy inheritance, budget
+or filesystem ownership. [Routing spike](validation/arch-routing-activation-spike.md)
+separates observed shell mechanics from its unreproduced provider-shell hypothesis.
+
 ## Routing decision and evidence
 
 Selected: **project-local launchers with a minimal Node dispatcher**, activated by
@@ -33,7 +140,8 @@ Unix project launchers `exec` Node using `"$@"`. Native Windows launchers reuse
 [Scoop's C++ shim](https://github.com/ScoopInstaller/Shim/tree/cpp/v0.3.0), with no
 runtime dependencies; provenance, checksums and license are in `vendor/`.
 They launch the same Node entry point and preserve the raw argument tail. This
-avoids both custom native code and batch argument parsing in production.
+avoids custom route-launcher code and batch argument parsing. The independent
+stable bootstrap and Windows publication helper are separate native components.
 
 Mise discovers `.config/mise/conf.d/arch.toml` and puts `.arch/bin` on PATH. It uses
 its own normal trust and activation rules. Within a shell with stale project PATH,
@@ -199,8 +307,9 @@ a process-tree supervisor: grandchildren are owned by the launched tool.
 exclusive initial writes, recorded ownership and rollback; `installation/renderer.ts`
 renders resources without inspecting project state. Its CLI/vendor URLs explicitly
 retain setup's historical anchors in both source and built artifacts. Byte contracts
-cover POSIX quoting and Windows executable/shim payloads; this move does not rebind
-existing resources or implement B2. `lifecycle.ts` is an export-only
+cover POSIX quoting and Windows executable/shim payloads. Development rendering
+retains historical paths; stable rendering selects the completed snapshot entry.
+Neither branch silently rebinds existing owned resources. `lifecycle.ts` is an export-only
 compatibility facade over `lifecycle/index.ts`, which coordinates public route operations.
 The internal responsibilities are:
 
@@ -215,6 +324,8 @@ The internal responsibilities are:
 | recovery.ts             | Explicit ordered recovery effects and unchanged checkpoint callbacks                    |
 | removal.ts              | Ownership-checked uninstall and its persisted removal checkpoint                        |
 | inspection.ts           | Read-only state classification, activation observations and middleware diagnostics      |
+| native-publication.ts   | Packaged Windows helper protocol, resource verification and publication attribution     |
+| setup-claim.ts          | Exclusive setup claim and identity-checked release; no automatic adoption               |
 
 Manifest/ownership/journal helpers never import lifecycle coordinators or setup.
 Coordinators compose those helpers; route planning imports the renderer directly,
@@ -246,8 +357,8 @@ tested against M2 inspection, repeated initialization, reconciliation and remova
 Route reconciliation preserves shared launchers, the router marker, mise integration
 and harness ownership. A versioned `.arch/routing.json` stores before/after manifests
 and base64 payloads for new launchers, without environment values or credentials.
-Complete sibling staging writes are published with exclusive hard links for new
-destinations. Ordinary rename cannot provide portable no-replace semantics; it is
+Complete sibling staging writes use exclusive hard links on POSIX and the packaged
+native no-replace move on Windows x64 for new destinations. Ordinary rename cannot provide portable no-replace semantics; it is
 used only to replace the already-owned bootstrap after validation. Additions are
 verified before old launchers are removed; the journal is removed last after cleanup.
 Windows exe/shim pairs use the same protocol. Unsupported hard links, Windows
@@ -273,12 +384,22 @@ menu inspection/removal map to `status` / `deinit --yes`.
 The publication decision is deliberately narrow: a journal explains interrupted
 ownership, but cannot authorize overwriting a destination that appears after
 preflight. Ordinary rename lacks portable no-replace semantics; exclusive copy
-could expose a truncated live launcher. Hence hard links publish complete new
-files/journals exclusively, while staged rename replaces only already-owned state.
-Unsupported links fail without an alternate algorithm. See
+could expose a truncated live launcher. The shared publication boundary exposes complete new
+files/journals exclusively using POSIX hard links or the Windows native helper,
+while staged rename replaces only already-owned state. Unsupported capabilities
+fail without an alternate weaker algorithm. See
 [compatibility](compatibility.md) and [test evidence](testing.md).
 
-### Existing bootstrap guarantees
+### Setup authority and existing bootstrap guarantees
+
+Before initial publication, setup exclusively creates `.arch/setup-claim`. Status,
+route operations and removal refuse an unresolved claim even when bootstrap bytes
+match. Only the living setup invocation holding the directory identity releases it
+after verified commit/cleanup or verified rollback. Ambiguous publication retains
+claim/resources for manual provenance review; no automatic crash adoption exists.
+See [setup claim](../src/lifecycle/setup-claim.ts),
+[publication adapter](../src/lifecycle/native-publication.ts) and
+[manual recovery](usage.md#recovering-an-interrupted-init).
 
 Setup writes only owned files with exclusive creation. It records SHA-256 hashes,
 validates repeated setups, refuses collisions, and rolls back files created by a
@@ -292,8 +413,8 @@ allows already-absent managed files while verifying every remaining file. A fres
 uninstall still rejects unexpectedly missing files. The manifest is retained through
 deletion/configuration errors and removed last; errors identify the operation and
 affected path. Initialization is refused while that checkpoint exists. Edited or
-preexisting harness configuration remains. Generated launchers capture absolute
-runtime/checkout paths. Missing targets do not invalidate unchanged ownership;
+preexisting harness configuration remains. Development-generated launchers capture
+absolute runtime/checkout paths; stable-generated routes bind to the installed entry. Missing targets do not invalidate unchanged ownership;
 use a working current Arch for explicit deinit/init [rebind](usage.md).
 
 New local module factories are registered explicitly in the registry without
@@ -327,6 +448,8 @@ M2.2 B1 is verified feasibility. B2 adds explicit stable installation and indepe
 entrypoints, with acceptance evidence recorded separately in the quality baseline.
 `installation/stable-install.ts` owns destination reservation, npm production
 materialization, verification and readiness publication; it retains failed trees.
+[Stable consumer acceptance](validation/README.md) adds later platform-scoped
+evidence without replacing the historical quality/incident ledger.
 `installation/stable-layout.ts` selects stable rendering only for completed
 same-platform snapshots. Renderer hashes and historical ownership rules remain
 separate. `cli.ts` checks the actual executing engine before importing `cli/main.ts`;

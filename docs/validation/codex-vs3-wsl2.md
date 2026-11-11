@@ -14,12 +14,12 @@ Independently installed Arch: `W/installed-offline/arch`, built using the suppor
 
 Linux native resolution is the mise Node installation's `@openai/codex/bin/codex.js`; the wrapper launches the package's native `codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex` ELF. Current observation records show installed Arch Node PID 73 → genuine Codex wrapper PID 86 for version; help uses 110 → 123, exec-help 147 → 160. These PIDs are local to that shell tool namespace. The namespace's PID 1 is a Linux Codex binary; it is not sufficient evidence of the host parent session's identity. Reused live ELF sampling is retained in `logs/live-process-sample.json`.
 
-| Command | Native exit | Routed exit | stdout equality | Provider stderr equality |
-| --- | --- | --- | --- | --- |
-| `codex --version` | 0 | 0 | Exact | Exact |
-| `codex --help` | 0 | 0 | Exact | Exact |
-| `codex exec --help` | 0 | 0 | Exact | Exact |
-| `codex --vs4-invalid-option` | 2 | 2 | Exact | Exact |
+| Command                      | Native exit | Routed exit | stdout equality | Provider stderr equality |
+| ---------------------------- | ----------- | ----------- | --------------- | ------------------------ |
+| `codex --version`            | 0           | 0           | Exact           | Exact                    |
+| `codex --help`               | 0           | 0           | Exact           | Exact                    |
+| `codex exec --help`          | 0           | 0           | Exact           | Exact                    |
+| `codex --vs4-invalid-option` | 2           | 2           | Exact           | Exact                    |
 
 Current results: `logs-current/native-*.json`, `route-*.json`. Diagnostic runs enable Arch traces and demo middleware; raw routed stderr includes extra `[arch:event]` and `[arch:demo]` lines. Only these lines are removed for provider-stderr comparison. Raw stderr byte parity is not claimed. Normal exit and returned output are demonstrated without model calls.
 
