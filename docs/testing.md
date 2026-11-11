@@ -1,5 +1,14 @@
 # Development and testing
 
+Current commands and prerequisites are maintained here. Historical results below
+retain their measured revisions; use the [validation index](validation/README.md)
+and [capabilities](capabilities.md) before applying a result to current main.
+For documentation-only changes, follow [quality gates](standards/quality-gates.md):
+format changed Markdown, check repository links/anchors, parse Mermaid and review
+source/evidence consistency. Full software acceptance, mutation and provider
+inference are not required for prose changes. No new software acceptance is
+claimed by this consolidation.
+
 ## Ordinary production development
 
 Use Node >=24.15.0 <25 (pinned 24.19.0), installed development dependencies and
@@ -151,6 +160,12 @@ The check names and three-platform test gates remain unchanged; an explicit
 architecture check requires `arm64`. This changes the tested macOS release,
 not CPU coverage. See GitHub's [runner labels](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
 Unassigned runners remain infrastructure failures, never test passes.
+
+### Historical B1 feasibility evidence
+
+The following NOT TESTED labels describe the B1 measurement only. Stable installation,
+real CLI routing and selected shell activation have later evidence in the
+[validation index](validation/README.md); the remaining limits retain their scope.
 
 Important inspected baseline evidence (feasibility, not production portability):
 

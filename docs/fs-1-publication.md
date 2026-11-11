@@ -1,5 +1,9 @@
 # FS-1: portable exclusive publication decision
 
+> Historical implementation/investigation record. Original observations and verdicts
+> below retain their revision and scope. Current guidance: [architecture](architecture.md),
+> [compatibility](compatibility.md), and [validation index](validation/README.md).
+
 Historical Node-API investigation. [FS-1.2](fs-1.2-native-publication.md) subsequently
 adds a native Windows bridge and documents current NTFS/exFAT support.
 

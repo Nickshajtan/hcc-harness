@@ -1,5 +1,12 @@
 # F1-F5 stabilization implementation record
 
+> Historical implementation/investigation record. Original observations and verdicts
+> below retain their revision and scope. Current guidance: [architecture](architecture.md),
+> [compatibility](compatibility.md), and [validation index](validation/README.md).
+> The early BLOCKED assessment is superseded for PR review by the controlled Avast
+> comparison later in this same record (CONDITIONAL GO). Later Windows conditional
+> and WSL2 GO control reports are separate acceptance; active Avast remains open.
+
 Baseline: `b4c35238614e1df7dc696b05bb286ae6c34b2825` (fetched upstream main).
 Production implementation: `e1877b4ce204f7bf42c791c1766e01107cfdece1`.
 Branch: `fix/arch-f1-f5-stabilization`. Implementation environment: Windows x64,
