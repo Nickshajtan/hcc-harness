@@ -10,17 +10,17 @@ A fresh independently installed Windows Arch routed real Windows-native Gemini 0
 
 There are two material qualifications: PowerShell 5.1 changes embedded quotes/empty arguments at different entry boundaries, producing a real native-versus-routed argument difference; and bounded unauthenticated TUI attempts did not establish a return to a functional shell after Ctrl+C. These are not demonstrated Arch executable defects. The same terminal limitation occurs directly, and the PowerShell corruption is already present when Arch receives its arguments.
 
-| Gate | PowerShell | Git Bash | Accepted scope |
-| --- | --- | --- | --- |
-| A Native provider | PASS | PASS | Real version/help/invalid-option commands |
-| B PowerShell routing | PASS | — | Genuine prompt activation, leave/re-entry, explicit execution separately |
-| C Git Bash routing | — | PASS | Interactive Bash/mise, leave/re-entry and actual routed execution |
-| D CLI parity | PARTIAL | PASS | Version/help/invalid streams and codes equal; PS embedded-quote/empty-argument limitation |
-| E Interactive runtime | PARTIAL | PARTIAL | PS login chooser; Bash terminal initialization only; complete TUI acceptance absent |
-| F Agent transport | PASS | PASS | Current Codex session → controlled shell → installed Arch → real Gemini |
-| G Environment/process | PARTIAL | PARTIAL | CLI cwd/env/stdin fixtures/normal exits pass; TUI cancellation/shell return unaccepted |
-| H Provider isolation | PASS | PASS | Real Gemini and Claude, targeted removal, foreign-file preservation |
-| I Evidence integrity | PASS | PASS | Real-provider evidence separated from fixtures and excluded driver attempts |
+| Gate                  | PowerShell | Git Bash | Accepted scope                                                                            |
+| --------------------- | ---------- | -------- | ----------------------------------------------------------------------------------------- |
+| A Native provider     | PASS       | PASS     | Real version/help/invalid-option commands                                                 |
+| B PowerShell routing  | PASS       | —        | Genuine prompt activation, leave/re-entry, explicit execution separately                  |
+| C Git Bash routing    | —          | PASS     | Interactive Bash/mise, leave/re-entry and actual routed execution                         |
+| D CLI parity          | PARTIAL    | PASS     | Version/help/invalid streams and codes equal; PS embedded-quote/empty-argument limitation |
+| E Interactive runtime | PARTIAL    | PARTIAL  | PS login chooser; Bash terminal initialization only; complete TUI acceptance absent       |
+| F Agent transport     | PASS       | PASS     | Current Codex session → controlled shell → installed Arch → real Gemini                   |
+| G Environment/process | PARTIAL    | PARTIAL  | CLI cwd/env/stdin fixtures/normal exits pass; TUI cancellation/shell return unaccepted    |
+| H Provider isolation  | PASS       | PASS     | Real Gemini and Claude, targeted removal, foreign-file preservation                       |
+| I Evidence integrity  | PASS       | PASS     | Real-provider evidence separated from fixtures and excluded driver attempts               |
 
 `PASS` applies only to the stated observations. `PARTIAL` means an observed subset passes while a required subset is incomplete or fails acceptance. `NOT TESTED` denotes unexecuted capabilities. No missing evidence is promoted to PASS.
 
@@ -30,22 +30,22 @@ Report workspace, resolved with `Get-Location`: **`D:\AI\arch-validation`**. Thi
 
 Both shells used **`b4c35238614e1df7dc696b05bb286ae6c34b2825`**, tree **`0d6cb93f29ea57b108ba9202a6f05f11cfdbb806`**, including FS-1.2. GitHub HTTPS clone failed with the configured CA bundle; a schannel retry failed with `SEC_E_NO_CREDENTIALS`. TLS verification was not disabled. A fresh connected GitHub `list_branches` query independently returned this SHA for protected `main`. An isolated `--no-hardlinks` local clone supplied the exact object and was detached at it. Thus current-main identity is verified by API; a successful upstream Git fetch is **not** claimed. Final `git diff --exit-code` and `git status --porcelain=v1` were clean. Build outputs/dependencies are ignored generated files.
 
-| Item | Measured value |
-| --- | --- |
-| Windows | 10.0.19045.0, x64 |
-| PowerShell | Windows PowerShell 5.1.19041.6456 |
-| Git for Windows | 2.46.2.windows.1 |
-| Git Bash | 5.2.37(1)-release; MINGW64; MSYS 3.4.10-bc1f6498.x86_64 |
-| Node | Native win32 x64 v24.19.0; `C:\nvm4w\nodejs\node.exe`, resolving to the nvm Windows installation |
-| npm | 12.0.2 |
-| mise | 2026.10.11 windows-x64 |
-| Gemini CLI | Existing stable, non-prerelease `@google/gemini-cli` 0.55.1 |
-| Codex CLI available on host | Original PATH: 0.163.0; controlled native-tool PATH: 0.147.0 |
-| Claude smoke-test binary | Existing native 2.1.280 |
-| Ordinary test filesystem | C: NTFS, queried with .NET DriveInfo |
-| Report/source filesystem | D: exFAT, queried with .NET DriveInfo; no exFAT consumer rerun |
-| Interactive terminal | node-pty 1.1.0 Windows ConPTY, xterm-256color, initially 110×32 |
-| Noninteractive shell streams | Pipes; Bash reports TERM=dumb |
+| Item                         | Measured value                                                                                   |
+| ---------------------------- | ------------------------------------------------------------------------------------------------ |
+| Windows                      | 10.0.19045.0, x64                                                                                |
+| PowerShell                   | Windows PowerShell 5.1.19041.6456                                                                |
+| Git for Windows              | 2.46.2.windows.1                                                                                 |
+| Git Bash                     | 5.2.37(1)-release; MINGW64; MSYS 3.4.10-bc1f6498.x86_64                                          |
+| Node                         | Native win32 x64 v24.19.0; `C:\nvm4w\nodejs\node.exe`, resolving to the nvm Windows installation |
+| npm                          | 12.0.2                                                                                           |
+| mise                         | 2026.10.11 windows-x64                                                                           |
+| Gemini CLI                   | Existing stable, non-prerelease `@google/gemini-cli` 0.55.1                                      |
+| Codex CLI available on host  | Original PATH: 0.163.0; controlled native-tool PATH: 0.147.0                                     |
+| Claude smoke-test binary     | Existing native 2.1.280                                                                          |
+| Ordinary test filesystem     | C: NTFS, queried with .NET DriveInfo                                                             |
+| Report/source filesystem     | D: exFAT, queried with .NET DriveInfo; no exFAT consumer rerun                                   |
+| Interactive terminal         | node-pty 1.1.0 Windows ConPTY, xterm-256color, initially 110×32                                  |
+| Noninteractive shell streams | Pipes; Bash reports TERM=dumb                                                                    |
 
 Owned root **T**: `C:\Users\38098\AppData\Local\Temp\arch-vs2-a3kph7`. Separate directories: `T\installed`, `T\ps-consumer`, `T\bash-consumer`, `T\baseline`, `T\nested\{ps,bash}`, `T\fixture-native`, `T\tools`, and individual TUI/quote fixtures and isolated TUI homes. Source: `D:\AI\arch-validation\arch-vs2-source`. Diagnostic evidence **E**: `D:\AI\arch-validation\evidence\gemini-vs2`. Exact configuration is retained in `E\config.json`.
 
@@ -113,16 +113,16 @@ Accepted synchronized record: `pty-bash.json` and cleaned `pty-bash.txt`. The ea
 
 Deterministic `vs2probe` uses standard npm-style launchers and a Node fixture outside consumers. It prints argument text plus UTF-8 hex, cwd, selected environment and stdin hex; writes Unicode stderr; exits 42. It is explicitly **not Gemini**.
 
-| Argument class | Default Bash observation, native and routed |
-| --- | --- |
-| `./relative`, `../parent` | Preserved |
-| `C:\work\project` | Preserved |
-| `/c/work/project` | `C:/work/project` |
-| Spaces, Unicode, embedded quote, empty argument | Preserved by Bash in both paths |
-| `/help` | `C:/Program Files/Git/help` |
-| `key:value` | Preserved |
-| `/c/one:/d/two` | `C:\one;D:\two` |
-| `C:\one;D:\two` | Preserved |
+| Argument class                                  | Default Bash observation, native and routed |
+| ----------------------------------------------- | ------------------------------------------- |
+| `./relative`, `../parent`                       | Preserved                                   |
+| `C:\work\project`                               | Preserved                                   |
+| `/c/work/project`                               | `C:/work/project`                           |
+| Spaces, Unicode, embedded quote, empty argument | Preserved by Bash in both paths             |
+| `/help`                                         | `C:/Program Files/Git/help`                 |
+| `key:value`                                     | Preserved                                   |
+| `/c/one:/d/two`                                 | `C:\one;D:\two`                             |
+| `C:\one;D:\two`                                 | Preserved                                   |
 
 With **process-local** `MSYS2_ARG_CONV_EXCL='*'`, POSIX paths, `/help`, and the colon-separated POSIX list remained literal in both paths. No global change was made. Native/routed fixture argv arrays matched in both conversion modes. The selected Windows path-list environment value containing spaces/Unicode was preserved.
 
@@ -204,12 +204,12 @@ Evidence: `{ps,bash}-{two-providers,repeat-two,status-two,multi-gemini,multi-cla
 
 ## 13. Bounded reliability results
 
-| Accepted series | PowerShell | Git Bash |
-| --- | --- | --- |
-| Native real Gemini version | 5/5 PASS | 5/5 PASS |
-| Explicit Arch/mise real Gemini version | 5/5 PASS | 5/5 PASS |
-| Dedicated Codex-initiated activated nested version | 3/3 PASS | 3/3 PASS |
-| Dedicated Codex-initiated help | 1/1 PASS | 1/1 PASS |
+| Accepted series                                    | PowerShell | Git Bash |
+| -------------------------------------------------- | ---------- | -------- |
+| Native real Gemini version                         | 5/5 PASS   | 5/5 PASS |
+| Explicit Arch/mise real Gemini version             | 5/5 PASS   | 5/5 PASS |
+| Dedicated Codex-initiated activated nested version | 3/3 PASS   | 3/3 PASS |
+| Dedicated Codex-initiated help                     | 1/1 PASS   | 1/1 PASS |
 
 Each noninteractive command had a 30-second timeout. No accepted provider CLI command timed out or required retry. Extra successful baseline, parity, isolation and interactive CLI calls are not inflated into this minimum-count table. No filesystem stress rerun was undertaken.
 

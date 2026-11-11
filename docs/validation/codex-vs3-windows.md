@@ -8,18 +8,18 @@ Executed 2026-11-05, Europe/Kiev. Validation workspace: **`D:\AI\arch-validation
 
 The qualifications are PowerShell 5.1 arbitrary-argument differences, isolated temporary-home helper warnings, incomplete TUI acceptance and untested shared-parent-home database concurrency. A TUI-driver false positive sent synthetic shell-check text into Codex input; that attempt is excluded. Its isolated state contains no recorded threads or rollout files. No semantic child task is accepted, and no inference test was authorized or deliberately run. The failed driver prevents claiming that every interactive attempt respected the intended no-input boundary; absence of recorded tasks is not a network-level audit.
 
-| Gate | PowerShell | Git Bash | Accepted scope |
-| --- | --- | --- | --- |
-| A Native baseline | PASS | PASS | Version, help, exec help, invalid flag |
-| B PowerShell routing | PASS | — | Genuine interactive mise entry/exit/re-entry |
-| C Git Bash routing | — | PASS | Genuine interactive mise, actual Windows provider |
-| D CLI parity | PARTIAL | PASS | Eight standard command comparisons equal; PS arbitrary-quote limitation |
-| E Interactive TUI | PARTIAL | PARTIAL | Startup/state initialization observed; complete TUI acceptance withheld |
-| F Agent process routing | PASS | PASS | Active parent → tool shell → Arch → distinct native child |
-| G Recursion safety | PASS | PASS | One normal routing boundary; native-missing control fails closed |
-| H Parent state integrity | PASS | PASS | Protected files unchanged; same parent alive; isolated child stores |
-| I Provider isolation | PASS | PASS | Codex/Claude/Gemini identities and targeted removal |
-| J Evidence integrity | PASS | PASS | Failed drivers excluded; actual provider distinguished from fixtures |
+| Gate                     | PowerShell | Git Bash | Accepted scope                                                          |
+| ------------------------ | ---------- | -------- | ----------------------------------------------------------------------- |
+| A Native baseline        | PASS       | PASS     | Version, help, exec help, invalid flag                                  |
+| B PowerShell routing     | PASS       | —        | Genuine interactive mise entry/exit/re-entry                            |
+| C Git Bash routing       | —          | PASS     | Genuine interactive mise, actual Windows provider                       |
+| D CLI parity             | PARTIAL    | PASS     | Eight standard command comparisons equal; PS arbitrary-quote limitation |
+| E Interactive TUI        | PARTIAL    | PARTIAL  | Startup/state initialization observed; complete TUI acceptance withheld |
+| F Agent process routing  | PASS       | PASS     | Active parent → tool shell → Arch → distinct native child               |
+| G Recursion safety       | PASS       | PASS     | One normal routing boundary; native-missing control fails closed        |
+| H Parent state integrity | PASS       | PASS     | Protected files unchanged; same parent alive; isolated child stores     |
+| I Provider isolation     | PASS       | PASS     | Codex/Claude/Gemini identities and targeted removal                     |
+| J Evidence integrity     | PASS       | PASS     | Failed drivers excluded; actual provider distinguished from fixtures    |
 
 PASS is limited to the stated observation. PARTIAL denotes incomplete coverage or a failed subset; NOT TESTED denotes an unexecuted capability. No confirmed Arch defect requires a BLOCKED verdict. Full arbitrary-argument or authenticated interactive support is not claimed.
 
@@ -29,21 +29,21 @@ The exact Gemini VS-2.0 source was deliberately retained: **`b4c35238614e1df7dc6
 
 Owned NTFS root **T**: `C:\Users\38098\AppData\Local\Temp\arch-vs3-KFcqXW`. Evidence **E**: `T\logs`. Separate owned directories contain `source`, `build`, `installed`, `ps-consumer`, `bash-consumer`, `runtime`, `observations`, `nested`, `child-home`, `child-sqlite` and `tools`. Exact paths/settings are retained in the external `vs3-config.json`; diagnostic drivers are `vs3-*.mjs`, `vs3-*.cjs` and `vs3-process.cs` in the report workspace. Raw execution logs and per-command scripts are in E. No real project or report-workspace consumer was used.
 
-| Item | Observed |
-| --- | --- |
-| Windows / architecture | 10.0.19045.0 / native x64 |
-| PowerShell | Windows PowerShell 5.1.19041.6456, Desktop edition |
-| PowerShell 7 | NOT TESTED; `Get-Command pwsh` found no executable on the original PATH |
-| Git for Windows | 2.46.2.windows.1 |
-| Git Bash / MSYS | 5.2.37(1)-release / 3.4.10-bc1f6498.x86_64, MINGW64 |
-| Node / npm | Native win32 x64 v24.19.0 / 12.0.2 |
-| mise | 2026.10.11 windows-x64 |
-| Parent and tested child Codex | 0.163.0, npm-distributed native Windows binary |
-| Other installed providers | Claude 2.1.280; Gemini 0.55.1 |
-| Filesystems | T and all consumers: C: NTFS; report directory D: exFAT, measured using .NET DriveInfo |
-| Interactive host | node-pty 1.1.0 Windows ConPTY; 130×35 for CLI activation; 110×32 → 90×28 for TUI |
-| Noninteractive streams | Pipes; inherited TERM=dumb |
-| Restrictions | Workspace/temporary-directory writes; protected parent state; restricted network; sandbox/rule/skill escalation automatically unavailable; no approvals bypassed |
+| Item                          | Observed                                                                                                                                                         |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Windows / architecture        | 10.0.19045.0 / native x64                                                                                                                                        |
+| PowerShell                    | Windows PowerShell 5.1.19041.6456, Desktop edition                                                                                                               |
+| PowerShell 7                  | NOT TESTED; `Get-Command pwsh` found no executable on the original PATH                                                                                          |
+| Git for Windows               | 2.46.2.windows.1                                                                                                                                                 |
+| Git Bash / MSYS               | 5.2.37(1)-release / 3.4.10-bc1f6498.x86_64, MINGW64                                                                                                              |
+| Node / npm                    | Native win32 x64 v24.19.0 / 12.0.2                                                                                                                               |
+| mise                          | 2026.10.11 windows-x64                                                                                                                                           |
+| Parent and tested child Codex | 0.163.0, npm-distributed native Windows binary                                                                                                                   |
+| Other installed providers     | Claude 2.1.280; Gemini 0.55.1                                                                                                                                    |
+| Filesystems                   | T and all consumers: C: NTFS; report directory D: exFAT, measured using .NET DriveInfo                                                                           |
+| Interactive host              | node-pty 1.1.0 Windows ConPTY; 130×35 for CLI activation; 110×32 → 90×28 for TUI                                                                                 |
+| Noninteractive streams        | Pipes; inherited TERM=dumb                                                                                                                                       |
+| Restrictions                  | Workspace/temporary-directory writes; protected parent state; restricted network; sandbox/rule/skill escalation automatically unavailable; no approvals bypassed |
 
 Prior available reports were reviewed: Claude VS-1, VS-1R and Git Bash VS-1.1a in their validation checkouts; `claude-code-vs1-wsl2.md`; and `gemini-vs2-windows.md`. Their publication/ownership evidence, unresolved Windows incidents, Bash lookup/PATH observations and terminal-driver limitations informed this slice. Historical Claude success is not Codex proof. No filesystem stress or mutation campaign was repeated.
 
@@ -117,15 +117,15 @@ Bash preserved the embedded quote, empty argument and Unicode tail identically i
 
 Separate deterministic `vs3probe` npm-style fixtures print argument text/UTF-8 hex, cwd, selected environment and stdin hex. They are not substituted for Codex.
 
-| Input | Default native and routed Bash fixture result |
-| --- | --- |
-| Relative paths, Windows drive path | Preserved |
-| `/c/work/project` | `C:/work/project` |
-| Spaces, Unicode, embedded quote, empty argument | Preserved |
-| `/help` | `C:/Program Files/Git/help` |
-| `key:value` | Preserved |
-| `/c/one:/d/two` | `C:\one;D:\two` |
-| Windows path list | Preserved |
+| Input                                           | Default native and routed Bash fixture result |
+| ----------------------------------------------- | --------------------------------------------- |
+| Relative paths, Windows drive path              | Preserved                                     |
+| `/c/work/project`                               | `C:/work/project`                             |
+| Spaces, Unicode, embedded quote, empty argument | Preserved                                     |
+| `/help`                                         | `C:/Program Files/Git/help`                   |
+| `key:value`                                     | Preserved                                     |
+| `/c/one:/d/two`                                 | `C:\one;D:\two`                               |
+| Windows path list                               | Preserved                                     |
 
 Native/routed fixture argv arrays match under default conversion and process-local `MSYS2_ARG_CONV_EXCL='*'`. With exclusion, POSIX strings and `/help` remain literal. The path-valued environment sentinel survives. Default actual Codex spawn records likewise show `/c/work/project` converted and Windows paths preserved.
 
@@ -188,12 +188,12 @@ Removing only Codex left Claude/Gemini in status; both still executed successful
 
 ## 15. Bounded reliability results
 
-| Accepted series | PowerShell | Git Bash |
-| --- | --- | --- |
-| Native version | 5/5 PASS | 5/5 PASS |
-| Explicit mise/Arch version | 5/5 PASS | 5/5 PASS |
-| Parent-initiated activated child version | 3/3 PASS | 3/3 PASS |
-| Parent-initiated help and exec help | 2/2 PASS | 2/2 PASS |
+| Accepted series                          | PowerShell | Git Bash |
+| ---------------------------------------- | ---------- | -------- |
+| Native version                           | 5/5 PASS   | 5/5 PASS |
+| Explicit mise/Arch version               | 5/5 PASS   | 5/5 PASS |
+| Parent-initiated activated child version | 3/3 PASS   | 3/3 PASS |
+| Parent-initiated help and exec help      | 2/2 PASS   | 2/2 PASS |
 
 Each ordinary command had a 30-second timeout; recursion controls had ten seconds. No accepted provider CLI command timed out or needed retry. Failed TUI/driver attempts are not counted in this CLI table. Individual `repeat-*` and `agent-*` logs retain actual command, shell, cwd, status and streams.
 

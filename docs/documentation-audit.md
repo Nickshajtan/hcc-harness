@@ -26,7 +26,8 @@ The initial sandboxed SSH fetch could not access known_hosts; approved fetch
 succeeded with normal host verification. Local `gh` returned authentication 401,
 so connected GitHub metadata supplied PR verification. No failed command was
 counted as successful verification. Hosted job/artifact claims are attributed to
-original reports or the merged PR record; CI was not independently rerun here.
+original reports or the merged PR record. PR #28 CI was inspected separately
+as recorded below; its initial formatting failure is retained.
 
 ## Reconciliation and extension boundaries
 
@@ -51,8 +52,12 @@ original reports or the merged PR record; CI was not independently rerun here.
 
 ## Evidence preservation and move mapping
 
-All 16 pre-existing `docs/validation/*.md` reports remain byte-identical to base
-Git blobs. The new [validation index](validation/README.md) classifies each report
+All 16 pre-existing `docs/validation/*.md` reports preserve their parsed Markdown
+content exactly. Eight remain byte-identical to base Git blobs; eight receive
+formatting-only changes verified by comparing Markdown syntax trees after removing
+source positions. This retains text, dates, SHAs, verdicts, code blocks, links and
+negative controls. [Exact original bytes](https://github.com/Nickshajtan/hcc-harness/tree/b562cbf86a884c98325b855dfc9dd02f4ac6a727/docs/validation)
+remain at the immutable baseline commit. The new [validation index](validation/README.md) classifies each report
 with date, platform/provider, tested revision, original verdict, scope, caveats and
 later qualification. Working-tree measurements remain base-plus-changes, not
 invented final-commit acceptance. External raw logs are referenced, not reconstructed.
@@ -70,22 +75,35 @@ major boundaries; [ADR index](decisions/README.md) lists all nine.
 | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | Fresh main and merged #24/#26/#27 metadata/ancestry                       | PASS at the recorded base; final PR body records final recheck                                                       |
 | Relative Markdown file links and heading anchors                          | PASS across root README and every Markdown file in docs; final count in PR body                                      |
-| Evidence preservation                                                     | PASS: 16 report byte comparisons against base blobs; historical milestone diffs contain banners only                 |
+| Evidence preservation                                                     | PASS: 16 identical Markdown trees against base; eight also byte-identical; milestone bodies unchanged                |
 | Mermaid syntax and local SVG rendering                                    | PASS: all six diagrams using Mermaid 11 in Chromium; README preview inspected                                        |
 | GitHub rendering compatibility                                            | Standard flowchart/sequence syntax, no custom styles/assets; authenticated GitHub page rendering NOT TESTED          |
 | Changed-document formatting                                               | PASS using pinned Prettier on every changed/new Markdown file                                                        |
-| Whole documentation formatting                                            | FAIL: eight original report files already fail pinned Prettier at base; unchanged to preserve evidence               |
+| Whole documentation formatting                                            | PASS: `npm run format:check` after formatting eight reports without changing parsed content                          |
 | Whitespace and documentation-only diff                                    | PASS via `git diff --check` and changed-path review; no src/tests/config/dependency/CI changes                       |
 | Status/guarantee consistency review                                       | PASS for canonical guidance; historical BLOCKED/GO/NOT TESTED labels intentionally retained with scope banners/index |
 | Software acceptance, mutation, paid inference and native hook enforcement | NOT TESTED for this documentation-only task; no execution result inferred                                            |
 
-Whole-documentation formatting failures are confined to original
+## Initial CI failure and formatting correction
+
+At documentation commit `ac1248301903469f4c0e538f7f989513d2b4053b`,
+[Arch checks run 43050203367](https://github.com/Nickshajtan/hcc-harness/actions/runs/43050203367)
+failed `npm run format:check` on Windows, Ubuntu and macOS. Later test steps were
+skipped; always-run evidence validators then failed because no test reports existed.
+Those secondary errors were not executed software regression failures.
+Runtime portability and quality workflows passed at that initial commit; their
+status does not erase the formatting failure or certify the follow-up revision.
+
+The original choice to retain byte-identical formatting unnecessarily left a
+blocking gate red. The correction applies only pinned Prettier layout changes to
 `arch-routing-activation-spike.md`, `claude-code-vs1-wsl2.md`,
 `codex-vs3-child-windows.md`, `codex-vs3-child-wsl2.md`, `codex-vs3-windows.md`,
 `codex-vs3-wsl2.md`, `gemini-vs2-windows.md` and `gemini-vs2-wsl2.md` under
-`docs/validation/`. No formatter exclusions, workflow changes or weakened gates
-were introduced. This disclosed baseline limitation may still fail existing CI;
-changed-document formatting is reported separately, not substituted for it.
+`docs/validation/`. Every report's Markdown syntax tree is identical to its
+original after removing source-position metadata; no observation was edited.
+Original byte-level evidence remains traceable at the baseline commit.
+No formatter exclusions, workflow changes or weakened gates were introduced.
+Follow-up hosted results belong to their exact commit and are recorded in the PR.
 
 ## Remaining ambiguities and maintainer findings
 

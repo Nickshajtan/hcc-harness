@@ -20,11 +20,11 @@ The earlier missing-provider verdict is superseded by this successful installati
 
 ## Native and routed CLI parity
 
-| Command | Native exit | Routed exit | stdout | Provider stderr |
-| --- | --- | --- | --- | --- |
-| `gemini --version` | 0 | 0 | Exact; `0.67.0` | Exact |
-| `gemini --help` | 0 | 0 | Exact | Exact |
-| `gemini --vs4-invalid-option` | 1 | 1 | Exact | Exact |
+| Command                       | Native exit | Routed exit | stdout          | Provider stderr |
+| ----------------------------- | ----------- | ----------- | --------------- | --------------- |
+| `gemini --version`            | 0           | 0           | Exact; `0.67.0` | Exact           |
+| `gemini --help`               | 0           | 0           | Exact           | Exact           |
+| `gemini --vs4-invalid-option` | 1           | 1           | Exact           | Exact           |
 
 `native-*.json`, `route-*.json` and `parity.json` retain arguments, cwd, stdout/stderr, status, PID and duration. Every comparison passes, with no timeout. Routed diagnostics enable Arch trace/demo middleware; provider-stderr parity removes only `[arch:event]` and `[arch:demo]` lines. Raw stderr is consequently different and is not claimed byte-identical. Baseline/parity calls do not use the Node observer; labelled observation runs do.
 
@@ -68,7 +68,6 @@ vitest run tests/unit/resolution.test.ts tests/unit/environment.test.ts \
 ```
 
 **PASS: 144 passed, 0 failed, 6 pending/platform skips; nine suites pass, command exit 0.** Full per-test skip records are retained in JSON. Earlier `logs/regression-final.json` had 27 failures, including empty subprocess output; this execution does not reproduce those failures. The cause of the changed executor behavior is unproven. Earlier failures remain preserved, rather than silently removed. Full quality, mutation, Windows and VS-1.1b stress suites were outside this focused validation and NOT TESTED; no CI result claimed.
-
 
 No new source change required a test rerun after the already passing focused regression. New provider validation uses actual Gemini rather than adding implementation-mirroring tests. HCC source remains clean (`logs-gemini/source-status.json`). Native optional keychain integration, authenticated TUI/long-running signal semantics and Gemini inference are NOT TESTED. Gemini semantic delegation is outside this milestone. The separate Codex restricted-read sandbox blocker is unaffected by installing Gemini.
 

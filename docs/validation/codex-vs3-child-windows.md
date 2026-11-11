@@ -18,14 +18,14 @@ Direct native controls produced the identical error. This is a native sandbox/ba
 
 **Real child inference invocations: 0 of the maximum 2.** No child-agent result or tool-read event is claimed. CLI process routing remains distinct from semantic delegation.
 
-| Requirement | PowerShell | Git Bash |
-| --- | --- | --- |
+| Requirement                                         | PowerShell           | Git Bash             |
+| --------------------------------------------------- | -------------------- | -------------------- |
 | Existing Arch interception and native child process | PASS, preflight only | PASS, preflight only |
-| Restricted read-only execution preflight | BLOCKED | BLOCKED |
-| Actual child model inference | NOT TESTED | NOT TESTED |
-| Child independently reads fixture | NOT TESTED | NOT TESTED |
-| Verified child answer | NOT TESTED | NOT TESTED |
-| Parent protected files / bounded cleanup | PASS | PASS |
+| Restricted read-only execution preflight            | BLOCKED              | BLOCKED              |
+| Actual child model inference                        | NOT TESTED           | NOT TESTED           |
+| Child independently reads fixture                   | NOT TESTED           | NOT TESTED           |
+| Verified child answer                               | NOT TESTED           | NOT TESTED           |
+| Parent protected files / bounded cleanup            | PASS                 | PASS                 |
 
 ## 2. Exact environment and HCC SHA
 
@@ -92,10 +92,10 @@ An earlier exploratory `codex sandbox windows --help` also returned `CreateRestr
 
 Independent parent parsing of the files established these reference results:
 
-| Fixture | Sorted names | Sum | Non-secret marker |
-| --- | --- | --- | --- |
-| PowerShell | alpha, beta, delta, gamma | 38 | `VS31_PS_ed643705` |
-| Bash | alpha, beta, delta, gamma | 33 | `VS31_BASH_f460c853` |
+| Fixture    | Sorted names              | Sum | Non-secret marker    |
+| ---------- | ------------------------- | --- | -------------------- |
+| PowerShell | alpha, beta, delta, gamma | 38  | `VS31_PS_ed643705`   |
+| Bash       | alpha, beta, delta, gamma | 33  | `VS31_BASH_f460c853` |
 
 These are **reference answers, not child results**. Fixture hashes/expected values are in `fixtures.json`; the independent file-parsing check is in `final-audit.json`. No successful-answer comparison was fabricated.
 
@@ -172,12 +172,12 @@ The installed CLI exposes `codex doctor --json` as a redacted diagnostic and `co
 
 Official documentation places native MXC capability on compatible Windows 11 devices and supplies an explicit-selection startup probe for CLI 0.162.0 or later. This host is Windows 10. More decisively, actual explicit-MXC command startup failed as shown below. No successful MXC launch is inferred from a preference/configuration flag. See [Windows sandbox compatibility](https://learn.chatgpt.com/docs/windows/windows-sandbox).
 
-| Diagnostic | Observed sandbox check | Interpretation |
-| --- | --- | --- |
-| `codex doctor --json` | backend `disabled`; restricted filesystem/network; denied-read rule present | Existing configuration cannot satisfy the restricted-read policy |
-| `codex -c features.prefer_mxc=true doctor --json` | backend still `disabled`; same denied-read prerequisite failure | Preference did not select a working MXC backend |
-| `codex -c windows.sandbox=mxc doctor --json` | backend `mxc`; “sandbox configuration is readable” | Explicit config was recognized; this check alone does **not** establish runtime availability |
-| Explicit-MXC real sandbox command | `failed to prepare MXC sandbox: native MXC is unavailable on this executor` | Actual backend preparation failed; no sandboxed command launched |
+| Diagnostic                                        | Observed sandbox check                                                      | Interpretation                                                                               |
+| ------------------------------------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `codex doctor --json`                             | backend `disabled`; restricted filesystem/network; denied-read rule present | Existing configuration cannot satisfy the restricted-read policy                             |
+| `codex -c features.prefer_mxc=true doctor --json` | backend still `disabled`; same denied-read prerequisite failure             | Preference did not select a working MXC backend                                              |
+| `codex -c windows.sandbox=mxc doctor --json`      | backend `mxc`; “sandbox configuration is readable”                          | Explicit config was recognized; this check alone does **not** establish runtime availability |
+| Explicit-MXC real sandbox command                 | `failed to prepare MXC sandbox: native MXC is unavailable on this executor` | Actual backend preparation failed; no sandboxed command launched                             |
 
 Doctor's explicit-MXC sandbox check reporting `ok` describes readable configuration, not successful isolation. The actual startup probe is the decisive control. Redacted doctor reports also show missing auth in the credential-stripped diagnostic environment and TLS certificate failures in reachability checks. Those are incidental non-inference diagnostics, not proof of an authenticated model failure. No TLS verification was disabled.
 
@@ -203,11 +203,11 @@ codex -c windows.sandbox="mxc" --sandbox read-only sandbox
 
 The PowerShell route used real mise activation plus prompt refresh. The Bash route used actual Git Bash plus mise activation/hook refresh. Native spawn records confirm the delivered override and target; the planned read utility being PowerShell does not change the outer routing shell.
 
-| Probe, each run once | PowerShell direct / routed | Git Bash fixture direct / Bash-routed |
-| --- | --- | --- |
-| Prefer MXC, permitted fixture | 1 / 1; original elevated-backend prerequisite error | 1 / 1; same error |
-| Explicit MXC, permitted fixture | 1 / 1; native MXC unavailable | 1 / 1; native MXC unavailable |
-| Explicit MXC, outside canary | 1 / 1; native MXC unavailable | 1 / 1; native MXC unavailable |
+| Probe, each run once            | PowerShell direct / routed                          | Git Bash fixture direct / Bash-routed |
+| ------------------------------- | --------------------------------------------------- | ------------------------------------- |
+| Prefer MXC, permitted fixture   | 1 / 1; original elevated-backend prerequisite error | 1 / 1; same error                     |
+| Explicit MXC, permitted fixture | 1 / 1; native MXC unavailable                       | 1 / 1; native MXC unavailable         |
+| Explicit MXC, outside canary    | 1 / 1; native MXC unavailable                       | 1 / 1; native MXC unavailable         |
 
 All twelve command probes failed before executing the read utility. Therefore **permitted sandbox read: BLOCKED; canary enforcement: NOT TESTED**. In particular, canary command exit 1 is an infrastructure failure, **not** an accepted denied-read result. The intended boundary has not passed, despite ordinary target readability.
 

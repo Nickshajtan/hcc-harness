@@ -1,8 +1,13 @@
 # Validation evidence index
 
 Maintained classification at main `b562cbf86a884c98325b855dfc9dd02f4ac6a727`.
-All **16 original report files remain byte-for-byte unchanged at their existing
-paths**. Dates below are report execution dates, not import or merge dates.
+All **16 original reports retain their observations and existing paths**. Eight
+reports received only pinned-Prettier layout changes after CI rejected their
+original formatting; parsed Markdown trees match the baseline exactly after
+removing source positions. The other eight reports remain byte-identical.
+[Original bytes for all reports](https://github.com/Nickshajtan/hcc-harness/tree/b562cbf86a884c98325b855dfc9dd02f4ac6a727/docs/validation)
+remain available at the immutable baseline revision. Dates below are report
+execution dates, not import or merge dates.
 External `.test-state`, logs and evidence paths in reports are historical references;
 this consolidation did not acquire or regenerate those raw artifacts.
 
@@ -105,7 +110,8 @@ working-tree report without changing it.
 
 No move/rename occurred: every `docs/validation/<name>.md` listed above maps to
 itself. No report observations, timestamps, SHA, verdict, negative control or
-limitation were rewritten. Root-level milestone records retain their original
+limitation were rewritten. Formatting-only changes preserve identical parsed
+Markdown content; exact originals remain linked above. Root-level milestone records retain their original
 body with an added historical-status banner; standards measurements receive a
 scope banner. Canonical guides remove stale present-tense claims instead of
 rewriting unique experimental evidence. There are no missing report redirects.
