@@ -22,6 +22,9 @@ The loader imports sequentially and prepares ordinary zero-argument Registry fac
 Existing process/policy loops own construction, registration, execution and cleanup.
 Optionality ends before registration. Trusted `requiredPolicies` still require an
 available matching instance with an applicable handler, including optional modules.
+External process registration uses the policy engine's synchronous-return guard;
+invalid async registration fails before launch and still cleans partial resources.
+Legacy process registration is unchanged.
 
 Packages resolve through a physical ESM anchor at the canonical project root:
 `.arch-middleware-resolver-v1.mjs`. First enabled package use publishes fixed bytes

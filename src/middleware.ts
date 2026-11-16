@@ -2,6 +2,7 @@ import { createHooks } from 'hookable';
 import type { EventBus } from './events.js';
 import { event } from './events.js';
 import type { PolicyAPI } from './policy-contract.js';
+import { assertSynchronousRegistration } from './synchronous-registration.js';
 
 export interface ExecutionContext {
   readonly executionId: string;
@@ -36,11 +37,14 @@ export function createPipeline(context: ExecutionContext, bus: EventBus) {
   let phase: Phase | undefined;
   let registering = true;
   return {
-    register(middleware: ArchMiddleware) {
+    register(
+      middleware: ArchMiddleware,
+      options: { requireSynchronousRegistration?: boolean } = {},
+    ) {
       if (!registering) {
         throw new Error('Registration has ended');
       }
-      middleware.register(
+      const returned: unknown = middleware.register(
         Object.freeze({
           context,
           on(name: Phase, handler: () => void | Promise<void>) {
@@ -93,6 +97,12 @@ export function createPipeline(context: ExecutionContext, bus: EventBus) {
           },
         }),
       );
+      if (options.requireSynchronousRegistration) {
+        assertSynchronousRegistration(
+          returned,
+          'External process registration must return undefined synchronously',
+        );
+      }
     },
     async run(name: Phase) {
       registering = false;

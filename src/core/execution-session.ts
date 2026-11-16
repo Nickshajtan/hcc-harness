@@ -88,7 +88,9 @@ export class ExecutionSession {
       if (!middleware) {
         continue;
       }
-      this.pipeline.register(middleware);
+      this.pipeline.register(middleware, {
+        requireSynchronousRegistration: undefined !== entry.source,
+      });
     }
   }
 

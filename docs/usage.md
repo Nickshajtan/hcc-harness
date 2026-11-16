@@ -108,6 +108,9 @@ import type {
 Require named `abi = 1` and callable `createMiddleware`. Factories return synchronously
 with the configured ID, callable `register()` and optional callable `registerPolicy()`.
 Policy-only modules expose a no-op `register()`. Async work belongs in hooks/handlers.
+External `register()` and `registerPolicy()` must return `undefined` synchronously;
+returned Promises/thenables are registration failures, with genuine rejections observed.
+Legacy process registration keeps its existing return-value behavior.
 Options are recursively frozen finite numbers, strings, booleans, arrays and tables.
 The TypeScript JSON type also permits null; TOML has no null literal. Date/time values
 and nonfinite numbers fail. Modules validate their own option meanings.

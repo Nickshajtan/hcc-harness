@@ -20,7 +20,8 @@
     "src/middleware.ts",
     "src/events.ts",
     "src/middleware-loader.ts",
-    "src/middleware-resolution.ts"
+    "src/middleware-resolution.ts",
+    "src/synchronous-registration.ts"
   ],
   "vitest": {
     "configFile": "vitest.core-mutation.config.ts"

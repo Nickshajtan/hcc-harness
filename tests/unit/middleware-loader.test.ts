@@ -23,6 +23,7 @@ import { dispatchPolicy } from '../../src/policy.js';
 import { execute } from '../../src/core.js';
 import type { MiddlewareDiagnostic } from '../../src/middleware-contract.js';
 import { resolveMiddlewareSource } from '../../src/middleware-resolution.js';
+import { assertSynchronousRegistration } from '../../src/synchronous-registration.js';
 
 // Keep real filesystem behavior, with a configurable facade for the compound-failure test.
 vi.mock('node:fs/promises', async (importOriginal) => ({
@@ -615,6 +616,76 @@ it('does not mistake a diagnostic sink load-error throw for an optional factory 
     throw new Error('Expected reporter failure');
   }
   expect(cause.cause).toBe(sinkFailure);
+});
+
+it('refuses optional async process registration and still cleans resources before any native spawn', async () => {
+  await mkdir(join(root, '.arch'));
+  const log = join(root, 'cleanup.log').replaceAll('\\', '/');
+  await moduleFile(`import {appendFileSync} from 'node:fs'; export const abi=1;
+    export const createMiddleware=({id,options})=>({id,async register(api){
+      api.cleanup(()=>appendFileSync(options.log,'cleanup'));
+      await Promise.resolve();
+    }});`);
+  await writeFile(
+    join(root, '.arch/harness.toml'),
+    `schema=1\nmiddleware=[{id="external",enabled=true,required=false,source={file="./entry.mjs"},options={log=${JSON.stringify(log)}}}]`,
+  );
+  const spawned = vi.fn();
+  await expect(
+    execute({
+      command: basename(process.execPath),
+      args: ['-e', ''],
+      cwd: root,
+      onSpawn: spawned,
+      reportMiddlewareDiagnostic: report,
+    }),
+  ).rejects.toHaveProperty(
+    'cause.message',
+    'External process registration must return undefined synchronously',
+  );
+  expect(spawned).not.toHaveBeenCalled();
+  expect(await readFile(log, 'utf8')).toBe('cleanup');
+  expect(diagnostics).toEqual([]);
+});
+
+it('observes rejected registration Promises without inspecting arbitrary thenables', () => {
+  const descriptor = Object.getOwnPropertyDescriptor(Promise.prototype, 'then');
+  if (!descriptor) {
+    throw new Error('Missing intrinsic Promise.then');
+  }
+  const nativeThen = Promise.prototype.then;
+  const rejected = Promise.reject(new Error('registration rejection'));
+  const getter = vi.fn(() => {
+    throw new Error('Do not read then');
+  });
+  const thenable = Object.defineProperty({}, 'then', { get: getter });
+  let observed = 0;
+  Object.defineProperty(Promise.prototype, 'then', {
+    ...descriptor,
+    value: function (this: Promise<unknown>, ...args: unknown[]) {
+      if (this === rejected) {
+        observed++;
+      }
+      return Reflect.apply(nativeThen, this, args) as Promise<unknown>;
+    },
+  });
+  try {
+    expect(() => assertSynchronousRegistration(rejected, 'registration contract')).toThrow(
+      'registration contract',
+    );
+    expect(observed).toBe(1);
+    expect(() => assertSynchronousRegistration(thenable, 'registration contract')).toThrow(
+      'registration contract',
+    );
+    expect(getter).not.toHaveBeenCalled();
+  } finally {
+    Object.defineProperty(Promise.prototype, 'then', descriptor);
+    void nativeThen.call(
+      rejected,
+      () => undefined,
+      () => undefined,
+    );
+  }
 });
 
 it('reports the complete sanitized default diagnostic and retains required construction causes locally', async () => {

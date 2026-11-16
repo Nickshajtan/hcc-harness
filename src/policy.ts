@@ -1,6 +1,6 @@
 import type { Configuration } from './config.js';
 import type { Registry } from './middleware.js';
-import { isPromise } from 'node:util/types';
+import { assertSynchronousRegistration } from './synchronous-registration.js';
 import { PolicyDeadline } from './policy-deadline.js';
 import { loadMiddleware, instantiateMiddleware, MiddlewareLoadError } from './middleware-loader.js';
 
@@ -113,22 +113,6 @@ export function resolvePolicyOptions(options: PolicyDispatchOptions) {
   return { timeoutMs, cleanupGraceMs, requiredPolicies };
 }
 
-function assertSynchronousRegistration(returned: unknown): void {
-  if (undefined === returned) {
-    return;
-  }
-  if (isPromise(returned)) {
-    // Do not invoke a user-defined then/catch or assimilate arbitrary thenables.
-    // Observe genuine rejected async registrations, including their late API errors.
-    void Promise.prototype.then.call(
-      returned,
-      () => undefined,
-      () => undefined,
-    );
-  }
-  throw new Error('Policy registration must return undefined synchronously');
-}
-
 /** One invocation owns all handlers and cleanup. EventBus deliberately has no role here. */
 export async function dispatchPolicy(
   input: unknown,
@@ -233,7 +217,10 @@ export async function dispatchPolicy(
           }),
         );
         code = 'registration-contract';
-        assertSynchronousRegistration(returned);
+        assertSynchronousRegistration(
+          returned,
+          'Policy registration must return undefined synchronously',
+        );
         code = 'exception';
       } finally {
         registering = false;
