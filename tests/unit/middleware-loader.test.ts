@@ -520,6 +520,25 @@ it('rejects missing/nonabsolute project context and duplicate explicit configs b
       report,
     ),
   ).rejects.toThrow('unique id');
+  await expect(
+    loadMiddleware(
+      { middleware: [{ id: 'legacy', enabled: false }, ...optional.middleware] },
+      new Map(),
+      report,
+    ),
+  ).rejects.toThrow('absolute trusted project root');
+  expect(await dispatchPolicy(request, { middleware: [] }, new Map())).toMatchObject({
+    outcome: 'allow',
+  });
+  expect(
+    (
+      await loadMiddleware(
+        { middleware: optional.middleware.map((entry) => ({ ...entry, enabled: false })) },
+        new Map(),
+        report,
+      )
+    ).configuration.middleware[0]?.enabled,
+  ).toBe(false);
 });
 
 it('preserves resolver publication failure ahead of temporary-file cleanup failure', async () => {

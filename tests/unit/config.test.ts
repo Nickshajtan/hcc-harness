@@ -22,7 +22,7 @@ describe('configuration', () => {
       { number: Infinity },
       { unsupported: undefined },
     ]) {
-      expect(() => validateMiddlewareEntries([{ ...base, options }])).toThrow();
+      expect(() => validateMiddlewareEntries([{ ...base, options }])).toThrow(/middleware/i);
     }
     for (const source of [{ package: '' }, { package: 0 }, { file: 0 }]) {
       expect(() => validateMiddlewareEntries([{ ...base, source }])).toThrow(
@@ -76,7 +76,7 @@ describe('configuration', () => {
   ])('rejects unsupported external configuration %s', (fields) => {
     expect(() =>
       parseConfiguration(`schema=1\n[[middleware]]\nid="external"\nenabled=true\n${fields}`, '/p'),
-    ).toThrow();
+    ).toThrow(/middleware/i);
   });
 
   it('rejects malformed middleware identities and preserves diagnostic contracts', () => {
