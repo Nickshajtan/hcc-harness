@@ -45,6 +45,8 @@ export interface PolicyCleanupResult {
   readonly status: 'completed' | 'failed' | 'timed-out' | 'skipped-deadline';
 }
 export interface PolicyDispatchOptions {
+  /** Trusted local diagnostic sink; defaults to sanitized local stderr. */
+  readonly reportMiddlewareDiagnostic?: import('./middleware-diagnostics.js').MiddlewareDiagnosticReporter;
   /** Trusted local requirements for this event, never taken from request fields. */
   readonly requiredPolicies?: readonly string[];
   /** One total budget for registration, handlers and cleanup; default 5000 ms. */

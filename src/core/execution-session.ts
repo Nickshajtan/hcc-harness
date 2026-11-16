@@ -2,6 +2,8 @@ import type { Configuration } from '../config.js';
 import { EventBus, event } from '../events.js';
 import { createPipeline, type ExecutionContext, type Registry } from '../middleware.js';
 import { launch, resolveExecutable, type LaunchResult } from '../process.js';
+import { loadMiddleware, instantiateMiddleware } from '../middleware-loader.js';
+import type { MiddlewareDiagnosticReporter } from '../middleware-contract.js';
 import { composeLaunchEnvironment } from './execution-environment.js';
 import { ExecutionFailures, type ExecutionStage } from './execution-failures.js';
 
@@ -10,6 +12,7 @@ interface SessionOptions {
   onSpawn?: () => void;
   observe?: (bus: EventBus) => void | Promise<void>;
   reportObserverError?: (error: unknown) => void | Promise<void>;
+  reportMiddlewareDiagnostic?: MiddlewareDiagnosticReporter;
 }
 
 // One configured execution owns one bus, pipeline and failure history. No process policy lives here.
@@ -33,7 +36,7 @@ export class ExecutionSession {
   async run(): Promise<LaunchResult> {
     try {
       await this.start();
-      this.registerMiddleware();
+      await this.registerMiddleware();
       this.result = await this.runNativeLifecycle();
       return this.result;
     } catch (error) {
@@ -70,19 +73,20 @@ export class ExecutionSession {
     );
   }
 
-  private registerMiddleware(): void {
-    const registry = this.settings.options.registry ?? this.settings.defaultRegistry;
-    for (const entry of this.configuration.middleware) {
+  private async registerMiddleware(): Promise<void> {
+    const baseRegistry = this.settings.options.registry ?? this.settings.defaultRegistry;
+    const { registry, configuration } = await loadMiddleware(
+      this.configuration,
+      baseRegistry,
+      this.settings.options.reportMiddlewareDiagnostic,
+    );
+    for (const entry of configuration.middleware) {
       if (!entry.enabled) {
         continue;
       }
-      const factory = registry.get(entry.id);
-      if (!factory) {
-        throw new Error(`Unknown middleware: ${entry.id}`);
-      }
-      const middleware = factory();
-      if (middleware.id !== entry.id) {
-        throw new Error(`Middleware registration id mismatch: ${entry.id}`);
+      const middleware = instantiateMiddleware(entry, registry);
+      if (!middleware) {
+        continue;
       }
       this.pipeline.register(middleware);
     }

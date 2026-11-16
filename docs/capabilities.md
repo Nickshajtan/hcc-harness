@@ -5,6 +5,14 @@ This matrix separates source inspection from historical execution evidence. No f
 acceptance campaign was repeated for documentation consolidation. Exact provider,
 runtime, filesystem and revision details are in the [validation index](validation/README.md).
 
+External Middleware Loading V1 adds explicit project-local ESM and project Node
+package loading through the existing Registry. Source, contract and lifecycle tests
+are in `middleware-loader.test.ts` and `external-middleware.test.ts`; the latter runs
+real CLI imports and a standalone declaration consumer. Cross-platform acceptance
+belongs to this feature PR's actual CI results, not the historical baseline above.
+Modules are trusted host JavaScript; no sandbox, hard import cancellation or native
+provider enforcement is added. See [ADR-010](decisions/010-external-middleware.md).
+
 **Implemented** means present in source; **verified** means exercised within a named
 scope. **Conditionally verified** retains the report's limitations. **Unverified**
 means no sufficient execution evidence here. **Planned** means no shipping integration.

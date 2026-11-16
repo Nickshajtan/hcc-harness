@@ -8,6 +8,11 @@ also evaluate typed provider requests through a **local mock adapter**. Arch is 
 a universal agent orchestrator: native providers retain their models, internal
 orchestration and in-process subagents.
 
+External middleware V1 loads explicit project-local ESM files or project-installed
+Node packages through the existing process and policy pipelines. See
+[configuration and authoring](docs/usage.md#external-middleware-v1) and
+[policy integration](docs/provider-policy.md#external-module-integration-v1).
+
 ```mermaid
 flowchart TD
   U[User or calling tool] --> R

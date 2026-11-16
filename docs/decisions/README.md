@@ -17,6 +17,8 @@ are not invented historical approval dates. Current overview: [architecture](../
 | [ADR-008](008-enforcement-capabilities.md) | Native blocking capability requires independent verification       |
 | [ADR-009](009-test-pty-isolation.md)       | Windows PTY isolation belongs to test infrastructure               |
 
+V1 adds [ADR-010: project-owned external middleware loading](010-external-middleware.md).
+
 Each record uses Status, Context, Decision, Consequences, Considered alternatives,
 Evidence and implementation references, and Date and revision. Preserve failures
 and rejected alternatives when changing a decision; update evidence scope before

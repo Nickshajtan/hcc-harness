@@ -2,6 +2,7 @@ import type { Configuration } from './config.js';
 import type { Registry } from './middleware.js';
 import { isPromise } from 'node:util/types';
 import { PolicyDeadline } from './policy-deadline.js';
+import { loadMiddleware, instantiateMiddleware, MiddlewareLoadError } from './middleware-loader.js';
 
 import type {
   AgentBeforeSpawn,
@@ -131,7 +132,7 @@ function assertSynchronousRegistration(returned: unknown): void {
 /** One invocation owns all handlers and cleanup. EventBus deliberately has no role here. */
 export async function dispatchPolicy(
   input: unknown,
-  configuration: Pick<Configuration, 'middleware'>,
+  configuration: Pick<Configuration, 'middleware'> & Partial<Pick<Configuration, 'projectRoot'>>,
   registry: Registry,
   options: PolicyDispatchOptions = {},
 ): Promise<PolicyResult> {
@@ -153,14 +154,25 @@ export async function dispatchPolicy(
   let deadline: PolicyDeadline | undefined;
   try {
     const settings = resolvePolicyOptions(options);
-    const entries = configuration.middleware.map((entry) => ({ ...entry }));
-    if (new Set(entries.map((entry) => entry.id)).size !== entries.length) {
+    if (
+      new Set(configuration.middleware.map((entry) => entry.id)).size !==
+      configuration.middleware.length
+    ) {
       throw new Error('Duplicate middleware configuration');
     }
+    // Preparation is trusted, unbounded ESM evaluation, outside the decision deadline.
+    // Request/options validation precedes all imports. Context is supplied only by the adapter.
+    const prepared = await loadMiddleware(
+      configuration,
+      registry,
+      options.reportMiddlewareDiagnostic,
+    );
+    const entries = prepared.configuration.middleware;
+    const activeRegistry = prepared.registry;
     for (const id of settings.requiredPolicies) {
       currentId = id;
       const entry = entries.find((entry) => entry.id === id);
-      if (!entry || !registry.has(id)) {
+      if (!entry || !activeRegistry.has(id)) {
         throw new Error('Required policy is missing');
       }
       if (!entry.enabled) {
@@ -176,11 +188,18 @@ export async function dispatchPolicy(
         continue;
       }
       currentId = entry.id;
-      const factory = registry.get(entry.id);
+      const factory = activeRegistry.get(entry.id);
       if (!factory) {
         throw new Error('Unknown middleware');
       }
-      const middleware = factory();
+      const middleware = entry.source ? instantiateMiddleware(entry, activeRegistry) : factory();
+      if (!middleware) {
+        if (settings.requiredPolicies.includes(entry.id)) {
+          code = 'configuration-error';
+          throw new Error('Required policy construction was skipped');
+        }
+        continue;
+      }
       if (middleware.id !== entry.id) {
         code = 'configuration-error';
         throw new Error('Middleware registration id mismatch');
@@ -270,6 +289,9 @@ export async function dispatchPolicy(
       throw new Error('Policy dispatch deadline exceeded');
     }
   } catch (cause) {
+    if (cause instanceof MiddlewareLoadError) {
+      currentId = cause.diagnostic.middlewareId;
+    }
     failures.push({
       stage: state,
       code,

@@ -5,6 +5,7 @@ import { ExecutionSession } from './execution-session.js';
 import type { Registry, ExecutionContext } from '../middleware.js';
 import { nativeEnvironment, type LaunchResult } from '../process.js';
 import { demo } from '../demo.js';
+import type { MiddlewareDiagnosticReporter } from '../middleware-contract.js';
 
 export const defaultRegistry: Registry = new Map([['demo', demo]]);
 export interface ExecuteOptions {
@@ -17,6 +18,7 @@ export interface ExecuteOptions {
   observe?: (bus: EventBus) => void | Promise<void>;
   onSpawn?: () => void;
   reportObserverError?: (error: unknown) => void | Promise<void>;
+  reportMiddlewareDiagnostic?: MiddlewareDiagnosticReporter;
 }
 
 export async function execute(options: ExecuteOptions): Promise<LaunchResult> {

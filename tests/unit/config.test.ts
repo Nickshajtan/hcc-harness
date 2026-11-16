@@ -2,9 +2,83 @@ import { describe, expect, it } from 'vitest';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { discoverConfiguration, parseConfiguration } from '../../src/config.js';
+import {
+  discoverConfiguration,
+  parseConfiguration,
+  validateMiddlewareEntries,
+} from '../../src/config.js';
 
 describe('configuration', () => {
+  it('validates explicit parsed adapter values, including JSON null and plain table boundaries', () => {
+    const base = { id: 'external', enabled: true, source: { package: 'pkg' } };
+    expect(
+      validateMiddlewareEntries([{ ...base, options: { nullable: null, flag: false } }])[0]
+        ?.options,
+    ).toEqual({ nullable: null, flag: false });
+    for (const options of [
+      null,
+      new Date(),
+      { nested: new Date() },
+      { number: Infinity },
+      { unsupported: undefined },
+    ]) {
+      expect(() => validateMiddlewareEntries([{ ...base, options }])).toThrow();
+    }
+    for (const source of [{ package: '' }, { package: 0 }, { file: 0 }]) {
+      expect(() => validateMiddlewareEntries([{ ...base, source }])).toThrow(
+        'exactly one file or package',
+      );
+    }
+    expect(() => validateMiddlewareEntries([null])).toThrow('unique id');
+  });
+  it('extends schema 1 with immutable external sources and JSON-compatible options', () => {
+    const result = parseConfiguration(
+      'schema=1\nmiddleware=[{id="local",enabled=true,source={file="./entry.mjs"},options={nested={key="value"},list=[1,true,"x"]}},{id="package",enabled=false,source={package="@company/policy"},required=false}]',
+      '/p',
+    );
+    expect(result.middleware[0]).toEqual({
+      id: 'local',
+      enabled: true,
+      source: { file: './entry.mjs' },
+      required: true,
+      options: { nested: { key: 'value' }, list: [1, true, 'x'] },
+    });
+    expect(result.middleware[1]).toEqual({
+      id: 'package',
+      enabled: false,
+      source: { package: '@company/policy' },
+      required: false,
+      options: {},
+    });
+    expect(Object.isFrozen(result.middleware[0]?.source)).toBe(true);
+    expect(Object.isFrozen(result.middleware[0]?.options?.nested)).toBe(true);
+    expect(Object.isFrozen(result.middleware[0]?.options?.list)).toBe(true);
+  });
+
+  it.each([
+    'source={}',
+    'source={file="./entry.mjs",package="pkg"}',
+    'source="./entry.mjs"',
+    'source={file=""}',
+    'source={package=1}',
+    'source={other="pkg"}',
+    'source={file="./entry.mjs",other=true}',
+    'source={file="./entry.mjs"}\nrequired="yes"',
+    'required=false',
+    'options={key=1}',
+    'source={file="./entry.mjs"}\noptions=[]',
+    'source={file="./entry.mjs"}\noptions="x"',
+    'source={file="./entry.mjs"}\noptions={date=2026-11-16}',
+    'source={file="./entry.mjs"}\noptions={date=12:30:00}',
+    'source={file="./entry.mjs"}\noptions={number=inf}',
+    'source={file="./entry.mjs"}\noptions={number=nan}',
+    'source={file="./entry.mjs"}\noptions={list=[{number=-inf}]}',
+  ])('rejects unsupported external configuration %s', (fields) => {
+    expect(() =>
+      parseConfiguration(`schema=1\n[[middleware]]\nid="external"\nenabled=true\n${fields}`, '/p'),
+    ).toThrow();
+  });
+
   it('rejects malformed middleware identities and preserves diagnostic contracts', () => {
     for (const id of ['Demo', '1demo', ' demo', 'demo!', '', 'demo\n']) {
       const text = `schema=1\n[[middleware]]\nid=${JSON.stringify(id)}\nenabled=true`;

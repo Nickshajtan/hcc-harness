@@ -7,6 +7,8 @@
     "tsconfig.json",
     "vitest.mutation.config.ts",
     "src/config.ts",
+    "src/middleware-contract.ts",
+    "src/middleware-diagnostics.ts",
     "tests/unit/config.test.ts"
   ],
   "mutate": ["src/config.ts"],

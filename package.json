@@ -3,6 +3,29 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./middleware": {
+      "types": "./dist/middleware-public.d.ts"
+    },
+    "./middleware-loader": {
+      "types": "./dist/middleware-loader.d.ts",
+      "import": "./dist/middleware-loader.js"
+    },
+    "./core": {
+      "types": "./dist/core.d.ts",
+      "import": "./dist/core.js"
+    },
+    "./policy": {
+      "types": "./dist/policy.d.ts",
+      "import": "./dist/policy.js"
+    },
+    "./dist/*": "./dist/*"
+  },
+  "files": [
+    "dist",
+    "vendor",
+    "LICENSE"
+  ],
   "bin": {
     "arch": "dist/cli.js"
   },

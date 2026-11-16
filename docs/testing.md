@@ -105,6 +105,23 @@ Register trusted middleware using [the architecture contract](architecture.md).
 Tests/build configuration and dependency pins are the executable source of truth;
 do not change assertions merely to accommodate a platform failure.
 
+## External middleware V1 regressions
+
+After building, run `npm test -- tests/unit/config.test.ts tests/unit/middleware-loader.test.ts
+tests/unit/core.test.ts tests/unit/policy.test.ts tests/unit/policy-hardening.test.ts
+tests/integration/external-middleware.test.ts tests/integration/mock-provider.test.ts`.
+The loader suite uses isolated temporary project roots and real ESM packages. Real
+CLI tests additionally cover encoded filenames (Vitest's module transform is not proof
+of native URL import behavior), nested cwd, removal/disable behavior and type consumption.
+Ordinary CI's existing three-platform regression jobs include these suites. Junction
+escapes exercise canonical containment on Windows; real UNC shares require separate
+provisioning and must not be claimed from drive-letter temporary-directory tests.
+
+Config mutation includes the shared external-entry validator so moving validation
+does not hide its behavior. Report assertion kills separately from timeouts. Public
+declarations are distributed in the local npm artifact; stable snapshots remain runtime-only. Do not
+substitute internal source imports in consumer tests. No paid inference is required.
+
 ## Coverage and fixture ownership
 
 `tests/support.ts` creates isolated HOME/USERPROFILE, mise config/data/cache and

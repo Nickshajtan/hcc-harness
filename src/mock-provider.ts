@@ -89,6 +89,9 @@ async function evaluate(options: MockHookOptions, transport: MockTransport): Pro
   try {
     const { policyOptions = {} } = options;
     const settings = resolvePolicyOptions(policyOptions);
+    if (options.configuration.middleware.some((entry) => entry.source)) {
+      throw new Error('External preparation is outside the bounded mock transport contract');
+    }
     transport.admitPolicy(settings.timeoutMs, settings.cleanupGraceMs);
     return await dispatchPolicy(request, options.configuration, options.registry, settings);
   } catch (cause) {
