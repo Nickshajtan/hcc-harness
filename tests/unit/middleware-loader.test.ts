@@ -11,7 +11,7 @@ import {
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import * as filesystem from 'node:fs/promises';
 import { parseConfiguration } from '../../src/config.js';
 import {
@@ -457,6 +457,28 @@ it('reports required preparation failures within the allocated process session',
   expect(events).toEqual(['started', 'registration']);
 });
 
+it('skips an optional factory failure and still launches the native process', async () => {
+  await mkdir(join(root, '.arch'));
+  await moduleFile(
+    'export const abi=1; export function createMiddleware(){throw Error("optional construction failed")}',
+  );
+  await writeFile(
+    join(root, '.arch/harness.toml'),
+    'schema=1\nmiddleware=[{id="external",enabled=true,required=false,source={file="./entry.mjs"}}]',
+  );
+  const spawned = vi.fn();
+  const result = await execute({
+    command: basename(process.execPath),
+    args: ['-e', ''],
+    cwd: root,
+    onSpawn: spawned,
+    reportMiddlewareDiagnostic: report,
+  });
+  expect(result.exitCode).toBe(0);
+  expect(spawned).toHaveBeenCalledOnce();
+  expect(diagnostics).toEqual([expect.objectContaining({ stage: 'factory', disposition: 'skip' })]);
+});
+
 it('loads a policy-only fixture and keeps optional skips observable on successful dispatch', async () => {
   await copyFile(resolve('tests/fixtures/external-middleware/policy.mjs'), join(root, 'entry.mjs'));
   expect(
@@ -543,7 +565,9 @@ it('observes rejected factory Promises with the intrinsic method', async () => {
     new Map(),
     report,
   );
-  const namespace = (await import(pathToFileURL(join(root, 'entry.mjs')).href)) as {
+  const namespace = (await import(
+    await resolveMiddlewareSource({ file: './entry.mjs' }, root)
+  )) as {
     getReturned: () => Promise<unknown>;
   };
   const then = vi.spyOn(Promise.prototype, 'then');
