@@ -105,6 +105,7 @@ it.each([
   ['evaluation', 'throw Error("secret options")', 'import'],
   ['abi', 'export const abi=2; export function createMiddleware(){}', 'contract'],
   ['factory export', 'export const abi=1;', 'contract'],
+  ['noncallable factory', 'export const abi=1; export const createMiddleware=1;', 'contract'],
   ['default export', 'export default {abi:1,createMiddleware(){}}', 'contract'],
 ] as const)(
   'handles optional and required %s failures deterministically',
@@ -554,6 +555,44 @@ it('does not let a failing diagnostic sink silently authorize an optional skip',
     throw new Error('Expected correlated failure');
   }
   expect(result.failures[0]?.cause).toBe(failure);
+});
+
+it('reports the complete sanitized default diagnostic and retains required construction causes locally', async () => {
+  const stderr = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  const optional = await loadMiddleware(configuration(undefined, 'required=false'), new Map());
+  expect(optional.diagnostics).toEqual([
+    {
+      middlewareId: 'external',
+      source: { file: './entry.mjs' },
+      stage: 'resolve',
+      code: 'resolution-error',
+      disposition: 'skip',
+    },
+  ]);
+  expect(stderr).toHaveBeenCalledWith('[arch:middleware]', JSON.stringify(optional.diagnostics[0]));
+  await moduleFile(
+    'export const abi=1; export function createMiddleware(){throw "local-only-cause"}',
+  );
+  const prepared = await loadMiddleware(configuration(), new Map(), report);
+  try {
+    instantiateMiddleware(prepared.configuration.middleware[0]!, prepared.registry);
+    throw new Error('Expected required construction failure');
+  } catch (error) {
+    expect(error).toBeInstanceOf(MiddlewareLoadError);
+    if (!(error instanceof MiddlewareLoadError)) {
+      throw error;
+    }
+    expect(error.cause).toBe('local-only-cause');
+    expect(error.diagnostic).toEqual({
+      middlewareId: 'external',
+      source: { file: './entry.mjs' },
+      resolvedUrl: await resolveMiddlewareSource({ file: './entry.mjs' }, root),
+      stage: 'factory',
+      code: 'factory-error',
+      disposition: 'failure',
+    });
+  }
+  expect(JSON.stringify(diagnostics)).not.toContain('local-only-cause');
 });
 
 it('observes rejected factory Promises with the intrinsic method', async () => {
