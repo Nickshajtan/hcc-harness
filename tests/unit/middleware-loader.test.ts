@@ -653,14 +653,17 @@ it('observes rejected registration Promises without inspecting arbitrary thenabl
   if (!descriptor) {
     throw new Error('Missing intrinsic Promise.then');
   }
-  const nativeThen = Promise.prototype.then;
+  const nativeThen: unknown = descriptor.value;
+  if ('function' !== typeof nativeThen) {
+    throw new Error('Expected intrinsic Promise.then');
+  }
   const rejected = Promise.reject(new Error('registration rejection'));
   const getter = vi.fn(() => {
     throw new Error('Do not read then');
   });
   const thenable = Object.defineProperty({}, 'then', { get: getter });
   let observed = 0;
-  Object.defineProperty(Promise.prototype, 'then', {
+  void Object.defineProperty(Promise.prototype, 'then', {
     ...descriptor,
     value: function (this: Promise<unknown>, ...args: unknown[]) {
       if (this === rejected) {
@@ -670,17 +673,17 @@ it('observes rejected registration Promises without inspecting arbitrary thenabl
     },
   });
   try {
-    expect(() => assertSynchronousRegistration(rejected, 'registration contract')).toThrow(
-      'registration contract',
-    );
+    expect(() => {
+      assertSynchronousRegistration(rejected, 'registration contract');
+    }).toThrow('registration contract');
     expect(observed).toBe(1);
-    expect(() => assertSynchronousRegistration(thenable, 'registration contract')).toThrow(
-      'registration contract',
-    );
+    expect(() => {
+      assertSynchronousRegistration(thenable, 'registration contract');
+    }).toThrow('registration contract');
     expect(getter).not.toHaveBeenCalled();
   } finally {
-    Object.defineProperty(Promise.prototype, 'then', descriptor);
-    void nativeThen.call(
+    void Object.defineProperty(Promise.prototype, 'then', descriptor);
+    void Promise.prototype.then.call(
       rejected,
       () => undefined,
       () => undefined,

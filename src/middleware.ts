@@ -44,7 +44,8 @@ export function createPipeline(context: ExecutionContext, bus: EventBus) {
       if (!registering) {
         throw new Error('Registration has ended');
       }
-      const returned: unknown = middleware.register(
+      // Inspect the actual JavaScript return without changing the legacy void method type.
+      const returned = (middleware.register as (api: MiddlewareAPI) => unknown)(
         Object.freeze({
           context,
           on(name: Phase, handler: () => void | Promise<void>) {
