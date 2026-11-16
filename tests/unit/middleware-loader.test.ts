@@ -362,9 +362,9 @@ it('preserves process identity and explicit configuration selection below .ai', 
   expect(await readdir(join(root, '.ai/arch'))).toEqual(['harness.toml']);
 });
 
-it.each([true, false])(
-  'bounds resolution waiting and never starts a later optional module after the shared budget (required=%s)',
-  async (required) => {
+it.each(['required', 'optional', 'policy-required'])(
+  'bounds resolution waiting and never starts a later optional module after the shared budget (%s)',
+  async (mode) => {
     vi.useFakeTimers();
     vi.spyOn(performance, 'now').mockImplementation(() => Date.now());
     let notifyStarted: () => void = () => undefined;
@@ -380,16 +380,19 @@ it.each([true, false])(
       return blocked;
     });
     const config = parseConfiguration(
-      `schema=1\nmiddleware=[{id="first",enabled=true,required=${String(required)},source={file="./entry.mjs"}},{id="second",enabled=true,required=false,source={file="./entry.mjs"}}]`,
+      `schema=1\nmiddleware=[{id="first",enabled=true,required=${String('required' === mode)},source={file="./entry.mjs"}},{id="second",enabled=true,required=false,source={file="./entry.mjs"}}]`,
       root,
     );
-    const pending = loadMiddleware(config, new Map(), report, { preparationTimeoutMs: 20 });
+    const pending = loadMiddleware(config, new Map(), report, {
+      preparationTimeoutMs: 20,
+      requiredPolicies: 'policy-required' === mode ? ['first'] : [],
+    });
     const observed = pending.catch((error: unknown) => error);
     try {
       await started;
       await vi.advanceTimersByTimeAsync(20);
       const result: unknown = await observed;
-      if (required) {
+      if ('optional' !== mode) {
         expect(result).toBeInstanceOf(MiddlewareLoadError);
         expect(diagnostics).toEqual([
           expect.objectContaining({ code: 'preparation-timeout', disposition: 'failure' }),
@@ -448,10 +451,10 @@ it.each([0, -1, Infinity, NaN, 60_001, 1.5])(
   },
 );
 
-it('rejects a preparation result beyond its monotonic deadline even before timer delivery', async () => {
+it('rejects a preparation result at its monotonic deadline even before timer delivery', async () => {
   await moduleFile(valid);
   vi.useFakeTimers();
-  vi.spyOn(performance, 'now').mockReturnValueOnce(0).mockReturnValueOnce(0).mockReturnValue(100);
+  vi.spyOn(performance, 'now').mockReturnValueOnce(0).mockReturnValueOnce(0).mockReturnValue(20);
   try {
     const prepared = await loadMiddleware(
       configuration(undefined, 'required=false'),
@@ -468,6 +471,52 @@ it('rejects a preparation result beyond its monotonic deadline even before timer
     vi.useRealTimers();
   }
 });
+
+it.each([1, 60_000])(
+  'accepts the documented preparation budget endpoint %s',
+  async (preparationTimeoutMs) => {
+    const prepared = await loadMiddleware({ middleware: [] }, new Map(), report, {
+      preparationTimeoutMs,
+    });
+    expect(prepared.configuration.middleware).toEqual([]);
+  },
+);
+
+it('preserves legacy cleanup registration during process hooks', async () => {
+  await mkdir(join(root, '.arch'));
+  await writeFile(
+    join(root, '.arch/harness.toml'),
+    'schema=1\nmiddleware=[{id="legacy",enabled=true}]',
+  );
+  const cleanup = vi.fn();
+  const registry = new Map([
+    [
+      'legacy',
+      () => ({
+        id: 'legacy',
+        register(api: import('../../src/middleware.js').MiddlewareAPI) {
+          api.on('preflight', () => {
+            api.cleanup(cleanup);
+          });
+        },
+      }),
+    ],
+  ]);
+  expect(
+    (await execute({ command: basename(process.execPath), args: ['-e', ''], cwd: root, registry }))
+      .exitCode,
+  ).toBe(0);
+  expect(cleanup).toHaveBeenCalledOnce();
+});
+
+it.each(['relative', '..'])(
+  'rejects invalid trusted helper context %s before provisioning',
+  async (mode) => {
+    const directory = 'relative' === mode ? 'relative' : join(root, '..');
+    await expect(resolveMiddlewareSource({ package: 'only' }, root, directory)).rejects.toThrow();
+    expect(await readdir(root)).toEqual([]);
+  },
+);
 
 it('closes external hook and cleanup admission synchronously, preserving earlier cleanup', async () => {
   await mkdir(join(root, '.arch'));
