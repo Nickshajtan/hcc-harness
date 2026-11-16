@@ -46,59 +46,72 @@ export function createPipeline(context: ExecutionContext, bus: EventBus) {
       }
       // Inspect the actual JavaScript return without changing the legacy void method type.
       const register: (api: MiddlewareAPI) => unknown = middleware.register.bind(middleware);
-      const returned = register(
-        Object.freeze({
-          context,
-          on(name: Phase, handler: () => void | Promise<void>) {
-            if (!registering || !['preflight', 'prepareLaunch', 'finalize'].includes(name)) {
-              throw new Error('Invalid hook registration');
-            }
-            hooks.hook(name, async () => {
-              try {
-                await handler();
-                await bus.publish(
-                  event(
-                    'middleware.completed',
-                    context.executionId,
-                    {
-                      middlewareId: middleware.id,
-                      phase: name,
-                    },
-                    context.parentExecutionId,
-                  ),
-                );
-              } catch (error) {
-                if ('finalize' !== name) {
-                  throw error;
-                }
-                finalErrors.push(error);
+      let admitting = true;
+      let returned: unknown;
+      try {
+        returned = register(
+          Object.freeze({
+            context,
+            on(name: Phase, handler: () => void | Promise<void>) {
+              if (
+                (options.requireSynchronousRegistration && !admitting) ||
+                !registering ||
+                !['preflight', 'prepareLaunch', 'finalize'].includes(name)
+              ) {
+                throw new Error('Invalid hook registration');
               }
-            });
-          },
-          setEnv(name: string, value: string) {
-            if ('prepareLaunch' !== phase) {
-              throw new Error('Launch changes require prepareLaunch');
-            }
-            if (
-              !/^[A-Za-z_][A-Za-z0-9_]*$/.test(name) ||
-              'string' !== typeof value ||
-              value.includes('\0') ||
-              /^(PATH|PATHEXT|ARCH_ACTIVE|ARCH_PARENT_EXECUTION_ID|NODE_OPTIONS)$/i.test(name)
-            ) {
-              throw new Error('Invalid or reserved environment variable');
-            }
-            const key = 'win32' === process.platform ? name.toUpperCase() : name;
-            if (envKeys.has(key) && env[key] !== value) {
-              throw new Error(`Conflicting launch changes for ${name}`);
-            }
-            envKeys.add(key);
-            env[key] = value;
-          },
-          cleanup(handler: () => void | Promise<void>) {
-            cleanups.push(handler);
-          },
-        }),
-      );
+              hooks.hook(name, async () => {
+                try {
+                  await handler();
+                  await bus.publish(
+                    event(
+                      'middleware.completed',
+                      context.executionId,
+                      {
+                        middlewareId: middleware.id,
+                        phase: name,
+                      },
+                      context.parentExecutionId,
+                    ),
+                  );
+                } catch (error) {
+                  if ('finalize' !== name) {
+                    throw error;
+                  }
+                  finalErrors.push(error);
+                }
+              });
+            },
+            setEnv(name: string, value: string) {
+              if ('prepareLaunch' !== phase) {
+                throw new Error('Launch changes require prepareLaunch');
+              }
+              if (
+                !/^[A-Za-z_][A-Za-z0-9_]*$/.test(name) ||
+                'string' !== typeof value ||
+                value.includes('\0') ||
+                /^(PATH|PATHEXT|ARCH_ACTIVE|ARCH_PARENT_EXECUTION_ID|NODE_OPTIONS)$/i.test(name)
+              ) {
+                throw new Error('Invalid or reserved environment variable');
+              }
+              const key = 'win32' === process.platform ? name.toUpperCase() : name;
+              if (envKeys.has(key) && env[key] !== value) {
+                throw new Error(`Conflicting launch changes for ${name}`);
+              }
+              envKeys.add(key);
+              env[key] = value;
+            },
+            cleanup(handler: () => void | Promise<void>) {
+              if (options.requireSynchronousRegistration && !admitting) {
+                throw new Error('External cleanup registration has ended');
+              }
+              cleanups.push(handler);
+            },
+          }),
+        );
+      } finally {
+        admitting = false;
+      }
       if (options.requireSynchronousRegistration) {
         assertSynchronousRegistration(
           returned,

@@ -11,6 +11,43 @@ Schema 1 accepts local ESM entrypoints and project-installed Node packages. Exis
 `{ id, enabled }` entries and starter configuration keep their behavior. Older readers
 reject these new fields; use a V1-capable installation.
 
+### Configuration locations and ownership
+
+Runtime discovery walks from the invocation directory toward its ancestors. At each
+project root it checks, in order: `.hcc/harness.toml`, `.hcc-harness/harness.toml`,
+`.arch/harness.toml`, `.ai/.harness/harness.toml`, `.ai/arch/harness.toml`. The nearest
+root with one configuration wins. Two or more candidates at that root are an error,
+listed in that order; precedence never silently hides another file. Files are never
+merged, and an invalid selected file fails without falling back to a parent.
+
+Trusted integration callers may set `execute({ configurationDirectory: '.ai/arch', ... })`
+or import `discoverConfiguration` from `arch-harness/core` and call
+`discoverConfiguration(cwd, '.ai/arch')`. The selector is one of the five directory names above, searched at each
+ancestor; no other candidate is used. A missing explicit selection throws, rather
+than disabling middleware. Same-root conflicts still fail with a selector.
+Parsed policy callers may supply absolute `configurationDirectory` alongside
+`projectRoot`; without it, package helpers default to `projectRoot/.arch`.
+Never derive either field from provider requests.
+
+`arch init` still generates `.arch/harness.toml` when none exists at the target root.
+It validates and preserves a single alternative configuration instead of creating a
+competitor. Management commands do not walk up to modify another project's resources.
+Project identity is the containing root, never `.ai` or the configuration directory.
+
+```text
+project/
+  .ai/arch/                 # alternatively .hcc, .hcc-harness, .arch, .ai/.harness
+    harness.toml           # declarative configuration
+    modules/policy.mjs     # executable trusted JavaScript, explicitly referenced
+    .internal/resolver-v1.mjs  # native ESM helper, only needed for packages
+  node_modules/            # ordinary project-managed dependencies
+  .arch/bin/               # existing routing infrastructure, independently owned
+```
+
+Routing manifests, mise integration and `.arch/bin` stay in their existing locations.
+Selecting a configuration directory does not migrate routing ownership. A local file
+source in the layout above is `source = { file = "./.ai/arch/modules/policy.mjs" }`.
+
 ```toml
 schema = 1
 
@@ -29,7 +66,7 @@ source = { package = "@company/hcc-finops" }
 options = { mode = "strict" }
 ```
 
-File paths are relative to the project containing the discovered `.arch/harness.toml`,
+File paths are relative to the project containing the discovered `harness.toml`,
 even for nested invocations. Use complete `./` paths ending in `.mjs`, or `.js` with
 a nearest in-project `package.json` declaring `"type":"module"`. Files must remain
 inside the root after lexical and realpath checks. Directory imports, implicit
@@ -75,8 +112,9 @@ malformed specifiers are rejected. Examples are demonstrations, not DLP/FinOps l
 
 ### Package resolution and deployment
 
-First enabled package use atomically publishes `.arch-middleware-resolver-v1.mjs`
-at the project root (requires a writable root and hard-link-capable filesystem).
+First enabled package use atomically publishes `.internal/resolver-v1.mjs`
+beneath the selected configuration directory (requires that directory to be writable
+and a hard-link-capable filesystem). No helper is created at the project root.
 Later invocations verify it without writing. For read-only deployment, provision a
 regular non-symlink file with exactly these UTF-8 bytes and the trailing LF:
 
@@ -88,6 +126,12 @@ It is project-owned auxiliary state outside routing manifests, retained on deini
 Arch never overwrites edited/foreign bytes. Interrupted publication can leave a
 uniquely named `.tmp` sibling; it is never imported and the owner may inspect/remove it.
 Disabled/file-only entries create no anchor. Middleware authors need no custom resolver.
+The relocated helper needs no supporting files. Native ancestor lookup reaches the
+project's package scope; intervening `node_modules` or `package.json` beneath the root
+would shadow it and are rejected. The helper directory must remain canonically inside
+the project. Read-only or non-hard-link deployments must pre-provision the directory
+and verified helper; there is no non-atomic fallback. Old root helpers are never used
+or deleted automatically; their owner may remove them after upgrading.
 
 ### Authoring and failure contract
 
@@ -111,6 +155,9 @@ Policy-only modules expose a no-op `register()`. Async work belongs in hooks/han
 External `register()` and `registerPolicy()` must return `undefined` synchronously;
 returned Promises/thenables are registration failures, with genuine rejections observed.
 Legacy process registration keeps its existing return-value behavior.
+Each external process registration has its own synchronous admission window, closed
+on return or throw. Later `on()` and `cleanup()` calls throw and cannot install callbacks.
+Cleanup legitimately registered before a failure still runs under the existing lifecycle.
 Options are recursively frozen finite numbers, strings, booleans, arrays and tables.
 The TypeScript JSON type also permits null; TOML has no null literal. Date/time values
 and nonfinite numbers fail. Modules validate their own option meanings.
@@ -136,15 +183,27 @@ stderr (`[arch:middleware]`). `ExecuteOptions.reportMiddlewareDiagnostic` and
 a failing sink blocks progress. Required errors retain causes locally.
 
 `arch-harness/middleware-loader` exports `loadMiddleware(configuration, baseRegistry,
-report?)`, returning registry, effective configuration and diagnostics. Later factory
+report?, { preparationTimeoutMs?, requiredPolicies? })`, returning registry, effective
+configuration and diagnostics. Later factory
 construction can append diagnostics. Prefer integrated `execute()` (`arch-harness/core`)
 or `dispatchPolicy()` (`arch-harness/policy`). Do not pass an already extended registry
 with source-bearing config through preparation twice: collisions fail closed.
 
 Modules are trusted JavaScript with host privileges. Entrypoint containment is not a
-sandbox and does not restrict dependencies. Import evaluation/top-level await and
-construction can block or retain side effects. Preparation is outside the policy
-decision deadline; no hard cancellation or native provider enforcement is implied.
+sandbox and does not restrict dependencies. `ExecuteOptions.preparationTimeoutMs` and
+`PolicyDispatchOptions.preparationTimeoutMs` configure a separate shared preparation
+budget (default 5000 ms, integer 1–60000), also available on the loader's fourth argument.
+Modules resolve/import sequentially using the remaining budget, never a new full budget
+per module. Timeout emits code `preparation-timeout`: optional entries skip, required
+entries fail. Policy-required entries fail even if optional. After budget exhaustion,
+later external entries are not started. Disabled entries still perform no preparation.
+
+This bounds asynchronous waiting, **not JavaScript execution**. Late imports cannot
+install factories or register callbacks; late rejections are observed. Evaluation may
+still continue and retain side effects, resources or cached module state. A timer cannot
+interrupt CPU-blocking code, terminate top-level await or bound synchronous factories.
+Preparation precedes the separate policy decision deadline, which is not extended.
+No hard cancellation or native provider enforcement is implied.
 See [policy integration](provider-policy.md#external-module-integration-v1).
 
 ## Commands and interaction

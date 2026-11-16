@@ -12,6 +12,10 @@ External middleware V1 loads explicit project-local ESM files or project-install
 Node packages through the existing process and policy pipelines. See
 [configuration and authoring](docs/usage.md#external-middleware-v1) and
 [policy integration](docs/provider-policy.md#external-module-integration-v1).
+Configuration discovery supports `.hcc`, `.hcc-harness`, `.arch` (init default),
+`.ai/.harness` and `.ai/arch`; duplicate files at one root fail. Package helpers live
+under the selected directory's `.internal/`, while routing remains in `.arch`.
+External preparation has a shared bounded wait; it does not terminate JavaScript.
 
 ```mermaid
 flowchart TD

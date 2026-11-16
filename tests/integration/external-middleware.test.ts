@@ -3,6 +3,7 @@ import { promisify } from 'node:util';
 import { copyFile, cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 
 const run = promisify(execFile);
@@ -65,10 +66,67 @@ it('arch run resolves an import-only ESM package through the project anchor', as
   await writeFile(join(pkg, 'wrong.cjs'), 'throw Error("wrong export condition")');
   await configure('{package="@fixture/external"}');
   expect((await invoke()).stdout.trim()).toBe('loaded');
-  expect(await readFile(join(root, '.arch-middleware-resolver-v1.mjs'), 'utf8')).toContain(
+  expect(await readFile(join(root, '.arch/.internal/resolver-v1.mjs'), 'utf8')).toContain(
     'import.meta.resolve',
   );
 });
+
+it('arch init preserves an alternative configuration without creating a competing default', async () => {
+  await mkdir(join(root, '.ai/arch'), { recursive: true });
+  await writeFile(join(root, '.ai/arch/harness.toml'), 'schema=1\n# keep\n');
+  await run(process.execPath, [cli, 'init', 'example'], { cwd: root, timeout: 15_000 });
+  expect(await readFile(join(root, '.ai/arch/harness.toml'), 'utf8')).toBe('schema=1\n# keep\n');
+  await expect(readFile(join(root, '.arch/harness.toml'))).rejects.toHaveProperty('code', 'ENOENT');
+});
+
+it.each(['optional', 'required', 'policy-required'])(
+  'bounds a never-settling ESM import in an isolated process (%s)',
+  async (mode) => {
+    await writeFile(
+      join(root, 'never.mjs'),
+      'await new Promise(()=>{}); export const abi=1; export const createMiddleware=()=>{throw Error("late factory")};',
+    );
+    const loader = pathToFileURL(resolve('dist/middleware-loader.js')).href;
+    const policy = pathToFileURL(resolve('dist/policy.js')).href;
+    const script = `import {loadMiddleware} from ${JSON.stringify(loader)};
+    import {dispatchPolicy} from ${JSON.stringify(policy)};
+    const configuration={projectRoot:${JSON.stringify(root)},middleware:[{id:'external',enabled:true,required:${String('required' === mode)},source:{file:'./never.mjs'}}]};
+    const diagnostics=[];
+    const keepAlive=setInterval(()=>{},1000);
+    try {
+      if (${JSON.stringify(mode)}==='policy-required') {
+        const result=await dispatchPolicy({type:'agent.beforeSpawn',requestId:'timeout',provider:'mock'},configuration,new Map(),{preparationTimeoutMs:100,requiredPolicies:['external'],reportMiddlewareDiagnostic:d=>diagnostics.push(d)});
+        console.log(JSON.stringify({outcome:result.outcome,diagnostics}));
+      } else {
+        try {
+          const prepared=await loadMiddleware(configuration,new Map(),d=>diagnostics.push(d),{preparationTimeoutMs:100});
+          console.log(JSON.stringify({outcome:'prepared',entries:prepared.configuration.middleware.length,diagnostics}));
+        } catch {console.log(JSON.stringify({outcome:'failed',diagnostics}));}
+      }
+    } finally {clearInterval(keepAlive);}`;
+    // The independent subprocess watchdog kills a regression that never settles preparation.
+    const result = await run(process.execPath, ['--input-type=module', '-e', script], {
+      cwd: root,
+      timeout: 5000,
+    });
+    const outcomes = {
+      optional: 'prepared',
+      required: 'failed',
+      'policy-required': 'policy-error',
+    };
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      outcome: outcomes[mode as keyof typeof outcomes],
+      diagnostics: [
+        expect.objectContaining({
+          code: 'preparation-timeout',
+          stage: 'import',
+          disposition: 'optional' === mode ? 'skip' : 'failure',
+        }),
+      ],
+      ...('optional' === mode ? { entries: 0 } : {}),
+    });
+  },
+);
 
 it('public authoring types compile from a standalone installed package layout', async () => {
   const pkg = join(root, 'node_modules/arch-harness');

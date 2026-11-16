@@ -97,8 +97,19 @@ export function validateMiddlewareEntries(entries: unknown): readonly Middleware
 
 export interface Configuration {
   readonly projectRoot: string;
+  /** Absolute selected configuration directory; parsed callers default to projectRoot/.arch. */
+  readonly configurationDirectory?: string;
   readonly middleware: readonly MiddlewareConfiguration[];
 }
+
+export const configurationDirectories = Object.freeze([
+  '.hcc',
+  '.hcc-harness',
+  '.arch',
+  '.ai/.harness',
+  '.ai/arch',
+] as const);
+export type ConfigurationDirectory = (typeof configurationDirectories)[number];
 
 export function parseConfiguration(text: string, projectRoot: string): Configuration {
   const value = parse(text);
@@ -110,28 +121,66 @@ export function parseConfiguration(text: string, projectRoot: string): Configura
   return Object.freeze({ projectRoot, middleware: Object.freeze(middleware) });
 }
 
-export async function discoverConfiguration(cwd: string): Promise<Configuration | undefined> {
-  let directory = resolve(cwd);
-  for (;;) {
-    const file = join(directory, '.arch', 'harness.toml');
-    let text: string;
+/** Inspect one project root. Multiple candidates are a conflict, even with an explicit selection. */
+export async function configurationAt(
+  projectRoot: string,
+  selected?: ConfigurationDirectory,
+): Promise<Configuration | undefined> {
+  if (undefined !== selected && !configurationDirectories.includes(selected)) {
+    throw new Error('Invalid trusted configuration directory');
+  }
+  const found: { directory: string; text: string }[] = [];
+  for (const candidate of configurationDirectories) {
+    const directory = join(projectRoot, candidate);
     try {
-      text = await readFile(file, 'utf8');
+      found.push({ directory, text: await readFile(join(directory, 'harness.toml'), 'utf8') });
     } catch (error) {
       if ('ENOENT' !== (error as NodeJS.ErrnoException).code) {
         throw error;
       }
-      const parent = dirname(directory);
-      if (parent === directory) {
-        return undefined;
+    }
+  }
+  if (1 < found.length) {
+    throw new Error(
+      `Conflicting HCC configurations: ${found.map(({ directory }) => join(directory, 'harness.toml')).join(', ')}`,
+    );
+  }
+  const candidate = found[0];
+  if (
+    !candidate ||
+    (undefined !== selected && candidate.directory !== join(projectRoot, selected))
+  ) {
+    return undefined;
+  }
+  try {
+    return Object.freeze({
+      ...parseConfiguration(candidate.text, projectRoot),
+      configurationDirectory: candidate.directory,
+    });
+  } catch (error) {
+    throw new Error(`Invalid Arch configuration: ${join(candidate.directory, 'harness.toml')}`, {
+      cause: error,
+    });
+  }
+}
+
+export async function discoverConfiguration(
+  cwd: string,
+  selected?: ConfigurationDirectory,
+): Promise<Configuration | undefined> {
+  let directory = resolve(cwd);
+  for (;;) {
+    const configuration = await configurationAt(directory, selected);
+    if (configuration) {
+      return configuration;
+    }
+    const parent = dirname(directory);
+    if (parent === directory) {
+      if (undefined !== selected) {
+        throw new Error(`Selected HCC configuration not found: ${selected}/harness.toml`);
       }
-      directory = parent;
-      continue;
+      return undefined;
     }
-    try {
-      return parseConfiguration(text, directory);
-    } catch (error) {
-      throw new Error(`Invalid Arch configuration: ${file}`, { cause: error });
-    }
+    directory = parent;
   }
 }

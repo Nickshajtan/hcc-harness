@@ -5,7 +5,12 @@ export interface MiddlewareDiagnostic {
   readonly source: MiddlewareSource;
   readonly resolvedUrl?: string;
   readonly stage: 'resolve' | 'import' | 'contract' | 'factory';
-  readonly code: 'resolution-error' | 'import-error' | 'module-contract' | 'factory-error';
+  readonly code:
+    | 'resolution-error'
+    | 'import-error'
+    | 'module-contract'
+    | 'factory-error'
+    | 'preparation-timeout';
   readonly disposition: 'skip' | 'failure';
 }
 

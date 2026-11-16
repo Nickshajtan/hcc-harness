@@ -12,6 +12,12 @@ real CLI imports and a standalone declaration consumer. Cross-platform acceptanc
 belongs to this feature PR's actual CI results, not the historical baseline above.
 Modules are trusted host JavaScript; no sandbox, hard import cancellation or native
 provider enforcement is added. See [ADR-010](decisions/010-external-middleware.md).
+The PR corrections add five-location discovery with same-root conflict rejection,
+trusted directory selection, internal helper placement, per-module synchronous
+registration admission and shared bounded preparation waiting. Timed-out imports can
+continue executing but cannot enter the effective pipeline. Policy requirements override
+optional preparation. Routing ownership remains under `.arch`; see the supported
+[layouts and limitations](usage.md#configuration-locations-and-ownership).
 
 **Implemented** means present in source; **verified** means exercised within a named
 scope. **Conditionally verified** retains the report's limitations. **Unverified**

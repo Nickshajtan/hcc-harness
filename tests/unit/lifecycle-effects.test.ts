@@ -61,6 +61,23 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
+it('initializes with an alternative configuration and retains unowned configuration infrastructure on deinit', async () => {
+  const fresh = join(root, 'alternative');
+  await mkdir(join(fresh, '.ai/arch/.internal'), { recursive: true });
+  const text = 'schema=1\n# project owned\n';
+  await actual.writeFile(join(fresh, '.ai/arch/harness.toml'), text);
+  await actual.writeFile(join(fresh, '.ai/arch/.internal/resolver-v1.mjs'), 'user-owned');
+  await setup(fresh, ['tool']);
+  expect(await readOptional(join(fresh, '.arch/harness.toml'))).toBeUndefined();
+  expect(stateFrom(await readFile(join(fresh, '.arch/bootstrap.json'))).createdHarness).toBe(false);
+  await setup(fresh, ['tool']);
+  await deinitialize(fresh);
+  expect(await readFile(join(fresh, '.ai/arch/harness.toml'), 'utf8')).toBe(text);
+  expect(await readFile(join(fresh, '.ai/arch/.internal/resolver-v1.mjs'), 'utf8')).toBe(
+    'user-owned',
+  );
+});
+
 async function verifyRecovered() {
   await reconcileRoutes(root, desired);
   const state = stateFrom(await readFile(file('.arch/bootstrap.json')));

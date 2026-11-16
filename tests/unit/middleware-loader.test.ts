@@ -5,11 +5,13 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  readdir,
   rm,
   symlink,
   writeFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
+import { performance } from 'node:perf_hooks';
 import { basename, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as filesystem from 'node:fs/promises';
@@ -77,7 +79,7 @@ it('does not resolve, import, instantiate or provision an anchor for disabled en
   const result = await loadMiddleware(config, new Map(), report);
   expect(result.registry.size).toBe(0);
   expect(diagnostics).toEqual([]);
-  await expect(lstat(join(root, '.arch-middleware-resolver-v1.mjs'))).rejects.toMatchObject({
+  await expect(lstat(join(root, '.arch/.internal/resolver-v1.mjs'))).rejects.toMatchObject({
     code: 'ENOENT',
   });
 });
@@ -236,7 +238,7 @@ it.each([
     loadMiddleware(configuration(`{package=${JSON.stringify(name)}}`), new Map(), report),
   ).rejects.toThrow();
   expect(diagnostics[0]).toMatchObject({ stage: 'resolve' });
-  await expect(lstat(join(root, '.arch-middleware-resolver-v1.mjs'))).rejects.toHaveProperty(
+  await expect(lstat(join(root, '.arch/.internal/resolver-v1.mjs'))).rejects.toHaveProperty(
     'code',
     'ENOENT',
   );
@@ -265,15 +267,239 @@ it('uses native project import-only/conditional exports and subpaths, concurrent
     'external',
     'external',
   ]);
-  const anchor = join(root, '.arch-middleware-resolver-v1.mjs');
+  const anchor = join(root, '.arch/.internal/resolver-v1.mjs');
   const before = await lstat(anchor);
+  const mkdirSpy = vi
+    .spyOn(filesystem, 'mkdir')
+    .mockRejectedValue(Object.assign(new Error('read-only'), { code: 'EROFS' }));
+  const writeSpy = vi
+    .spyOn(filesystem, 'writeFile')
+    .mockRejectedValue(Object.assign(new Error('read-only'), { code: 'EROFS' }));
   await loadMiddleware(configuration('{package="@fixture/only"}'), new Map(), report);
+  expect(mkdirSpy).not.toHaveBeenCalled();
+  expect(writeSpy).not.toHaveBeenCalled();
+  mkdirSpy.mockRestore();
+  writeSpy.mockRestore();
   expect((await lstat(anchor)).mtimeMs).toBe(before.mtimeMs);
   await writeFile(anchor, 'throw Error("must not execute edited anchor")');
   await expect(
     loadMiddleware(configuration('{package="@fixture/only"}'), new Map(), report),
   ).rejects.toThrow();
   expect(diagnostics.at(-1)).toMatchObject({ stage: 'resolve' });
+});
+
+it('resolves under a selected .ai configuration without creating project-root infrastructure', async () => {
+  const directory = join(root, '.ai/arch');
+  await mkdir(join(root, 'node_modules/only'), { recursive: true });
+  await writeFile(
+    join(root, 'node_modules/only/package.json'),
+    '{"type":"module","exports":{"import":"./index.mjs"}}',
+  );
+  await writeFile(join(root, 'node_modules/only/index.mjs'), valid);
+  await Promise.all([
+    loadMiddleware(
+      { ...configuration('{package="only"}'), configurationDirectory: directory },
+      new Map(),
+      report,
+    ),
+    loadMiddleware(
+      { ...configuration('{package="only"}'), configurationDirectory: directory },
+      new Map(),
+      report,
+    ),
+  ]);
+  expect((await readdir(root)).sort()).toEqual(['.ai', 'node_modules']);
+  expect(await readdir(join(directory, '.internal'))).toEqual(['resolver-v1.mjs']);
+  for (const name of ['node_modules', 'package.json']) {
+    const shadow = join(directory, name);
+    if ('node_modules' === name) {
+      await mkdir(shadow);
+    } else {
+      await writeFile(shadow, '{}');
+    }
+    await expect(resolveMiddlewareSource({ package: 'only' }, root, directory)).rejects.toThrow(
+      'must not shadow',
+    );
+    await rm(shadow, { recursive: true });
+  }
+});
+
+it('rejects helper symlink escapes before creating infrastructure outside the project', async () => {
+  const outside = await mkdtemp(join(tmpdir(), 'hcc-helper-outside-'));
+  try {
+    await symlink(outside, join(root, '.arch'), 'win32' === process.platform ? 'junction' : 'dir');
+    await expect(resolveMiddlewareSource({ package: 'only' }, root)).rejects.toThrow(
+      'escapes the project root',
+    );
+    expect(await readdir(outside)).toEqual([]);
+  } finally {
+    await rm(outside, { recursive: true, force: true });
+  }
+});
+
+it('preserves process identity and explicit configuration selection below .ai', async () => {
+  await mkdir(join(root, '.ai/arch'), { recursive: true });
+  await mkdir(join(root, 'nested'));
+  await moduleFile(
+    `export const abi=1; export const createMiddleware=({id,options})=>({id,register(api){if(api.context.projectRoot!==options.root) throw Error('identity changed')}});`,
+  );
+  // TOML receives the platform path through JSON escaping; identity remains the discovered root.
+  await writeFile(
+    join(root, '.ai/arch/harness.toml'),
+    `schema=1\nmiddleware=[{id="external",enabled=true,source={file="./entry.mjs"},options={root=${JSON.stringify(root)}}}]`,
+  );
+  expect(
+    (
+      await execute({
+        command: basename(process.execPath),
+        args: ['-e', ''],
+        cwd: join(root, 'nested'),
+        configurationDirectory: '.ai/arch',
+        preparationTimeoutMs: 1000,
+      })
+    ).exitCode,
+  ).toBe(0);
+  expect(await readdir(join(root, '.ai/arch'))).toEqual(['harness.toml']);
+});
+
+it.each([true, false])(
+  'bounds resolution waiting and never starts a later optional module after the shared budget (required=%s)',
+  async (required) => {
+    vi.useFakeTimers();
+    vi.spyOn(performance, 'now').mockImplementation(() => Date.now());
+    let notifyStarted: () => void = () => undefined;
+    let rejectBlocked: (reason: unknown) => void = () => undefined;
+    const started = new Promise<void>((resolve) => {
+      notifyStarted = resolve;
+    });
+    const blocked = new Promise<string>((_resolve, reject) => {
+      rejectBlocked = reject;
+    });
+    const realpath = vi.spyOn(filesystem, 'realpath').mockImplementationOnce(() => {
+      notifyStarted();
+      return blocked;
+    });
+    const config = parseConfiguration(
+      `schema=1\nmiddleware=[{id="first",enabled=true,required=${String(required)},source={file="./entry.mjs"}},{id="second",enabled=true,required=false,source={file="./entry.mjs"}}]`,
+      root,
+    );
+    const pending = loadMiddleware(config, new Map(), report, { preparationTimeoutMs: 20 });
+    const observed = pending.catch((error: unknown) => error);
+    try {
+      await started;
+      await vi.advanceTimersByTimeAsync(20);
+      const result: unknown = await observed;
+      if (required) {
+        expect(result).toBeInstanceOf(MiddlewareLoadError);
+        expect(diagnostics).toEqual([
+          expect.objectContaining({ code: 'preparation-timeout', disposition: 'failure' }),
+        ]);
+      } else {
+        expect(result).toMatchObject({ configuration: { middleware: [] } });
+        expect(diagnostics.map(({ code, disposition }) => [code, disposition])).toEqual([
+          ['preparation-timeout', 'skip'],
+          ['preparation-timeout', 'skip'],
+        ]);
+      }
+      expect(realpath).toHaveBeenCalledOnce();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      rejectBlocked(new Error('late resolution rejection'));
+      await Promise.resolve();
+      vi.useRealTimers();
+    }
+  },
+);
+
+it.each(['fulfill', 'reject'])(
+  'never admits a late import %s and observes its rejection',
+  async (mode) => {
+    await moduleFile(`await new Promise(resolve=>setTimeout(resolve,100));
+    ${'reject' === mode ? 'throw Error("late import");' : ''}
+    export const abi=1; export const createMiddleware=()=>{throw Error('must not construct')};`);
+    const prepared = await loadMiddleware(
+      configuration(undefined, 'required=false'),
+      new Map(),
+      report,
+      { preparationTimeoutMs: 20 },
+    );
+    expect(prepared.registry.has('external')).toBe(false);
+    expect(prepared.configuration.middleware).toEqual([]);
+    expect(diagnostics).toEqual([
+      expect.objectContaining({ stage: 'import', code: 'preparation-timeout' }),
+    ]);
+    const settled: unknown = await import(
+      await resolveMiddlewareSource({ file: './entry.mjs' }, root)
+    ).catch((error: unknown) => error);
+    if ('reject' === mode) {
+      expect(settled).toBeInstanceOf(Error);
+    }
+    expect(prepared.registry.has('external')).toBe(false);
+  },
+);
+
+it.each([0, -1, Infinity, NaN, 60_001, 1.5])(
+  'rejects invalid preparation budget %s before resolution',
+  async (preparationTimeoutMs) => {
+    await expect(
+      loadMiddleware(configuration(), new Map(), report, { preparationTimeoutMs }),
+    ).rejects.toThrow('Preparation timeout');
+    expect(diagnostics).toEqual([]);
+  },
+);
+
+it('rejects a preparation result beyond its monotonic deadline even before timer delivery', async () => {
+  await moduleFile(valid);
+  vi.useFakeTimers();
+  vi.spyOn(performance, 'now').mockReturnValueOnce(0).mockReturnValueOnce(0).mockReturnValue(100);
+  try {
+    const prepared = await loadMiddleware(
+      configuration(undefined, 'required=false'),
+      new Map(),
+      report,
+      { preparationTimeoutMs: 20 },
+    );
+    expect(prepared.registry.has('external')).toBe(false);
+    expect(diagnostics).toEqual([
+      expect.objectContaining({ stage: 'resolve', code: 'preparation-timeout' }),
+    ]);
+    expect(vi.getTimerCount()).toBe(0);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it('closes external hook and cleanup admission synchronously, preserving earlier cleanup', async () => {
+  await mkdir(join(root, '.arch'));
+  const log = join(root, 'admission.log').replaceAll('\\', '/');
+  await moduleFile(`import {appendFileSync} from 'node:fs'; export const abi=1;
+    export const createMiddleware=({id,options})=>({id,async register(api){
+      api.cleanup(()=>appendFileSync(options.log,'early-cleanup\\n'));
+      await Promise.resolve();
+      for (const kind of ['hook','cleanup']) {
+        try {
+          if(kind==='hook') api.on('finalize',()=>appendFileSync(options.log,'late-hook\\n'));
+          else api.cleanup(()=>appendFileSync(options.log,'late-cleanup\\n'));
+        } catch { appendFileSync(options.log,'rejected:'+kind+'\\n'); }
+      }
+    }});`);
+  await writeFile(
+    join(root, '.arch/harness.toml'),
+    `schema=1\nmiddleware=[{id="external",enabled=true,source={file="./entry.mjs"},options={log=${JSON.stringify(log)}}}]`,
+  );
+  const spawned = vi.fn();
+  await expect(
+    execute({ command: basename(process.execPath), args: ['-e', ''], cwd: root, onSpawn: spawned }),
+  ).rejects.toHaveProperty(
+    'cause.message',
+    'External process registration must return undefined synchronously',
+  );
+  expect(spawned).not.toHaveBeenCalled();
+  expect((await readFile(log, 'utf8')).trim().split('\n')).toEqual([
+    'rejected:hook',
+    'rejected:cleanup',
+    'early-cleanup',
+  ]);
 });
 
 it('does not fall back to Arch dependencies or substitute packages for missing local files', async () => {

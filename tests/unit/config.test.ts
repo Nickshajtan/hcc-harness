@@ -6,9 +6,65 @@ import {
   discoverConfiguration,
   parseConfiguration,
   validateMiddlewareEntries,
+  configurationDirectories,
 } from '../../src/config.js';
 
 describe('configuration', () => {
+  it.each(configurationDirectories)(
+    'discovers %s without changing project identity',
+    async (selected) => {
+      const root = await mkdtemp(join(tmpdir(), 'hcc-layout-'));
+      try {
+        await mkdir(join(root, selected), { recursive: true });
+        await mkdir(join(root, 'nested'));
+        await writeFile(join(root, selected, 'harness.toml'), 'schema=1');
+        for (const selection of [undefined, selected]) {
+          expect(await discoverConfiguration(join(root, 'nested'), selection)).toEqual({
+            projectRoot: root,
+            configurationDirectory: join(root, selected),
+            middleware: [],
+          });
+        }
+        await writeFile(join(root, selected, 'harness.toml'), 'schema=2');
+        await expect(discoverConfiguration(root, selected)).rejects.toThrow(
+          'Invalid Arch configuration',
+        );
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it('reports ordered same-root conflicts, including explicitly selected configurations', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'hcc-conflict-'));
+    try {
+      for (const selected of ['.arch', '.hcc']) {
+        await mkdir(join(root, selected));
+        await writeFile(join(root, selected, 'harness.toml'), 'schema=1');
+      }
+      const expected = `Conflicting HCC configurations: ${join(root, '.hcc/harness.toml')}, ${join(root, '.arch/harness.toml')}`;
+      await expect(discoverConfiguration(root)).rejects.toThrow(expected);
+      await expect(discoverConfiguration(root, '.arch')).rejects.toThrow(expected);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('fails an explicitly missing selection instead of using another directory', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'hcc-selection-'));
+    try {
+      await mkdir(join(root, '.arch'));
+      await writeFile(join(root, '.arch/harness.toml'), 'schema=1');
+      await expect(discoverConfiguration(root, '.hcc')).rejects.toThrow(
+        'Selected HCC configuration not found',
+      );
+      await expect(discoverConfiguration(root, 'other' as '.arch')).rejects.toThrow(
+        'Invalid trusted configuration directory',
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
   it('validates explicit parsed adapter values, including JSON null and plain table boundaries', () => {
     const base = { id: 'external', enabled: true, source: { package: 'pkg' } };
     expect(

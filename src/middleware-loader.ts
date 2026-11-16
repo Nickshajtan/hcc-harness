@@ -1,4 +1,5 @@
 import { isPromise } from 'node:util/types';
+import { performance } from 'node:perf_hooks';
 import {
   validateMiddlewareEntries,
   type Configuration,
@@ -12,6 +13,46 @@ import type {
   MiddlewareSource,
 } from './middleware-contract.js';
 import { assertMiddlewareProjectRoot, resolveMiddlewareSource } from './middleware-resolution.js';
+
+class PreparationTimeoutError extends Error {}
+
+function validatePreparationTimeout(timeoutMs = 5000): number {
+  if (!Number.isInteger(timeoutMs) || 1 > timeoutMs || 60_000 < timeoutMs) {
+    throw new Error('Preparation timeout must be an integer from 1 to 60000 ms');
+  }
+  return timeoutMs;
+}
+
+/** One monotonic budget. Racing observes late rejections but cannot terminate module code. */
+class PreparationBudget {
+  private readonly expires: number;
+
+  constructor(timeoutMs: number) {
+    this.expires = performance.now() + timeoutMs;
+  }
+
+  async wait<T>(operation: () => Promise<T>): Promise<T> {
+    const remaining = this.expires - performance.now();
+    if (0 >= remaining) {
+      throw new PreparationTimeoutError('Middleware preparation deadline exceeded');
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => {
+        reject(new PreparationTimeoutError('Middleware preparation deadline exceeded'));
+      }, remaining);
+    });
+    try {
+      const result = await Promise.race([operation(), timeout]);
+      if (performance.now() >= this.expires) {
+        throw new PreparationTimeoutError('Middleware preparation deadline exceeded');
+      }
+      return result;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+}
 
 /** Default local path, also used by CLI. No options, request contents or exceptions are printed. */
 export function reportMiddlewareDiagnostic(diagnostic: MiddlewareDiagnostic): void {
@@ -93,10 +134,13 @@ function validateInstance(value: unknown, id: string): ArchMiddleware {
 
 /** Prepare ordinary zero-argument factories. Pipelines retain instance/registration/cleanup ownership. */
 export async function loadMiddleware(
-  configuration: Pick<Configuration, 'middleware'> & Partial<Pick<Configuration, 'projectRoot'>>,
+  configuration: Pick<Configuration, 'middleware'> &
+    Partial<Pick<Configuration, 'projectRoot' | 'configurationDirectory'>>,
   baseRegistry: Registry,
   report: MiddlewareDiagnosticReporter = reportMiddlewareDiagnostic,
+  options: { preparationTimeoutMs?: number; requiredPolicies?: readonly string[] } = {},
 ) {
+  const timeoutMs = validatePreparationTimeout(options.preparationTimeoutMs);
   const entries = validateMiddlewareEntries(configuration.middleware);
   const registry = new Map(baseRegistry);
   for (const entry of entries) {
@@ -110,6 +154,7 @@ export async function loadMiddleware(
     assertMiddlewareProjectRoot(projectRoot);
   }
   const effective: MiddlewareConfiguration[] = [];
+  const budget = new PreparationBudget(timeoutMs);
   const diagnostics: MiddlewareDiagnostic[] = [];
   const publish = (diagnostic: MiddlewareDiagnostic) => {
     diagnostics.push(diagnostic);
@@ -132,21 +177,26 @@ export async function loadMiddleware(
     let url: string | undefined;
     let module: MiddlewareModule;
     try {
-      url = await resolveMiddlewareSource(entry.source, projectRoot);
+      const source = entry.source;
+      url = await budget.wait(() =>
+        resolveMiddlewareSource(source, projectRoot, configuration.configurationDirectory),
+      );
       stage = 'import';
-      const namespace: unknown = await import(url);
+      const resolved = url;
+      const namespace: unknown = await budget.wait(() => import(resolved));
       stage = 'contract';
       module = validateModule(namespace);
     } catch (cause) {
-      const diagnostic = diagnosticFor(
-        entry.id,
-        entry.source,
-        stage,
-        false !== entry.required,
-        url,
-      );
+      const required =
+        false !== entry.required || true === options.requiredPolicies?.includes(entry.id);
+      const diagnostic: MiddlewareDiagnostic = Object.freeze({
+        ...diagnosticFor(entry.id, entry.source, stage, required, url),
+        ...(cause instanceof PreparationTimeoutError
+          ? { code: 'preparation-timeout' as const }
+          : {}),
+      });
       publish(diagnostic);
-      if (false !== entry.required) {
+      if (required) {
         throw new MiddlewareLoadError(diagnostic, cause);
       }
       continue;

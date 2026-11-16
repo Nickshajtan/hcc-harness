@@ -11,6 +11,13 @@ claimed by this consolidation.
 
 ## Ordinary production development
 
+External loader regressions: build first, then run `npx vitest run --dir tests
+config.test.ts middleware-loader.test.ts lifecycle-effects.test.ts external-middleware.test.ts`.
+The never-settling import cases use isolated Node children with independent 5-second
+watchdogs. Unit cases exercise shared budgets, late import settlement/rejection and
+post-registration admission; real CLI/package cases verify native ESM import conditions
+and alternative layouts. Platform matrices remain necessary for filesystem differences.
+
 Use Node >=24.15.0 <25 (pinned 24.19.0), installed development dependencies and
 mise 2026.10.11 on PATH, or set `MISE_BIN` to an absolute executable. Windows native
 fixtures use `%SystemRoot%/Microsoft.NET/Framework64/v4.0.30319/csc.exe`.

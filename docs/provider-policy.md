@@ -46,6 +46,7 @@ import { dispatchPolicy } from 'arch-harness/policy';
 
 const result = await dispatchPolicy(request, parsedConfiguration, baseRegistry, {
   requiredPolicies: ['project-policy'],
+  preparationTimeoutMs: 5000,
   reportMiddlewareDiagnostic: (diagnostic) => localDiagnostics.write(diagnostic),
 });
 // Proceed only for allow, subject to the adapter's own verified capability/transport rules.
@@ -60,11 +61,20 @@ checks before handlers execute. Process-only modules cannot satisfy those requir
 
 Request/options validation precedes ESM preparation. Preparation imports sequentially,
 binds factory options and creates no instances; it is **outside** the existing policy
-deadline. Import evaluation/top-level await can wait indefinitely; synchronous code
-cannot be preempted. The documented decision budget starts after preparation and still
+deadline, with its own shared `preparationTimeoutMs` (default 5000, integer 1–60000).
+Timeout fails required modules and policy-required entries closed; optional modules
+emit a local `preparation-timeout` skip. Late fulfillment never admits a factory or
+handler, and late rejection is observed. Import evaluation/top-level await can persist
+after waiting stops; synchronous code cannot be preempted. The decision budget starts after preparation and still
 covers construction, registration, handlers and cleanup. This path supplies no hard
 end-to-end cancellation guarantee. An adapter requiring one must refuse independently,
 observe pending failures and never authorize from late results; no workers are added.
+
+Trusted parsed callers supply absolute `configurationDirectory` for the selected
+layout, or accept the `.arch` helper default. Configuration discovery supports the
+five directories and rejects conflicts described in [usage](usage.md#configuration-locations-and-ownership).
+The selected configuration directory does not replace project identity or `.arch`
+routing ownership. Package helpers live in its `.internal/`, not the project root.
 
 The bounded mock adapter remains registry-only and refuses source-bearing configuration;
 its public JSON protocol, capability and transport budget remain unchanged. Direct

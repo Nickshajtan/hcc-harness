@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { isBuiltin } from 'node:module';
-import { link, lstat, readFile, realpath, stat, unlink, writeFile } from 'node:fs/promises';
+import { link, lstat, mkdir, readFile, realpath, stat, unlink, writeFile } from 'node:fs/promises';
 import { dirname, extname, isAbsolute, join, parse, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { MiddlewareSource } from './middleware-contract.js';
 
-const anchorName = '.arch-middleware-resolver-v1.mjs';
+const anchorName = 'resolver-v1.mjs';
 const anchorSource =
   'export const resolvePackage = (specifier) => import.meta.resolve(specifier);\n';
 
@@ -102,17 +102,73 @@ async function verifyAnchor(anchor: string): Promise<void> {
   }
 }
 
-/** Publish once without replacing any existing project file, including during concurrent first use. */
-async function projectResolver(projectRoot: string): Promise<string> {
+/** Keep the helper inside the selected directory without changing the native project package scope. */
+async function resolverDirectory(
+  projectRoot: string,
+  configurationDirectory: string,
+): Promise<string> {
   const root = await realpath(projectRoot);
-  const anchor = join(root, anchorName);
+  assertMiddlewareProjectRoot(configurationDirectory);
+  assertContained(resolve(projectRoot), configurationDirectory);
+  let canonicalDirectory = root;
+  const segments = [
+    ...relative(resolve(projectRoot), configurationDirectory).split(sep).filter(Boolean),
+    '.internal',
+  ];
+  for (const segment of segments) {
+    const directory = join(canonicalDirectory, segment);
+    try {
+      canonicalDirectory = await realpath(directory);
+    } catch (error) {
+      if ('ENOENT' !== (error as NodeJS.ErrnoException).code) {
+        throw error;
+      }
+      try {
+        await mkdir(directory);
+      } catch (creationError) {
+        if ('EEXIST' !== (creationError as NodeJS.ErrnoException).code) {
+          throw creationError;
+        }
+      }
+      canonicalDirectory = await realpath(directory);
+    }
+    // Check each existing directory before creating anything beneath a possible symlink.
+    assertContained(root, canonicalDirectory);
+  }
+  // A nested anchor reaches the same native package context as a root anchor only
+  // when intermediate package scopes and node_modules cannot shadow the project.
+  let scope = canonicalDirectory;
+  while (scope !== root) {
+    for (const name of ['node_modules', 'package.json']) {
+      try {
+        await lstat(join(scope, name));
+      } catch (error) {
+        if ('ENOENT' === (error as NodeJS.ErrnoException).code) {
+          continue;
+        }
+        throw error;
+      }
+      throw new Error('Configuration directories must not shadow the project package context');
+    }
+    scope = dirname(scope);
+  }
+  return canonicalDirectory;
+}
+
+/** Publish once without replacing any existing project file, including during concurrent first use. */
+async function projectResolver(
+  projectRoot: string,
+  configurationDirectory: string,
+): Promise<string> {
+  const directory = await resolverDirectory(projectRoot, configurationDirectory);
+  const anchor = join(directory, anchorName);
   try {
     await verifyAnchor(anchor);
   } catch (error) {
     if ('ENOENT' !== (error as NodeJS.ErrnoException).code) {
       throw error;
     }
-    const temporary = join(root, `${anchorName}.${randomUUID()}.tmp`);
+    const temporary = join(directory, `${anchorName}.${randomUUID()}.tmp`);
     await writeFile(temporary, anchorSource, { flag: 'wx', mode: 0o600 });
     try {
       try {
@@ -153,13 +209,14 @@ export function assertMiddlewareProjectRoot(projectRoot: string): void {
 export async function resolveMiddlewareSource(
   source: MiddlewareSource,
   projectRoot: string,
+  configurationDirectory = join(projectRoot, '.arch'),
 ): Promise<string> {
   assertMiddlewareProjectRoot(projectRoot);
   if ('file' in source) {
     return resolveFile(source.file, projectRoot);
   }
   assertPackageSpecifier(source.package);
-  const anchor = await projectResolver(projectRoot);
+  const anchor = await projectResolver(projectRoot, configurationDirectory);
   // The fixed, verified project-owned anchor uses native import conditions, not require.resolve.
   const resolver = (await import(anchor)) as { resolvePackage: (specifier: string) => string };
   const url = resolver.resolvePackage(source.package);

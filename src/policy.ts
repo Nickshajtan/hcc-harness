@@ -116,7 +116,8 @@ export function resolvePolicyOptions(options: PolicyDispatchOptions) {
 /** One invocation owns all handlers and cleanup. EventBus deliberately has no role here. */
 export async function dispatchPolicy(
   input: unknown,
-  configuration: Pick<Configuration, 'middleware'> & Partial<Pick<Configuration, 'projectRoot'>>,
+  configuration: Pick<Configuration, 'middleware'> &
+    Partial<Pick<Configuration, 'projectRoot' | 'configurationDirectory'>>,
   registry: Registry,
   options: PolicyDispatchOptions = {},
 ): Promise<PolicyResult> {
@@ -144,12 +145,16 @@ export async function dispatchPolicy(
     ) {
       throw new Error('Duplicate middleware configuration');
     }
-    // Preparation is trusted, unbounded ESM evaluation, outside the decision deadline.
+    // Bounded preparation waiting precedes the separate decision deadline; JavaScript is not cancelled.
     // Request/options validation precedes all imports. Context is supplied only by the adapter.
     const prepared = await loadMiddleware(
       configuration,
       registry,
       options.reportMiddlewareDiagnostic,
+      {
+        preparationTimeoutMs: options.preparationTimeoutMs ?? 5000,
+        requiredPolicies: settings.requiredPolicies,
+      },
     );
     const entries = prepared.configuration.middleware;
     const activeRegistry = prepared.registry;

@@ -8,6 +8,7 @@ import { composeLaunchEnvironment } from './execution-environment.js';
 import { ExecutionFailures, type ExecutionStage } from './execution-failures.js';
 
 interface SessionOptions {
+  preparationTimeoutMs?: number;
   registry?: Registry;
   onSpawn?: () => void;
   observe?: (bus: EventBus) => void | Promise<void>;
@@ -79,6 +80,7 @@ export class ExecutionSession {
       this.configuration,
       baseRegistry,
       this.settings.options.reportMiddlewareDiagnostic,
+      { preparationTimeoutMs: this.settings.options.preparationTimeoutMs ?? 5000 },
     );
     for (const entry of configuration.middleware) {
       if (!entry.enabled) {
