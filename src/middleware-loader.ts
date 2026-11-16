@@ -113,7 +113,15 @@ export async function loadMiddleware(
   const diagnostics: MiddlewareDiagnostic[] = [];
   const publish = (diagnostic: MiddlewareDiagnostic) => {
     diagnostics.push(diagnostic);
-    report(diagnostic);
+    try {
+      report(diagnostic);
+    } catch (cause) {
+      // A sink can throw any value, even a MiddlewareLoadError from an earlier invocation.
+      // Keep that infrastructure failure distinct from this factory's optional skip.
+      throw new Error(`Middleware diagnostic reporter failed: ${diagnostic.middlewareId}`, {
+        cause,
+      });
+    }
   };
   for (const entry of entries) {
     if (!entry.enabled || !entry.source) {

@@ -573,7 +573,48 @@ it('does not let a failing diagnostic sink silently authorize an optional skip',
   if ('invalid-request' === result.outcome) {
     throw new Error('Expected correlated failure');
   }
-  expect(result.failures[0]?.cause).toBe(failure);
+  const cause = result.failures[0]?.cause;
+  expect(cause).toBeInstanceOf(Error);
+  if (!(cause instanceof Error)) {
+    throw new Error('Expected diagnostic reporting failure');
+  }
+  expect(cause.cause).toBe(failure);
+});
+
+it('does not mistake a diagnostic sink load-error throw for an optional factory skip', async () => {
+  await moduleFile(
+    'export const abi=1; export function createMiddleware(){throw Error("factory failed")}',
+  );
+  const sinkFailure = new MiddlewareLoadError(
+    {
+      middlewareId: 'other',
+      source: { file: './other.mjs' },
+      stage: 'factory',
+      code: 'factory-error',
+      disposition: 'skip',
+    },
+    new Error('old failure'),
+  );
+  const result = await dispatchPolicy(
+    request,
+    configuration(undefined, 'required=false'),
+    new Map(),
+    {
+      reportMiddlewareDiagnostic() {
+        throw sinkFailure;
+      },
+    },
+  );
+  expect(result.outcome).toBe('policy-error');
+  if ('invalid-request' === result.outcome) {
+    throw new Error('Expected policy failure');
+  }
+  const cause = result.failures[0]?.cause;
+  expect(cause).toBeInstanceOf(Error);
+  if (!(cause instanceof Error)) {
+    throw new Error('Expected reporter failure');
+  }
+  expect(cause.cause).toBe(sinkFailure);
 });
 
 it('reports the complete sanitized default diagnostic and retains required construction causes locally', async () => {
