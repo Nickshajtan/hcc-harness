@@ -143,13 +143,34 @@ They launch the same Node entry point and preserve the raw argument tail. This
 avoids custom route-launcher code and batch argument parsing. The independent
 stable bootstrap and Windows publication helper are separate native components.
 
-Mise discovers `.config/mise/conf.d/arch.toml` and puts `.arch/bin` on PATH. It uses
+Mise discovers `.config/mise/conf.d/arch.toml` and puts the selected HCC home's `bin/` on PATH (`.arch/bin` by default). It uses
 its own normal trust and activation rules. Within a shell with stale project PATH,
 the dispatcher still discovers configuration from the actual cwd: A's launcher can
 correctly execute B or native C. It removes every directory bearing the exact Arch
 marker from the native child's PATH and rejects recursive Arch execution. It also
 rejects realpath aliases to managed launchers. No global binary or shell profile
 is overwritten. Existing aliases/functions may take precedence over PATH.
+
+## Unified project directory
+
+`project-layout.ts` resolves one immutable project layout at management boundaries.
+It carries the containing project root, selected configuration directory and relative
+configuration, launcher, internal-helper, manifest, claim and journal paths. Internal
+lifecycle components receive the layout; none selects an independent write root.
+The five supported names and runtime discovery semantics remain unchanged.
+
+Management also recognizes lifecycle evidence when configuration is absent or invalid,
+so interrupted removal and setup remain discoverable. Multiple homes with configuration
+or lifecycle evidence fail closed. Existing split layouts require manual inspection;
+there is no migration. Runtime configuration still fails on malformed configuration.
+Recorded paths are validated against the selected home, never against all aliases at
+once. Manifest schema, historical hashes and cleanup authority are unchanged.
+
+Mise is the external integration exception. User-authored modules and the package
+resolver helper remain outside routing deletion authority. Deinit never recursively
+removes a home or its `.ai` parent. See [ADR-011](decisions/011-unified-project-directory.md).
+The `.arch` paths below illustrate the default; all project-local lifecycle paths
+are relative to the selected home.
 
 ## Lifecycle and contracts
 

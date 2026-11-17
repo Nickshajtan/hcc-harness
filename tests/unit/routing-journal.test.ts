@@ -1,3 +1,5 @@
+import { configurationDirectories } from '../../src/config.js';
+import { projectLayout } from '../../src/project-layout.js';
 import { expect, it } from 'vitest';
 import {
   digest,
@@ -264,4 +266,23 @@ it('rejects mixed launcher layouts and mismatched Windows pairs', () => {
 it('retains the generated starter configuration bytes', () => {
   expect(configText).toBe('schema = 1\nmiddleware = []\n');
   expect(legacyConfigText).toBe('schema = 1\n\n[[middleware]]\nid = "demo"\nenabled = true\n');
+});
+
+it.each(configurationDirectories)('validates POSIX and Windows journals within %s', (directory) => {
+  const layout = projectLayout('.', directory);
+  for (const windows of [false, true]) {
+    const value = JSON.parse(
+      JSON.stringify(journal(windows)).replaceAll('.arch/bin/', `${directory}/bin/`),
+    ) as RoutingJournal;
+    expect(journalFrom(Buffer.from(JSON.stringify(value)), layout)).toEqual(value);
+    expect(manifestRoutes(value.after, layout)).toEqual({
+      commands: ['retained', 'added'],
+      windows,
+    });
+    const foreign = '.arch' === directory ? '.hcc' : '.arch';
+    value.after.files[`${foreign}/bin/foreign`] = hash;
+    expect(() => journalFrom(Buffer.from(JSON.stringify(value)), layout)).toThrow(
+      'Invalid bootstrap',
+    );
+  }
 });

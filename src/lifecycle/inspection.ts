@@ -1,12 +1,13 @@
+import { resolveProjectLayoutAt, type ProjectLayout } from '../project-layout.js';
 import { lstat, readdir } from 'node:fs/promises';
 import { assertSafePath } from './ownership.js';
 import { assertBootstrapAuthority } from './setup-claim.js';
 import { join, resolve, delimiter } from 'node:path';
 import { nativeEnvironment, resolveExecutable } from '../process.js';
 import { parseConfiguration } from '../config.js';
-import { statePath, uninstallPath, stateFrom, manifestRoutes, key } from './manifest.js';
+import { stateFrom, manifestRoutes, key } from './manifest.js';
 import { checkFiles } from './ownership.js';
-import { routingPath, journalStage, journalFrom } from './routing-journal.js';
+import { journalFrom } from './routing-journal.js';
 import { readAt } from './routing-files.js';
 import { validateRecovery } from './recovery-validation.js';
 export interface InstallationStatus {
@@ -36,8 +37,10 @@ export interface InstallationStatus {
 export async function inspectInstallation(
   root: string,
   env: NodeJS.ProcessEnv = process.env,
+  resolvedLayout?: ProjectLayout,
 ): Promise<InstallationStatus> {
-  root = resolve(root);
+  const layout = resolvedLayout ?? (await resolveProjectLayoutAt(root));
+  root = layout.projectRoot;
   const pathKey = Object.keys(env).find((name) => 'PATH' === name.toUpperCase()) ?? 'PATH';
   const status: InstallationStatus = {
     schema: 1,
@@ -53,15 +56,15 @@ export async function inspectInstallation(
       projectBinOnPath: (env[pathKey] ?? '')
         .split(delimiter)
         .filter(Boolean)
-        .some((path) => key(resolve(root, path)) === key(join(root, '.arch/bin'))),
+        .some((path) => key(resolve(root, path)) === key(join(root, layout.binDirectory))),
       shellActivation: 'unknown',
     },
   };
   await observeMise(root, env, status);
   try {
-    await inspectSetup(root, status);
-    await inspectOwnership(root, status);
-    await inspectMiddlewareConfiguration(root, status);
+    await inspectSetup(root, status, layout);
+    await inspectOwnership(root, status, layout);
+    await inspectMiddlewareConfiguration(root, status, layout);
   } catch (error) {
     status.state = 'invalid_state';
     status.integrity = 'invalid';
@@ -92,8 +95,12 @@ async function observeMise(root: string, env: NodeJS.ProcessEnv, status: Install
   );
 }
 
-async function inspectMiddlewareConfiguration(root: string, status: InstallationStatus) {
-  const harness = await readAt(root, '.arch/harness.toml');
+async function inspectMiddlewareConfiguration(
+  root: string,
+  status: InstallationStatus,
+  layout: ProjectLayout,
+) {
+  const harness = await readAt(root, layout.configurationPath);
   if ('initialized' === status.state && harness === undefined) {
     status.warnings.push('Middleware configuration is absent; execution uses native fallback.');
   }
@@ -102,15 +109,16 @@ async function inspectMiddlewareConfiguration(root: string, status: Installation
       parseConfiguration(harness.toString(), root);
     } catch {
       status.warnings.push(
-        'Middleware configuration is invalid; restore valid .arch/harness.toml before execution. Routing ownership is reported independently.',
+        `Middleware configuration is invalid; restore valid ${layout.configurationPath} before execution. Routing ownership is reported independently.`,
       );
     }
   }
 }
 
 // This read-only operation classifies recorded ownership; it never repairs an incomplete state.
-async function inspectOwnership(root: string, status: InstallationStatus) {
-  await assertBootstrapAuthority(root);
+async function inspectOwnership(root: string, status: InstallationStatus, layout: ProjectLayout) {
+  const { statePath, uninstallPath, routingPath, journalStage } = layout;
+  await assertBootstrapAuthority(root, layout);
   const [bootstrap, removal, routing] = await Promise.all(
     [statePath, uninstallPath, routingPath].map((path) => readAt(root, path)),
   );
@@ -123,21 +131,21 @@ async function inspectOwnership(root: string, status: InstallationStatus) {
     throw new Error('Conflicting bootstrap/operation journals');
   }
   if (routing !== undefined) {
-    const journal = journalFrom(routing);
+    const journal = journalFrom(routing, layout);
     status.pendingOperation = 'routing';
-    status.desiredRoutes = manifestRoutes(journal.after).commands;
-    status.routes = manifestRoutes(journal.before).commands;
+    status.desiredRoutes = manifestRoutes(journal.after, layout).commands;
+    status.routes = manifestRoutes(journal.before, layout).commands;
     status.managedPaths = [
       ...new Set([...Object.keys(journal.before.files), ...Object.keys(journal.after.files)]),
     ];
-    await validateRecovery(root, journal);
+    await validateRecovery(root, journal, layout);
     status.state = 'recovery_pending';
     status.integrity = 'valid';
     status.warnings.push(
       `Resume with configure ${status.desiredRoutes.join(' ')} or deinit --yes.`,
     );
   } else if (recorded !== undefined) {
-    const state = stateFrom(recorded);
+    const state = stateFrom(recorded, layout);
     status.managedPaths = Object.keys(state.files);
     if (removal !== undefined) {
       status.pendingOperation = 'uninstall';
@@ -145,7 +153,7 @@ async function inspectOwnership(root: string, status: InstallationStatus) {
       status.state = 'recovery_pending';
       status.warnings.push('Resume with deinit --yes (or legacy uninstall).');
     } else {
-      status.routes = manifestRoutes(state).commands;
+      status.routes = manifestRoutes(state, layout).commands;
       await checkFiles(root, state.files);
       status.state = 'initialized';
     }
@@ -153,17 +161,21 @@ async function inspectOwnership(root: string, status: InstallationStatus) {
   }
   if (!routing && (await readAt(root, journalStage)) !== undefined) {
     status.warnings.push(
-      'Unreferenced .arch/routing.stage; inspect and move it before another routing update.',
+      `Unreferenced ${journalStage}; inspect and move it before another routing update.`,
     );
   }
 }
 
 // Inspect names and entry presence only. Never read claim/stage contents or follow links.
-async function inspectSetup(root: string, status: InstallationStatus): Promise<void> {
-  await assertSafePath(root, '.arch');
+async function inspectSetup(
+  root: string,
+  status: InstallationStatus,
+  layout: ProjectLayout,
+): Promise<void> {
+  await assertSafePath(root, layout.directory);
   let entries: string[];
   try {
-    entries = await readdir(join(root, '.arch'));
+    entries = await readdir(layout.configurationDirectory);
   } catch (error) {
     if ('ENOENT' !== (error as NodeJS.ErrnoException).code) {
       throw error;
@@ -172,9 +184,9 @@ async function inspectSetup(root: string, status: InstallationStatus): Promise<v
   }
   const stagingPaths: string[] = [];
   for (const name of entries.filter((entry) => entry.startsWith('.setup-')).sort()) {
-    const path = join('.arch', name);
+    const path = join(layout.directory, name);
     if ((await lstat(join(root, path))).isDirectory()) {
-      stagingPaths.push('.arch/' + name);
+      stagingPaths.push(layout.directory + '/' + name);
     }
   }
   const claimPresent = entries.includes('setup-claim');

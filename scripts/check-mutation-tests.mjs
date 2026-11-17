@@ -88,6 +88,18 @@ test('Core and every extracted execution scope reject surviving-only reports', (
   }
 });
 
+test('lifecycle evidence cannot omit the selected project layout measurement', () => {
+  const files = Object.fromEntries(
+    pilots.lifecycle.files
+      .filter((file) => 'src/project-layout.ts' !== file)
+      .map((file) => [file, { mutants: [{ status: 'Killed' }] }]),
+  );
+  assert.throws(
+    () => enforceMutation(mutationEvidence({ files }), pilots.lifecycle.files),
+    /Missing mutation scope: src\/project-layout\.ts/,
+  );
+});
+
 test('lifecycle decision gates reject survivors and timeout-only reports', () => {
   for (const file of [
     'src/lifecycle/manifest.ts',

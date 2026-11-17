@@ -79,8 +79,11 @@ at the same root fail rather than merge or silently shadow. Invalid selected fil
 never fall back. Trusted callers may select one of these relative directory names;
 a missing explicit selection fails at the nearest project with any candidate, never
 crossing it to satisfy the selection in a parent. Parsed adapters supply absolute directory context.
-Configuration paths do not redefine project identity or migrate `.arch/bin`, manifests
-or mise integration. Init creates the `.arch` default only when no candidate exists.
+PR #29 did not relocate routing resources. [ADR-011](011-unified-project-directory.md)
+supersedes that layout limitation: a single selected home now contains configuration,
+routing and lifecycle metadata. Project identity, source resolution and ABI remain unchanged.
+Init creates the `.arch` default only for an unconfigured new project without a selector;
+existing homes are not migrated.
 
 `harness.toml` is declarative configuration; `.mjs`/ESM `.js` modules and the internal
 resolver are executable code; `node_modules` is managed by the project. The helper is

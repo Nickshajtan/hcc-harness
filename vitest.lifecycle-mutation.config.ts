@@ -4,6 +4,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     include: [
+      'tests/unit/project-layout-selection.test.ts',
       'tests/unit/manifest.test.ts',
       'tests/unit/routing-journal.test.ts',
       'tests/unit/ownership.test.ts',

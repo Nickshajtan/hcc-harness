@@ -1,10 +1,8 @@
+import { resolveProjectLayoutAt, type ProjectLayout } from '../project-layout.js';
 import { assertBootstrapAuthority } from './setup-claim.js';
-import { resolve } from 'node:path';
 import { renderFiles } from '../installation/renderer.js';
 import {
   stateFrom,
-  statePath,
-  uninstallPath,
   validateCommands,
   manifestRoutes,
   key,
@@ -12,7 +10,6 @@ import {
   type State,
 } from './manifest.js';
 import { checkFiles } from './ownership.js';
-import { routingPath } from './routing-journal.js';
 import { readAt } from './routing-files.js';
 export interface RoutingPlan {
   before: State;
@@ -20,10 +17,16 @@ export interface RoutingPlan {
   additions: Record<string, string>;
   removed: string[];
 }
-export async function planRoutes(root: string, commands: readonly string[]): Promise<RoutingPlan> {
+export async function planRoutes(
+  root: string,
+  commands: readonly string[],
+  resolvedLayout?: ProjectLayout,
+): Promise<RoutingPlan> {
   // This plan inspects the filesystem. It never publishes changes or rewrites retained launchers.
-  root = resolve(root);
-  await assertBootstrapAuthority(root);
+  const project = resolvedLayout ?? (await resolveProjectLayoutAt(root));
+  root = project.projectRoot;
+  const { statePath, uninstallPath, routingPath } = project;
+  await assertBootstrapAuthority(root, project);
   validateCommands(commands);
   if (
     (await readAt(root, uninstallPath)) !== undefined ||
@@ -35,8 +38,8 @@ export async function planRoutes(root: string, commands: readonly string[]): Pro
   if (!text) {
     throw new Error('Arch is not initialized; use init <commands...>');
   }
-  const before = stateFrom(text),
-    layout = manifestRoutes(before);
+  const before = stateFrom(text, project),
+    layout = manifestRoutes(before, project);
   if (layout.windows !== ('win32' === process.platform)) {
     throw new Error(
       'Foreign-platform installation; deinitialize on its original platform or inspect ownership before moving it',
@@ -46,7 +49,7 @@ export async function planRoutes(root: string, commands: readonly string[]): Pro
   const canonical = commands.map(
     (command) => layout.commands.find((old) => key(old) === key(command)) ?? command,
   );
-  const generated = await renderFiles(canonical);
+  const generated = await renderFiles(canonical, project);
   const after: State = { files: {}, createdHarness: before.createdHarness },
     additions: Record<string, string> = {};
   for (const [path, bytes] of generated) {

@@ -250,3 +250,12 @@ it.each([false, true])(
     );
   },
 );
+
+it('passes explicit project home selection to unattended and interactive init', async () => {
+  await publicCommand(['init', 'tool', '--config-dir', '.ai/arch']);
+  expect(setup).toHaveBeenCalledExactlyOnceWith(process.cwd(), ['tool'], '.ai/arch');
+  expect(console.log).toHaveBeenCalledWith(expect.stringContaining('.ai/arch/bin/*'));
+  await publicCommand(['init', '--config-dir', '.hcc']);
+  expect(setupWizard).toHaveBeenCalledExactlyOnceWith(process.cwd(), ui, false, '.hcc');
+  expect(close).toHaveBeenCalledTimes(1);
+});

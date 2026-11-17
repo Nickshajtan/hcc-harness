@@ -69,7 +69,7 @@ jobs:
         run: node node_modules/vitest/vitest.mjs run tests/feasibility/runtime-contract.test.ts --reporter=default --reporter=json --outputFile=.test-state/m22-runtime-contract.json
       - name: Stable installation and source relocation contract (no platform skips)
         id: stable
-        run: node node_modules/vitest/vitest.mjs run tests/unit/stable-install.test.ts tests/integration/stable-runtime.test.ts tests/integration/stable-interruption.test.ts --reporter=default --reporter=json --outputFile=.test-state/m22-stable-contract.json
+        run: node node_modules/vitest/vitest.mjs run tests/unit/stable-install.test.ts tests/integration/stable-runtime.test.ts tests/integration/stable-interruption.test.ts tests/integration/project-layout.test.ts --reporter=default --reporter=json --outputFile=.test-state/m22-stable-contract.json
       - name: Windows executable / console / runtime isolation
         id: windows
         if: runner.os == 'Windows'

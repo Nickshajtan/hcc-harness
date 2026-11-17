@@ -1,8 +1,9 @@
+import { projectLayout, type ProjectLayout } from '../project-layout.js';
 import { rename } from 'node:fs/promises';
 import { join } from 'node:path';
-import { statePath, digest, encode } from './manifest.js';
+import { digest, encode } from './manifest.js';
 import { checkFiles } from './ownership.js';
-import { journalStage, routingPath, type RoutingJournal } from './routing-journal.js';
+import { type RoutingJournal } from './routing-journal.js';
 import {
   readAt,
   staging,
@@ -20,14 +21,16 @@ export async function applyJournal(
   root: string,
   journal: RoutingJournal,
   options: LifecycleOptions,
+  layout: ProjectLayout = projectLayout(root),
 ) {
+  const { statePath, routingPath, journalStage } = layout;
   // Keep this effect order explicit: validate, publish additions, remove old routes,
   // replace owned metadata, verify/clean stages, then remove the recovery authority last.
-  await validateRecovery(root, journal);
+  await validateRecovery(root, journal, layout);
   await options.checkpoint?.('journal');
   for (const [index, [path, payload]] of Object.entries(journal.additions).entries()) {
     const bytes = Buffer.from(payload, 'base64'),
-      temporary = staging(journal, index);
+      temporary = staging(journal, index, layout);
     await stage(root, temporary, bytes, true);
     await options.checkpoint?.(`staged:${path}`);
     if ((await readAt(root, path)) === undefined) {
@@ -48,16 +51,16 @@ export async function applyJournal(
     await removeOptional(root, path);
     await options.checkpoint?.(`removed:${path}`);
   }
-  const temporary = staging(journal, 'manifest');
+  const temporary = staging(journal, 'manifest', layout);
   await stage(root, temporary, Buffer.from(encode(journal.after)));
-  await validateRecovery(root, journal);
+  await validateRecovery(root, journal, layout);
   await options.checkpoint?.('before-manifest');
   // Same-directory replacement. Sharing failures retain both checkpoint and stage.
   await rename(join(root, temporary), join(root, statePath));
   await options.checkpoint?.('manifest');
   await checkFiles(root, journal.after.files);
   for (const [index, payload] of Object.values(journal.additions).entries()) {
-    const path = staging(journal, index);
+    const path = staging(journal, index, layout);
     await verifyStage(root, path, Buffer.from(payload, 'base64'));
     await removeOptional(root, path);
   }

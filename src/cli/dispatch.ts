@@ -1,3 +1,4 @@
+import { resolveProjectLayout } from '../project-layout.js';
 import {
   addRoutes,
   configuredRoutes,
@@ -18,17 +19,26 @@ async function configureProject(
 ): Promise<void> {
   if (request.commands.length) {
     if ('init' === request.operation) {
-      await setup(root, request.commands);
+      if (undefined === request.configurationDirectory) {
+        await setup(root, request.commands);
+      } else {
+        await setup(root, request.commands, request.configurationDirectory);
+      }
     } else {
       await reconcileRoutes(root, request.commands);
     }
-    console.log(installedMessage(root));
+    const layout = await resolveProjectLayout(root, request.configurationDirectory);
+    console.log(installedMessage(layout.projectRoot, layout.directory));
     return;
   }
   const { terminalInteraction } = await import('../wizard/terminal.js');
   const ui = terminalInteraction();
   try {
-    await setupWizard(root, ui, 'configure' === request.operation);
+    if (undefined === request.configurationDirectory) {
+      await setupWizard(root, ui, 'configure' === request.operation);
+    } else {
+      await setupWizard(root, ui, false, request.configurationDirectory);
+    }
   } finally {
     ui.close();
   }
@@ -57,12 +67,17 @@ async function removeProject(
 }
 
 export async function publicCommand(args: readonly string[]): Promise<void> {
-  const root = process.cwd();
   const request = parseManagement(args, process.stdin.isTTY && process.stdout.isTTY);
+  if ('help' === request.operation) {
+    console.log(help);
+    return;
+  }
+  const layout = await resolveProjectLayout(
+    process.cwd(),
+    'init' === request.operation ? request.configurationDirectory : undefined,
+  );
+  const root = layout.projectRoot;
   switch (request.operation) {
-    case 'help':
-      console.log(help);
-      return;
     case 'init':
     case 'configure':
       await configureProject(root, request);

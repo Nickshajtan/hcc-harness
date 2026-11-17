@@ -7,11 +7,13 @@
     "tsconfig.json",
     "vitest.lifecycle-mutation.config.ts",
     "src/**/*.ts",
+    "tests/unit/project-layout-selection.test.ts",
     "tests/unit/manifest.test.ts",
     "tests/unit/routing-journal.test.ts",
     "tests/unit/ownership.test.ts"
   ],
   "mutate": [
+    "src/project-layout.ts",
     "src/lifecycle/manifest.ts",
     "src/lifecycle/ownership.ts",
     "src/lifecycle/routing-journal.ts",

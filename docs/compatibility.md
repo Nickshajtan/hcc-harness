@@ -132,3 +132,20 @@ or npm-help incident. Keep [issue #25](https://github.com/Nickshajtan/hcc-harnes
 and the [historical investigation](stabilization-f1-f5.md) visible. The earlier
 FS-1.2 exFAT execution/sharing failures remain historical evidence; later VS-1R
 NTFS-installation/exFAT-consumer results qualify that scope, not every exFAT device.
+
+## Unified HCC project home
+
+Supported names are `.hcc`, `.hcc-harness`, `.arch`, `.ai/.harness`, `.ai/arch`,
+in that discovery order at each ancestor. Exactly one configuration is active;
+conflicts and invalid configuration do not fall back. New init defaults to `.arch`;
+`init --config-dir .ai/arch` selects an alternative. Existing homes are never migrated.
+Launchers and lifecycle metadata use that home; mise's managed file remains external.
+
+Unversioned legacy manifests remain valid at `.arch/bootstrap.json` and recovery
+paths. Their hashes remain authoritative. Alternative manifests use the same format
+with paths constrained to their own home. A recorded path into another home is invalid.
+Pre-consolidation layouts with configuration and lifecycle evidence in different homes
+are refused for manual inspection, never automatically merged or cleaned up.
+User modules, edited/preexisting TOML, helpers and unknown residue are retained.
+No recursive removal of selected homes or user-managed `.ai` parents is performed.
+Publication capabilities, interruption limits and platform restrictions above still apply.

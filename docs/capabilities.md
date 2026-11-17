@@ -16,7 +16,8 @@ The PR corrections add five-location discovery with same-root conflict rejection
 trusted directory selection, internal helper placement, per-module synchronous
 registration admission and shared bounded preparation waiting. Timed-out imports can
 continue executing but cannot enter the effective pipeline. Policy requirements override
-optional preparation. Routing ownership remains under `.arch`; see the supported
+optional preparation. Routing ownership, launchers, claims and recovery metadata share the selected HCC
+home (`.arch` by default); see the supported
 [layouts and limitations](usage.md#configuration-locations-and-ownership).
 
 **Implemented** means present in source; **verified** means exercised within a named

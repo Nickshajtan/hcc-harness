@@ -230,9 +230,10 @@ describe.skipIf('win32' !== process.platform || 'x64' !== process.arch)(
     it('refuses missing and corrupted packaged helper before publishing setup targets', async () => {
       const helper = join(stable, 'application/vendor/arch-publication-v1.exe');
       const original = await readFile(helper);
-      const fresh = join(consumer, 'integrity');
+      // Independent projects must not inherit the consumer's retained user configuration.
+      const fresh = join(f.root, 'integrity');
       await mkdir(fresh);
-      const operational = join(consumer, 'operational');
+      const operational = join(f.root, 'operational');
       await mkdir(operational);
       const initialized = await run(entry, ['init', 'claude'], operational, env);
       expect(initialized.code, initialized.stderr).toBe(0);

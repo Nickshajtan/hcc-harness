@@ -14,7 +14,10 @@ Node packages through the existing process and policy pipelines. See
 [policy integration](docs/provider-policy.md#external-module-integration-v1).
 Configuration discovery supports `.hcc`, `.hcc-harness`, `.arch` (init default),
 `.ai/.harness` and `.ai/arch`; duplicate files at one root fail. Package helpers live
-under the selected directory's `.internal/`, while routing remains in `.arch`.
+under the selected directory's `.internal/`; routing, manifests, claims and recovery
+metadata use that same selected home. Initialize an alternative with
+`arch init claude codex --config-dir .ai/arch`. Existing `.arch` projects remain supported;
+no command implicitly migrates a project. See [project ownership](docs/usage.md#configuration-locations-and-ownership).
 External preparation has a shared bounded wait; it does not terminate JavaScript.
 
 ```mermaid

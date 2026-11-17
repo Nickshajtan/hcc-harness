@@ -276,3 +276,19 @@ Ctrl+C/Ctrl+Break cleanup, deinit/native fallback and the unaffected second proj
 Separately verify fresh-shell mise activation/trust and prompt refresh; subprocess
 mise-exec or init success cannot prove parent-shell behavior. These checks remain
 NOT TESTED against real AI CLIs, and force-kill cleanup is not promised.
+
+## Unified project-directory acceptance
+
+`tests/unit/project-layout.test.ts` exercises all five homes through init, discovery,
+status, route reconciliation, interrupted update/removal, modified resources, malformed
+cross-home manifests, claims and deinit. It checks user files and absence of a second
+`.arch`. Marker tests include realpath aliases/junctions and unmarked alias directories.
+`tests/integration/project-layout.test.ts` executes native launchers, explicit run and
+mise for all five homes. Stable-runtime integration adds `.ai/arch` and `.hcc` projects
+against the independent installed runtime. Existing frozen legacy, package loading,
+publication, subprocess interruption and platform contracts remain in the regression suite.
+
+Run `npm run check`, `npm run test:coverage`, `npm run test:stable`, wizard/reliability
+and the relevant mutation pilots. Hosted regression still runs on Windows, macOS and
+Linux; local Windows results alone do not establish those platform outcomes. Existing
+filesystem/platform skips retain their reasons. See the PR evidence for executed counts.

@@ -1,3 +1,4 @@
+import { projectLayout } from '../../src/project-layout.js';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import {
   mkdtemp,
@@ -69,7 +70,13 @@ it('initializes with an alternative configuration and retains unowned configurat
   await actual.writeFile(join(fresh, '.ai/arch/.internal/resolver-v1.mjs'), 'user-owned');
   await setup(fresh, ['tool']);
   expect(await readOptional(join(fresh, '.arch/harness.toml'))).toBeUndefined();
-  expect(stateFrom(await readFile(join(fresh, '.arch/bootstrap.json'))).createdHarness).toBe(false);
+  expect(
+    stateFrom(
+      await readFile(join(fresh, '.ai/arch/bootstrap.json')),
+      projectLayout(fresh, '.ai/arch'),
+    ).createdHarness,
+  ).toBe(false);
+  expect(await readOptional(join(fresh, '.arch/bootstrap.json'))).toBeUndefined();
   await setup(fresh, ['tool']);
   await deinitialize(fresh);
   expect(await readFile(join(fresh, '.ai/arch/harness.toml'), 'utf8')).toBe(text);
