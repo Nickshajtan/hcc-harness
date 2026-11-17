@@ -37,6 +37,7 @@ export const pilots = {
   lifecycle: {
     report: 'reports/mutation-lifecycle/mutation.json',
     files: [
+      'src/project-layout.ts',
       'src/lifecycle/manifest.ts',
       'src/lifecycle/ownership.ts',
       'src/lifecycle/routing-journal.ts',
