@@ -1,11 +1,11 @@
+import { resolveProjectLayoutAt } from '../project-layout.js';
+import type { ConfigurationDirectory } from '../config.js';
 import { assertBootstrapAuthority, claimSetup } from '../lifecycle/setup-claim.js';
 import { mkdir, mkdtemp, writeFile, unlink, chmod, lstat, rmdir } from 'node:fs/promises';
-import { join, dirname, resolve, relative, sep } from 'node:path';
+import { join, dirname, relative, sep } from 'node:path';
 import { configurationAt } from '../config.js';
 import {
   configText,
-  statePath,
-  uninstallPath,
   digest,
   stateFrom,
   validateCommands,
@@ -55,13 +55,19 @@ async function cleanupSetupStages(root: string, prepared: PreparedFile[], direct
   await rmdir(directory);
 }
 
-export async function setup(root: string, commands: readonly string[]): Promise<void> {
-  root = resolve(root);
-  await assertBootstrapAuthority(root);
-  for (const file of [statePath, uninstallPath, '.arch/routing.json', '.arch/harness.toml']) {
+export async function setup(
+  root: string,
+  commands: readonly string[],
+  selected?: ConfigurationDirectory,
+): Promise<void> {
+  const layout = await resolveProjectLayoutAt(root, selected);
+  root = layout.projectRoot;
+  const { statePath, uninstallPath, routingPath, configurationPath, binDirectory } = layout;
+  await assertBootstrapAuthority(root, layout);
+  for (const file of [statePath, uninstallPath, routingPath, configurationPath]) {
     await assertSafePath(root, file);
   }
-  if ((await readOptional(join(root, '.arch/routing.json'))) !== undefined) {
+  if ((await readOptional(join(root, routingPath))) !== undefined) {
     throw new Error(
       'Routing recovery pending; use configure with the recorded desired routes or deinit --yes',
     );
@@ -70,15 +76,15 @@ export async function setup(root: string, commands: readonly string[]): Promise<
     throw new Error('Uninstall in progress; run uninstall before initialization');
   }
   validateCommands(commands);
-  const contents = await renderFiles(commands);
+  const contents = await renderFiles(commands, layout);
   const files = Object.fromEntries([...contents].map(([file, text]) => [file, digest(text)]));
   const stateFile = join(root, statePath);
   const [existingHarness, existingState] = await Promise.all([
-    configurationAt(root),
+    configurationAt(root, layout.directory),
     readOptional(stateFile),
   ]);
   if (existingState) {
-    const state = stateFrom(existingState);
+    const state = stateFrom(existingState, layout);
     const names = (value: Record<string, string>) =>
       Object.keys(value)
         .map((file) => ('win32' === process.platform ? file.toLowerCase() : file))
@@ -97,17 +103,17 @@ export async function setup(root: string, commands: readonly string[]): Promise<
       throw new Error(`Refusing to overwrite ${file}`);
     }
   }
-  await mkdir(join(root, '.arch'), { recursive: true });
-  const releaseClaim = await claimSetup(root);
+  await mkdir(layout.configurationDirectory, { recursive: true });
+  const releaseClaim = await claimSetup(root, layout);
   let directory: string | undefined;
   const prepared: PreparedFile[] = [];
   const created: typeof prepared = [];
   let committed = false;
   try {
-    directory = await mkdtemp(join(root, '.arch/.setup-'));
+    directory = await mkdtemp(join(layout.configurationDirectory, '.setup-'));
     for (const [file, text] of [
       ...contents,
-      ...(existingHarness === undefined ? [['.arch/harness.toml', configText] as const] : []),
+      ...(existingHarness === undefined ? [[configurationPath, configText] as const] : []),
       [
         statePath,
         JSON.stringify(
@@ -119,7 +125,7 @@ export async function setup(root: string, commands: readonly string[]): Promise<
     ]) {
       const staged = join(directory, String(prepared.length));
       await writeFile(staged, text, { flag: 'wx' });
-      if (file.startsWith('.arch/bin/') && 'win32' !== process.platform) {
+      if (file.startsWith(`${binDirectory}/`) && 'win32' !== process.platform) {
         await chmod(staged, 0o755);
       }
       const stage = relative(root, staged).split(sep).join('/');
@@ -162,7 +168,7 @@ export async function setup(root: string, commands: readonly string[]): Promise<
     }
     if (committed) {
       throw new Error(
-        'Arch setup committed but staging cleanup failed; inspect .arch/setup-claim and private .arch/.setup-* stages',
+        `Arch setup committed but staging cleanup failed; inspect ${layout.setupClaimPath} and private ${layout.directory}/.setup-* stages`,
         { cause: error },
       );
     }

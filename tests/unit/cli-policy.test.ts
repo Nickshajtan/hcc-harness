@@ -72,3 +72,25 @@ it('separates cancellation, defaults and explicit command input without validati
   expect(selectedCommands('node node', defaults)).toEqual(['node', 'node']);
   expect(defaults).toEqual(['claude']);
 });
+
+it('accepts only one supported init directory selector and never mutates input', () => {
+  const args = Object.freeze(['init', '--config-dir', '.ai/arch', 'tool']);
+  expect(parseManagement(args, false)).toEqual({
+    operation: 'init',
+    commands: ['tool'],
+    configurationDirectory: '.ai/arch',
+  });
+  expect(parseManagement(['init', '--config-dir', '.hcc'], true)).toEqual({
+    operation: 'init',
+    commands: [],
+    configurationDirectory: '.hcc',
+  });
+  for (const invalid of [
+    ['init', 'tool', '--config-dir'],
+    ['init', 'tool', '--config-dir', '../other'],
+    ['init', 'tool', '--config-dir', '.arch', '--config-dir', '.hcc'],
+    ['configure', 'tool', '--config-dir', '.arch'],
+  ]) {
+    expect(() => parseManagement(invalid, true)).toThrow(UsageError);
+  }
+});

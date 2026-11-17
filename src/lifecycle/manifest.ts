@@ -1,5 +1,7 @@
+import { projectLayout, type ProjectLayout } from '../project-layout.js';
 import { createHash } from 'node:crypto';
 export const routePath = '.config/mise/conf.d/arch.toml';
+// Compatibility exports describe the default home; effects use an explicit layout.
 export const statePath = '.arch/bootstrap.json';
 export const uninstallPath = '.arch/uninstall.json';
 export interface State {
@@ -14,14 +16,14 @@ export const equal = (a: State, b: State) =>
   JSON.stringify(Object.entries(a.files).sort()) === JSON.stringify(Object.entries(b.files).sort());
 export const key = (name: string) => ('win32' === process.platform ? name.toLowerCase() : name);
 
-export function stateFrom(text: Buffer): State {
+export function stateFrom(text: Buffer, layout: ProjectLayout = projectLayout('.')): State {
   const state: unknown = JSON.parse(text.toString());
-  if (!isOwnershipState(state)) {
+  if (!isOwnershipState(state, layout)) {
     throw new Error('Invalid bootstrap state');
   }
   return state;
 }
-function isOwnershipState(state: unknown): state is State {
+function isOwnershipState(state: unknown, layout: ProjectLayout): state is State {
   if (
     null === state ||
     'object' !== typeof state ||
@@ -34,7 +36,11 @@ function isOwnershipState(state: unknown): state is State {
     'boolean' !== typeof state.createdHarness ||
     Object.entries(state.files).some(
       ([file, hash]: [string, unknown]) =>
-        !(file === routePath || /^\.arch\/bin\/(?!\.{1,2}$)[a-zA-Z0-9_.-]+$/.test(file)) ||
+        !(
+          file === routePath ||
+          (file.startsWith(`${layout.binDirectory}/`) &&
+            /^(?!\.{1,2}$)[a-zA-Z0-9_.-]+$/.test(file.slice(layout.binDirectory.length + 1)))
+        ) ||
         'string' !== typeof hash ||
         !/^[a-f0-9]{64}$/.test(hash),
     )
@@ -59,7 +65,11 @@ export function validateCommands(
   }
 }
 
-export function manifestRoutes(state: State): { commands: string[]; windows: boolean } {
+export function manifestRoutes(
+  state: State,
+  layout: ProjectLayout = projectLayout('.'),
+): { commands: string[]; windows: boolean } {
+  const { markerPath, binDirectory } = layout;
   const paths = Object.keys(state.files);
   if (!state.files[routePath] || !state.files[markerPath]) {
     throw new Error('Incomplete routing manifest: missing mise integration or router marker');
@@ -68,14 +78,16 @@ export function manifestRoutes(state: State): { commands: string[]; windows: boo
   const windows = launchers.some((path) => /\.(exe|shim)$/.test(path));
   const commands = launchers
     .filter((path) => !windows || path.endsWith('.exe'))
-    .map((path) => path.slice('.arch/bin/'.length).replace(windows ? /\.exe$/ : /$/, ''));
+    .map((path) => path.slice(binDirectory.length + 1).replace(windows ? /\.exe$/ : /$/, ''));
   validateCommands(commands, windows);
   // Validate case identity using the installation layout even on a foreign host.
   if (windows && new Set(commands.map((c) => c.toLowerCase())).size !== commands.length) {
     throw new Error('Duplicate Windows routes');
   }
   const expected = commands.flatMap((command) =>
-    windows ? [`.arch/bin/${command}.exe`, `.arch/bin/${command}.shim`] : [`.arch/bin/${command}`],
+    windows
+      ? [`${binDirectory}/${command}.exe`, `${binDirectory}/${command}.shim`]
+      : [`${binDirectory}/${command}`],
   );
   if (expected.length !== launchers.length || expected.some((path) => !state.files[path])) {
     throw new Error('Incomplete routing manifest: invalid launcher set or missing exe/shim pair');

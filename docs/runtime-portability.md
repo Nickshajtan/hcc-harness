@@ -274,3 +274,14 @@ dependencies and tests actual source rename. Real nvm/fnm, Windows ARM64, every
 terminal emulator and force-kill cleanup are unverified. The native bootstrap's
 console/arguments/signals/status contract must continue to pass; otherwise stop for
 review rather than substituting a generic launcher or weakening the contract.
+
+## Project-directory consolidation
+
+The selected HCC home owns project launchers and lifecycle metadata independently
+of Arch's stable installation or development checkout. The supported homes and explicit
+init selector are documented in [usage](usage.md#configuration-locations-and-ownership).
+Stable launchers still bind the installed entrypoint; development launchers still capture
+the checkout and runtime. Only project resource paths vary. Native bootstrap ABI,
+publication helper, Node selection and process contracts are unchanged. Existing
+`.arch` ownership remains valid and is not rebound or migrated. Recovery journals and
+claims stay beside that project's bootstrap manifest, including with missing configuration.

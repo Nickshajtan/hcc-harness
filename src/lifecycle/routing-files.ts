@@ -1,3 +1,4 @@
+import { projectLayout, type ProjectLayout } from '../project-layout.js';
 import { chmod, link, unlink, writeFile, lstat, open } from 'node:fs/promises';
 import { join, isAbsolute } from 'node:path';
 import { inspect } from 'node:util';
@@ -9,8 +10,12 @@ export async function readAt(root: string, path: string) {
   await assertSafePath(root, path);
   return readOptional(join(root, path));
 }
-export function staging(journal: RoutingJournal, index: number | 'manifest') {
-  return `.arch/.routing-${journal.id}-${String(index)}.stage`;
+export function staging(
+  journal: RoutingJournal,
+  index: number | 'manifest',
+  layout: ProjectLayout = projectLayout('.'),
+) {
+  return `${layout.directory}/.routing-${journal.id}-${String(index)}.stage`;
 }
 export async function verifyStage(root: string, path: string, bytes: Buffer) {
   const existing = await readAt(root, path);

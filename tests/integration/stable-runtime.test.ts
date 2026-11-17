@@ -7,6 +7,7 @@ import {
   mkdir,
   link,
   readFile,
+  readdir,
   realpath,
   rename,
   symlink,
@@ -400,3 +401,34 @@ it('preserves console signals and middleware cleanup through stable project rout
   }
   expect(removed.code, removed.stderr).toBe(0);
 });
+
+it.each(['.ai/arch', '.hcc'])(
+  'uses an independent stable installation with project home %s',
+  async (directory) => {
+    const alternate = join(
+      f.root,
+      directory.replaceAll('/', '-').replaceAll('.', '') + '-stable-project',
+    );
+    await mkdir(alternate);
+    const initialized = await run(
+      entry,
+      ['init', 'claude', '--config-dir', directory],
+      alternate,
+      env,
+    );
+    expect(initialized.code, initialized.stderr).toBe(0);
+    const bin = join(alternate, directory, 'bin');
+    const launcher = join(bin, windows ? 'claude.exe' : 'claude');
+    const routed = await run(launcher, ['stable alternate'], alternate, {
+      ...env,
+      PATH: [bin, env.PATH].join(delimiter),
+    });
+    expect(routed.code, routed.stderr).toBe(0);
+    expect(routed.stdout).toContain('stable alternate');
+    const configured = await run(entry, ['configure', 'claude', 'codex'], alternate, env);
+    expect(configured.code, configured.stderr).toBe(0);
+    const removed = await run(entry, ['deinit', '--yes'], alternate, env);
+    expect(removed.code, removed.stderr).toBe(0);
+    expect(await readdir(alternate)).not.toContain('.arch');
+  },
+);

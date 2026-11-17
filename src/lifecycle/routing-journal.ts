@@ -1,11 +1,5 @@
-import {
-  stateFrom,
-  manifestRoutes,
-  routePath,
-  markerPath,
-  digest,
-  type State,
-} from './manifest.js';
+import { projectLayout, type ProjectLayout } from '../project-layout.js';
+import { stateFrom, manifestRoutes, routePath, digest, type State } from './manifest.js';
 export const routingPath = '.arch/routing.json';
 export const journalStage = '.arch/routing.stage';
 export interface RoutingJournal {
@@ -15,13 +9,17 @@ export interface RoutingJournal {
   after: State;
   additions: Record<string, string>;
 }
-export function journalFrom(text: Buffer): RoutingJournal {
+export function journalFrom(
+  text: Buffer,
+  layout: ProjectLayout = projectLayout('.'),
+): RoutingJournal {
+  const { markerPath } = layout;
   // Preserve historical acceptance and metadata; parsing is separate from on-disk recovery validation.
   const value = readJournalHeader(text);
-  const before = stateFrom(Buffer.from(JSON.stringify(value.before))),
-    after = stateFrom(Buffer.from(JSON.stringify(value.after)));
-  const oldRoutes = manifestRoutes(before),
-    newRoutes = manifestRoutes(after);
+  const before = stateFrom(Buffer.from(JSON.stringify(value.before)), layout),
+    after = stateFrom(Buffer.from(JSON.stringify(value.after)), layout);
+  const oldRoutes = manifestRoutes(before, layout),
+    newRoutes = manifestRoutes(after, layout);
   if (oldRoutes.windows !== newRoutes.windows || before.createdHarness !== after.createdHarness) {
     throw new Error('Invalid routing journal ownership');
   }

@@ -1,3 +1,5 @@
+import { resolveProjectLayout } from '../project-layout.js';
+import type { ConfigurationDirectory } from '../config.js';
 import { resolve } from 'node:path';
 import { discoverClis, defaultSelection } from '../discovery.js';
 import {
@@ -14,9 +16,11 @@ import { installedMessage, removedMessage } from './presentation.js';
 import { removalConfirmed, setupConfirmed, selectedCommands } from './decisions.js';
 
 export async function confirmRemoval(root: string, ui: Interaction): Promise<boolean> {
+  const layout = await resolveProjectLayout(root);
+  root = layout.projectRoot;
   const status = await inspectInstallation(root);
   ui.write(
-    `Arch Deinitialization\nProject: ${resolve(root)}\nManaged resources:\n${[...status.managedPaths, ...(status.recoveryPending ? ['.arch/* operation journal (owned)'] : []), '.arch/bootstrap.json'].map((path) => `  ${path}`).join('\n')}\nPreserved: modified/pre-existing .arch/harness.toml, unrelated files, native installations.\nAn unchanged generated harness configuration may be removed.`,
+    `Arch Deinitialization\nProject: ${resolve(root)}\nManaged resources:\n${[...status.managedPaths, ...(status.recoveryPending ? [`${layout.directory}/* operation journal (owned)`] : []), layout.statePath].map((path) => `  ${path}`).join('\n')}\nPreserved: modified/pre-existing ${layout.configurationPath}, unrelated files, native installations.\nAn unchanged generated harness configuration may be removed.`,
   );
   const answer = await ui.ask('Remove Arch routing from this project? [y/N] ');
   return removalConfirmed(answer);
@@ -25,8 +29,10 @@ export async function setupWizard(
   root: string,
   ui: Interaction,
   configure = false,
+  selectedDirectory?: ConfigurationDirectory,
 ): Promise<boolean> {
-  root = resolve(root);
+  const layout = await resolveProjectLayout(root, selectedDirectory);
+  root = layout.projectRoot;
   const status = await inspectInstallation(root);
   ui.write(`Arch ${configure ? 'Configuration' : 'Setup'}\nProject: ${root}`);
   if (configure) {
@@ -62,10 +68,12 @@ export async function setupWizard(
   }
   if (current.length) {
     await reconcileRoutes(root, selected);
-  } else {
+  } else if (undefined === selectedDirectory) {
     await setup(root, selected);
+  } else {
+    await setup(root, selected, selectedDirectory);
   }
-  ui.write(installedMessage(root));
+  ui.write(installedMessage(root, layout.directory));
   return true;
 }
 
@@ -87,7 +95,8 @@ async function configureExisting(
       return 'unchanged';
     }
     await reconcileRoutes(root, desiredRoutes);
-    ui.write(installedMessage(root));
+    const layout = await resolveProjectLayout(root);
+    ui.write(installedMessage(layout.projectRoot, layout.directory));
     return 'changed';
   }
   if ('initialized' !== status.state) {

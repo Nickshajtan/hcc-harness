@@ -1,10 +1,16 @@
+import { projectLayout, type ProjectLayout } from '../project-layout.js';
 import { assertBootstrapAuthority } from './setup-claim.js';
-import { statePath, uninstallPath, stateFrom, equal, digest, encode } from './manifest.js';
-import { journalStage, type RoutingJournal } from './routing-journal.js';
+import { stateFrom, equal, digest, encode } from './manifest.js';
+import { type RoutingJournal } from './routing-journal.js';
 import { readAt, verifyStage, staging } from './routing-files.js';
 // Validation authorizes only states explicitly represented by the recorded before/after plan.
-export async function validateRecovery(root: string, journal: RoutingJournal) {
-  await assertBootstrapAuthority(root);
+export async function validateRecovery(
+  root: string,
+  journal: RoutingJournal,
+  layout: ProjectLayout = projectLayout(root),
+) {
+  const { statePath, uninstallPath, journalStage } = layout;
+  await assertBootstrapAuthority(root, layout);
   if ((await readAt(root, uninstallPath)) !== undefined) {
     throw new Error('Conflicting routing and uninstall journals');
   }
@@ -12,7 +18,7 @@ export async function validateRecovery(root: string, journal: RoutingJournal) {
   if (!bootstrap) {
     throw new Error('Missing bootstrap during routing recovery');
   }
-  const current = stateFrom(bootstrap);
+  const current = stateFrom(bootstrap, layout);
   if (!equal(current, journal.before) && !equal(current, journal.after)) {
     throw new Error('Bootstrap changed during routing recovery');
   }
@@ -34,7 +40,7 @@ export async function validateRecovery(root: string, journal: RoutingJournal) {
   }
   await verifyStage(root, journalStage, Buffer.from(JSON.stringify(journal, null, 2) + '\n'));
   for (const [index, payload] of Object.values(journal.additions).entries()) {
-    await verifyStage(root, staging(journal, index), Buffer.from(payload, 'base64'));
+    await verifyStage(root, staging(journal, index, layout), Buffer.from(payload, 'base64'));
   }
-  await verifyStage(root, staging(journal, 'manifest'), Buffer.from(encode(journal.after)));
+  await verifyStage(root, staging(journal, 'manifest', layout), Buffer.from(encode(journal.after)));
 }
