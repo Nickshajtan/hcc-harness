@@ -11,9 +11,18 @@
     "tests/unit/execution-policy.test.ts",
     "tests/unit/environment.test.ts",
     "tests/unit/events.test.ts",
+    "tests/unit/middleware-loader.test.ts",
+    "tests/fixtures/external-middleware/*.mjs",
     "src/core/*.ts"
   ],
-  "mutate": ["src/core/**/*.ts", "src/middleware.ts", "src/events.ts"],
+  "mutate": [
+    "src/core/**/*.ts",
+    "src/middleware.ts",
+    "src/events.ts",
+    "src/middleware-loader.ts",
+    "src/middleware-resolution.ts",
+    "src/synchronous-registration.ts"
+  ],
   "vitest": {
     "configFile": "vitest.core-mutation.config.ts"
   },

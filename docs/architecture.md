@@ -194,6 +194,34 @@ Middleware can throw to deny launch. Registry factories and mutable launch state
 are fresh for each execution. Modules are trusted local code; no security sandbox
 or dependency graph is implied.
 
+## External middleware preparation (V1)
+
+`middleware-loader.ts` prepares invocation-local Registry factory closures;
+`middleware-resolution.ts` validates file entrypoints or resolves project packages
+through a fixed ESM anchor under the selected configuration directory's `.internal/`.
+Native import conditions and project package context are preserved; intervening package
+scopes/dependency directories are rejected. Preparation creates no middleware instance or hook.
+`ExecutionSession.registerMiddleware()` awaits it after started observers and registry
+selection, inside the existing registration/finalization failure path. An explicit
+registry remains the base; collisions fail before imports. Instances register in TOML order.
+
+`dispatchPolicy()` accepts trusted parsed configuration with `projectRoot` for external
+sources. Request/options validation precedes preparation, which is outside the decision
+deadline. Existing required-handler/cleanup machinery still owns enforcement. Neither
+loader owns cleanup, process supervision or a second runtime. See
+[usage](usage.md#external-middleware-v1) and [ADR-010](decisions/010-external-middleware.md).
+
+Discovery checks `.hcc`, `.hcc-harness`, `.arch`, `.ai/.harness`, `.ai/arch` at each
+ancestor, rejecting same-root conflicts. `configurationDirectory` is separate from
+`projectRoot`; routing infrastructure remains `.arch`-owned. Init preserves alternative
+configuration and only creates the historic default when none exists.
+
+One finite `preparationTimeoutMs` budget covers sequential asynchronous resolution/import
+waiting before the policy decision deadline. Late results cannot enter the Registry;
+late rejections remain observed. This cannot preempt CPU-blocking or terminate module code.
+External process `register()` admission closes synchronously per module on return or
+throw, including invalid Promise returns. Earlier cleanup retains existing ownership.
+
 ## Events
 
 Provider-originated policy requests use a separate typed decision channel; see

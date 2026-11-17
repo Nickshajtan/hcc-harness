@@ -1,7 +1,8 @@
 import type { Configuration } from './config.js';
 import type { Registry } from './middleware.js';
-import { isPromise } from 'node:util/types';
+import { assertSynchronousRegistration } from './synchronous-registration.js';
 import { PolicyDeadline } from './policy-deadline.js';
+import { loadMiddleware, instantiateMiddleware, MiddlewareLoadError } from './middleware-loader.js';
 
 import type {
   AgentBeforeSpawn,
@@ -112,26 +113,11 @@ export function resolvePolicyOptions(options: PolicyDispatchOptions) {
   return { timeoutMs, cleanupGraceMs, requiredPolicies };
 }
 
-function assertSynchronousRegistration(returned: unknown): void {
-  if (undefined === returned) {
-    return;
-  }
-  if (isPromise(returned)) {
-    // Do not invoke a user-defined then/catch or assimilate arbitrary thenables.
-    // Observe genuine rejected async registrations, including their late API errors.
-    void Promise.prototype.then.call(
-      returned,
-      () => undefined,
-      () => undefined,
-    );
-  }
-  throw new Error('Policy registration must return undefined synchronously');
-}
-
 /** One invocation owns all handlers and cleanup. EventBus deliberately has no role here. */
 export async function dispatchPolicy(
   input: unknown,
-  configuration: Pick<Configuration, 'middleware'>,
+  configuration: Pick<Configuration, 'middleware'> &
+    Partial<Pick<Configuration, 'projectRoot' | 'configurationDirectory'>>,
   registry: Registry,
   options: PolicyDispatchOptions = {},
 ): Promise<PolicyResult> {
@@ -153,14 +139,29 @@ export async function dispatchPolicy(
   let deadline: PolicyDeadline | undefined;
   try {
     const settings = resolvePolicyOptions(options);
-    const entries = configuration.middleware.map((entry) => ({ ...entry }));
-    if (new Set(entries.map((entry) => entry.id)).size !== entries.length) {
+    if (
+      new Set(configuration.middleware.map((entry) => entry.id)).size !==
+      configuration.middleware.length
+    ) {
       throw new Error('Duplicate middleware configuration');
     }
+    // Bounded preparation waiting precedes the separate decision deadline; JavaScript is not cancelled.
+    // Request/options validation precedes all imports. Context is supplied only by the adapter.
+    const prepared = await loadMiddleware(
+      configuration,
+      registry,
+      options.reportMiddlewareDiagnostic,
+      {
+        preparationTimeoutMs: options.preparationTimeoutMs ?? 5000,
+        requiredPolicies: settings.requiredPolicies,
+      },
+    );
+    const entries = prepared.configuration.middleware;
+    const activeRegistry = prepared.registry;
     for (const id of settings.requiredPolicies) {
       currentId = id;
       const entry = entries.find((entry) => entry.id === id);
-      if (!entry || !registry.has(id)) {
+      if (!entry || !activeRegistry.has(id)) {
         throw new Error('Required policy is missing');
       }
       if (!entry.enabled) {
@@ -176,11 +177,18 @@ export async function dispatchPolicy(
         continue;
       }
       currentId = entry.id;
-      const factory = registry.get(entry.id);
+      const factory = activeRegistry.get(entry.id);
       if (!factory) {
         throw new Error('Unknown middleware');
       }
-      const middleware = factory();
+      const middleware = entry.source ? instantiateMiddleware(entry, activeRegistry) : factory();
+      if (!middleware) {
+        if (settings.requiredPolicies.includes(entry.id)) {
+          code = 'configuration-error';
+          throw new Error('Required policy construction was skipped');
+        }
+        continue;
+      }
       if (middleware.id !== entry.id) {
         code = 'configuration-error';
         throw new Error('Middleware registration id mismatch');
@@ -214,7 +222,10 @@ export async function dispatchPolicy(
           }),
         );
         code = 'registration-contract';
-        assertSynchronousRegistration(returned);
+        assertSynchronousRegistration(
+          returned,
+          'Policy registration must return undefined synchronously',
+        );
         code = 'exception';
       } finally {
         registering = false;
@@ -270,6 +281,9 @@ export async function dispatchPolicy(
       throw new Error('Policy dispatch deadline exceeded');
     }
   } catch (cause) {
+    if (cause instanceof MiddlewareLoadError) {
+      currentId = cause.diagnostic.middlewareId;
+    }
     failures.push({
       stage: state,
       code,

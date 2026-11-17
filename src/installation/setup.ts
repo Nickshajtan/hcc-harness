@@ -1,7 +1,7 @@
 import { assertBootstrapAuthority, claimSetup } from '../lifecycle/setup-claim.js';
 import { mkdir, mkdtemp, writeFile, unlink, chmod, lstat, rmdir } from 'node:fs/promises';
 import { join, dirname, resolve, relative, sep } from 'node:path';
-import { parseConfiguration } from '../config.js';
+import { configurationAt } from '../config.js';
 import {
   configText,
   statePath,
@@ -72,15 +72,11 @@ export async function setup(root: string, commands: readonly string[]): Promise<
   validateCommands(commands);
   const contents = await renderFiles(commands);
   const files = Object.fromEntries([...contents].map(([file, text]) => [file, digest(text)]));
-  const harnessFile = join(root, '.arch/harness.toml'),
-    stateFile = join(root, statePath);
+  const stateFile = join(root, statePath);
   const [existingHarness, existingState] = await Promise.all([
-    readOptional(harnessFile),
+    configurationAt(root),
     readOptional(stateFile),
   ]);
-  if (existingHarness !== undefined) {
-    parseConfiguration(existingHarness.toString(), root);
-  }
   if (existingState) {
     const state = stateFrom(existingState);
     const names = (value: Record<string, string>) =>

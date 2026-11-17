@@ -8,6 +8,22 @@ import {
 import type { Registry } from '../../src/middleware.js';
 
 const request = { type: 'agent.beforeSpawn', provider: 'mock', requestId: 'one' };
+it('refuses external preparation before importing within its bounded transport', async () => {
+  const { settings, output } = options(request);
+  const code = await runMockHook({
+    ...settings,
+    configuration: {
+      middleware: [{ id: 'external', enabled: true, source: { file: './must-not-import.mjs' } }],
+    },
+  });
+  expect(code).toBe(7);
+  expect(JSON.parse(output.text())).toMatchObject({
+    outcome: 'policy-error',
+    permitted: false,
+    failures: [{ code: 'configuration-error' }],
+  });
+  expect(output.text()).not.toContain('must-not-import');
+});
 function capture() {
   let text = '';
   return {

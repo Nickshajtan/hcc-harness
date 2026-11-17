@@ -8,6 +8,7 @@ export default defineConfig({
       'tests/unit/execution-policy.test.ts',
       'tests/unit/environment.test.ts',
       'tests/unit/events.test.ts',
+      'tests/unit/middleware-loader.test.ts',
     ],
     maxWorkers: 1,
   },

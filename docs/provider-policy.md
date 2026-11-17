@@ -37,6 +37,53 @@ const policy: ArchMiddleware = {
 Unknown model information stays absent. This demonstration policy is not production
 FinOps and is never enabled in generated configuration or the default registry.
 
+## External module integration V1
+
+Adapters with trusted parsed configuration can call the integrated loader path:
+
+```ts
+import { dispatchPolicy } from 'arch-harness/policy';
+
+const result = await dispatchPolicy(request, parsedConfiguration, baseRegistry, {
+  requiredPolicies: ['project-policy'],
+  preparationTimeoutMs: 5000,
+  reportMiddlewareDiagnostic: (diagnostic) => localDiagnostics.write(diagnostic),
+});
+// Proceed only for allow, subject to the adapter's own verified capability/transport rules.
+```
+
+`parsedConfiguration.projectRoot` must be the absolute discovered project root from
+trusted adapter code. Request fields cannot select sources or resolution context.
+Legacy middleware-only configurations remain supported. Missing trusted context is
+a global configuration failure, including for optional entries. Required policies must still be present
+and contribute an applicable handler. Optional factory skips also fail required-policy
+checks before handlers execute. Process-only modules cannot satisfy those requirements.
+
+Request/options validation precedes ESM preparation. Preparation imports sequentially,
+binds factory options and creates no instances; it is **outside** the existing policy
+deadline, with its own shared `preparationTimeoutMs` (default 5000, integer 1–60000).
+Timeout fails required modules and policy-required entries closed; optional modules
+emit a local `preparation-timeout` skip. Late fulfillment never admits a factory or
+handler, and late rejection is observed. Import evaluation/top-level await can persist
+after waiting stops; synchronous code cannot be preempted. The decision budget starts after preparation and still
+covers construction, registration, handlers and cleanup. This path supplies no hard
+end-to-end cancellation guarantee. An adapter requiring one must refuse independently,
+observe pending failures and never authorize from late results; no workers are added.
+
+Trusted parsed callers supply absolute `configurationDirectory` for the selected
+layout, or accept the `.arch` helper default. Configuration discovery supports the
+five directories and rejects conflicts described in [usage](usage.md#configuration-locations-and-ownership).
+The selected configuration directory does not replace project identity or `.arch`
+routing ownership. Package helpers live in its `.internal/`, not the project root.
+
+The bounded mock adapter remains registry-only and refuses source-bearing configuration;
+its public JSON protocol, capability and transport budget remain unchanged. Direct
+`dispatchPolicy` is the supported explicit external integration path for this milestone.
+Loader diagnostics default to sanitized local stderr or a trusted synchronous sink,
+never provider stdout. Trusted modules themselves retain host stdout/process privileges;
+they must respect their adapter protocol. See [usage](usage.md#external-middleware-v1)
+and [ADR-010](decisions/010-external-middleware.md).
+
 ## Engine contract
 
 `dispatchPolicy(input, configuration, registry, options?)` in `src/policy.ts` accepts unknown

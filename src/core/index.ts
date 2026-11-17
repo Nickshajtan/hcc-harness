@@ -1,28 +1,34 @@
 import { randomUUID } from 'node:crypto';
-import { discoverConfiguration } from '../config.js';
+import { discoverConfiguration, type ConfigurationDirectory } from '../config.js';
 import type { EventBus } from '../events.js';
 import { ExecutionSession } from './execution-session.js';
 import type { Registry, ExecutionContext } from '../middleware.js';
 import { nativeEnvironment, type LaunchResult } from '../process.js';
 import { demo } from '../demo.js';
+import type { MiddlewareDiagnosticReporter } from '../middleware-contract.js';
+
+export { discoverConfiguration, type ConfigurationDirectory } from '../config.js';
 
 export const defaultRegistry: Registry = new Map([['demo', demo]]);
 export interface ExecuteOptions {
   command: string;
   args: readonly string[];
   cwd: string;
+  configurationDirectory?: ConfigurationDirectory;
+  preparationTimeoutMs?: number;
   env?: NodeJS.ProcessEnv;
   signal?: AbortSignal;
   registry?: Registry;
   observe?: (bus: EventBus) => void | Promise<void>;
   onSpawn?: () => void;
   reportObserverError?: (error: unknown) => void | Promise<void>;
+  reportMiddlewareDiagnostic?: MiddlewareDiagnosticReporter;
 }
 
 export async function execute(options: ExecuteOptions): Promise<LaunchResult> {
   const env = await nativeEnvironment(options.env ?? process.env, options.cwd);
   const signal = options.signal ?? new AbortController().signal;
-  const configuration = await discoverConfiguration(options.cwd);
+  const configuration = await discoverConfiguration(options.cwd, options.configurationDirectory);
   const context: ExecutionContext = Object.freeze({
     executionId: randomUUID(),
     parentExecutionId: /^[a-f0-9-]{36}$/i.test(env.ARCH_PARENT_EXECUTION_ID ?? '')

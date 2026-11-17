@@ -2,9 +2,159 @@ import { describe, expect, it } from 'vitest';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { discoverConfiguration, parseConfiguration } from '../../src/config.js';
+import {
+  discoverConfiguration,
+  parseConfiguration,
+  validateMiddlewareEntries,
+  configurationDirectories,
+} from '../../src/config.js';
 
 describe('configuration', () => {
+  it.each(configurationDirectories)(
+    'discovers %s without changing project identity',
+    async (selected) => {
+      const root = await mkdtemp(join(tmpdir(), 'hcc-layout-'));
+      try {
+        await mkdir(join(root, selected), { recursive: true });
+        await mkdir(join(root, 'nested'));
+        await writeFile(join(root, selected, 'harness.toml'), 'schema=1');
+        for (const selection of [undefined, selected]) {
+          expect(await discoverConfiguration(join(root, 'nested'), selection)).toEqual({
+            projectRoot: root,
+            configurationDirectory: join(root, selected),
+            middleware: [],
+          });
+        }
+        await writeFile(join(root, selected, 'harness.toml'), 'schema=2');
+        await expect(discoverConfiguration(root, selected)).rejects.toThrow(
+          'Invalid Arch configuration',
+        );
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it('reports ordered same-root conflicts, including explicitly selected configurations', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'hcc-conflict-'));
+    try {
+      for (const selected of ['.arch', '.hcc']) {
+        await mkdir(join(root, selected));
+        await writeFile(join(root, selected, 'harness.toml'), 'schema=1');
+      }
+      const expected = `Conflicting HCC configurations: ${join(root, '.hcc/harness.toml')}, ${join(root, '.arch/harness.toml')}`;
+      await expect(discoverConfiguration(root)).rejects.toThrow(expected);
+      await expect(discoverConfiguration(root, '.arch')).rejects.toThrow(expected);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('fails an explicitly missing selection instead of using another directory', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'hcc-selection-'));
+    try {
+      await expect(discoverConfiguration(root, '.hcc')).rejects.toThrow(
+        'Selected HCC configuration not found',
+      );
+      await mkdir(join(root, '.arch'));
+      await writeFile(join(root, '.arch/harness.toml'), 'schema=1');
+      await expect(discoverConfiguration(root, '.hcc')).rejects.toThrow(
+        'Selected HCC configuration not found',
+      );
+      await expect(discoverConfiguration(root, 'other' as '.arch')).rejects.toThrow(
+        'Invalid trusted configuration directory',
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('does not cross a nearer project to satisfy an explicit selection in its parent', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'hcc-selected-parent-'));
+    try {
+      const child = join(root, 'child');
+      await mkdir(join(root, '.ai/arch'), { recursive: true });
+      await mkdir(join(child, '.hcc'), { recursive: true });
+      await writeFile(join(root, '.ai/arch/harness.toml'), 'schema=1');
+      await writeFile(join(child, '.hcc/harness.toml'), 'schema=1');
+      await expect(discoverConfiguration(child, '.ai/arch')).rejects.toThrow(
+        `Selected HCC configuration not found: ${join(child, '.ai/arch/harness.toml')}`,
+      );
+      expect((await discoverConfiguration(child))?.projectRoot).toBe(child);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+  it('validates explicit parsed adapter values, including JSON null and plain table boundaries', () => {
+    const base = { id: 'external', enabled: true, source: { package: 'pkg' } };
+    expect(
+      validateMiddlewareEntries([{ ...base, options: { nullable: null, flag: false } }])[0]
+        ?.options,
+    ).toEqual({ nullable: null, flag: false });
+    for (const options of [
+      null,
+      new Date(),
+      { nested: new Date() },
+      { number: Infinity },
+      { unsupported: undefined },
+    ]) {
+      expect(() => validateMiddlewareEntries([{ ...base, options }])).toThrow(/middleware/i);
+    }
+    for (const source of [{ package: '' }, { package: 0 }, { file: 0 }]) {
+      expect(() => validateMiddlewareEntries([{ ...base, source }])).toThrow(
+        'exactly one file or package',
+      );
+    }
+    expect(() => validateMiddlewareEntries([null])).toThrow('unique id');
+  });
+  it('extends schema 1 with immutable external sources and JSON-compatible options', () => {
+    const result = parseConfiguration(
+      'schema=1\nmiddleware=[{id="local",enabled=true,source={file="./entry.mjs"},options={nested={key="value"},list=[1,true,"x"]}},{id="package",enabled=false,source={package="@company/policy"},required=false}]',
+      '/p',
+    );
+    expect(result.middleware[0]).toEqual({
+      id: 'local',
+      enabled: true,
+      source: { file: './entry.mjs' },
+      required: true,
+      options: { nested: { key: 'value' }, list: [1, true, 'x'] },
+    });
+    expect(result.middleware[1]).toEqual({
+      id: 'package',
+      enabled: false,
+      source: { package: '@company/policy' },
+      required: false,
+      options: {},
+    });
+    expect(Object.isFrozen(result.middleware[0]?.source)).toBe(true);
+    expect(Object.isFrozen(result.middleware[0]?.options?.nested)).toBe(true);
+    expect(Object.isFrozen(result.middleware[0]?.options?.list)).toBe(true);
+  });
+
+  it.each([
+    'source={}',
+    'source={file="./entry.mjs",package="pkg"}',
+    'source="./entry.mjs"',
+    'source={file=""}',
+    'source={package=1}',
+    'source={other="pkg"}',
+    'source={file="./entry.mjs",other=true}',
+    'source={file="./entry.mjs"}\nrequired="yes"',
+    'required=false',
+    'options={key=1}',
+    'source={file="./entry.mjs"}\noptions=[]',
+    'source={file="./entry.mjs"}\noptions="x"',
+    'source={file="./entry.mjs"}\noptions={date=2026-11-16}',
+    'source={file="./entry.mjs"}\noptions={date=12:30:00}',
+    'source={file="./entry.mjs"}\noptions={number=inf}',
+    'source={file="./entry.mjs"}\noptions={number=nan}',
+    'source={file="./entry.mjs"}\noptions={list=[{number=-inf}]}',
+  ])('rejects unsupported external configuration %s', (fields) => {
+    expect(() =>
+      parseConfiguration(`schema=1\n[[middleware]]\nid="external"\nenabled=true\n${fields}`, '/p'),
+    ).toThrow(/middleware/i);
+  });
+
   it('rejects malformed middleware identities and preserves diagnostic contracts', () => {
     for (const id of ['Demo', '1demo', ' demo', 'demo!', '', 'demo\n']) {
       const text = `schema=1\n[[middleware]]\nid=${JSON.stringify(id)}\nenabled=true`;
