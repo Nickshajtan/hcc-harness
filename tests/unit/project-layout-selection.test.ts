@@ -38,6 +38,8 @@ it('keeps explicit service roots separate while CLI discovery selects the neares
   const child = join(root, 'nested');
   await mkdir(child);
   expect(await resolveProjectLayout(child)).toEqual(projectLayout(root, '.ai/arch'));
+  expect(await resolveProjectLayout(child, '.ai/arch')).toEqual(projectLayout(root, '.ai/arch'));
+  expect(await resolveProjectLayoutAt(root, '.ai/arch')).toEqual(projectLayout(root, '.ai/arch'));
   expect(await resolveProjectLayoutAt(child)).toEqual(projectLayout(child));
   await expect(resolveProjectLayout(child, '.hcc')).rejects.toThrow('no implicit migration');
   expect(await readdir(child)).toEqual([]);
@@ -46,10 +48,13 @@ it('keeps explicit service roots separate while CLI discovery selects the neares
 it('detects orphan stages without adopting their bytes or hiding parent boundaries', async () => {
   await mkdir(join(root, '.hcc'), { recursive: true });
   await writeFile(join(root, '.hcc/.setup-unknown'), 'unknown evidence');
+  await writeFile(join(root, '.hcc/user.txt'), 'user owned');
   expect(await resolveProjectLayoutAt(root)).toEqual(projectLayout(root, '.hcc'));
   await mkdir(join(root, '.arch'), { recursive: true });
   await writeFile(join(root, '.arch/.routing-unknown.stage'), 'unknown evidence');
-  await expect(resolveProjectLayoutAt(root)).rejects.toThrow('Conflicting HCC');
+  await expect(resolveProjectLayoutAt(root)).rejects.toThrow(
+    `Conflicting HCC project directories: ${join(root, '.hcc')}, ${join(root, '.arch')}`,
+  );
 });
 
 it.each(['probe', 'directory'] as const)(
@@ -83,4 +88,11 @@ it.each([
   expect(layout.configurationPath).toBe('.hcc/harness.toml');
   expect(layout.internalDirectory).toBe('.hcc/.internal');
   expect(await actual.readdir(root)).toEqual(['.hcc']);
+});
+
+it('does not infer lifecycle ownership from an alias containing only user files', async () => {
+  await mkdir(join(root, '.hcc/modules'), { recursive: true });
+  await writeFile(join(root, '.hcc/user.txt'), 'user owned');
+  expect(await resolveProjectLayoutAt(root)).toEqual(projectLayout(root));
+  expect(await resolveProjectLayout(root)).toEqual(projectLayout(root));
 });
