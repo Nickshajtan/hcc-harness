@@ -4,6 +4,7 @@ import {
   mkdtemp,
   readFile,
   readdir,
+  rename,
   rm,
   rmdir,
   symlink,
@@ -184,3 +185,27 @@ it('filters a marked home through a realpath alias/junction', async () => {
   );
   expect((await nativeEnvironment({ PATH: alias }, root)).PATH).toBe('');
 });
+
+it.each(configurationDirectories)(
+  'refuses symlinked bootstrap and removal authority in %s',
+  async (directory) => {
+    const layout = projectLayout(root, directory);
+    await setup(root, ['tool'], directory);
+    const foreign = join(root, 'foreign-authority');
+    await mkdir(foreign);
+    const saved = join(foreign, 'manifest.json');
+    await rename(join(root, layout.statePath), saved);
+    const original = await readFile(saved);
+    for (const path of [layout.statePath, layout.uninstallPath]) {
+      await symlink(
+        'win32' === process.platform ? foreign : saved,
+        join(root, path),
+        'win32' === process.platform ? 'junction' : 'file',
+      );
+      await expect(deinitialize(root)).rejects.toThrow('Refusing managed symlink');
+      expect(await readFile(saved)).toEqual(original);
+      expect(await readFile(join(root, layout.markerPath), 'utf8')).toBe(routerMarker);
+      await unlink(join(root, path));
+    }
+  },
+);

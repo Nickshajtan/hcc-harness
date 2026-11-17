@@ -37,6 +37,7 @@ home, including with interactive init. Existing configuration selects the home f
 all subsequent management commands. Management resolves the nearest project from
 cwd, including invocation from subdirectories. An explicit selection cannot cross
 that project boundary or change an existing home. There is no implicit migration.
+Explicit-root programmatic lifecycle APIs continue to target exactly the supplied root.
 Project identity is the containing root, never `.ai` or the configuration directory.
 
 ```text

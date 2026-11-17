@@ -18,6 +18,8 @@ rendering and lifecycle components. Supported homes remain `.hcc`, `.hcc-harness
 `.arch`, `.ai/.harness`, `.ai/arch`. Runtime discovery selects the nearest single
 configuration with no merging, invalid-file fallback or crossing an explicit boundary.
 Init defaults to `.arch`; `--config-dir` accepts exactly the same five names.
+CLI/wizard entrypoints discover the nearest root; explicit-root programmatic services
+retain their exact target-root contract. Both use the same single-root evidence inspection.
 
 Launchers, bootstrap/uninstall manifests, route journals, setup claims and stages live
 in the selected home alongside configuration, project-local modules and `.internal`.
