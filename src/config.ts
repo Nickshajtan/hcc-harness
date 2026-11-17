@@ -146,11 +146,13 @@ export async function configurationAt(
     );
   }
   const candidate = found[0];
-  if (
-    !candidate ||
-    (undefined !== selected && candidate.directory !== join(projectRoot, selected))
-  ) {
+  if (!candidate) {
     return undefined;
+  }
+  if (undefined !== selected && candidate.directory !== join(projectRoot, selected)) {
+    throw new Error(
+      `Selected HCC configuration not found: ${join(projectRoot, selected, 'harness.toml')}`,
+    );
   }
   try {
     return Object.freeze({

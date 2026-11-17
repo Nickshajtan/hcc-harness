@@ -65,6 +65,23 @@ describe('configuration', () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  it('does not cross a nearer project to satisfy an explicit selection in its parent', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'hcc-selected-parent-'));
+    try {
+      const child = join(root, 'child');
+      await mkdir(join(root, '.ai/arch'), { recursive: true });
+      await mkdir(join(child, '.hcc'), { recursive: true });
+      await writeFile(join(root, '.ai/arch/harness.toml'), 'schema=1');
+      await writeFile(join(child, '.hcc/harness.toml'), 'schema=1');
+      await expect(discoverConfiguration(child, '.ai/arch')).rejects.toThrow(
+        `Selected HCC configuration not found: ${join(child, '.ai/arch/harness.toml')}`,
+      );
+      expect((await discoverConfiguration(child))?.projectRoot).toBe(child);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
   it('validates explicit parsed adapter values, including JSON null and plain table boundaries', () => {
     const base = { id: 'external', enabled: true, source: { package: 'pkg' } };
     expect(

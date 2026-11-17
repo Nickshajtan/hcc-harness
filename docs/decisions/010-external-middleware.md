@@ -77,7 +77,8 @@ Runtime discovery checks `.hcc`, `.hcc-harness`, `.arch`, `.ai/.harness`, `.ai/a
 at each ancestor, in that order. One nearest configuration is used; multiple candidates
 at the same root fail rather than merge or silently shadow. Invalid selected files
 never fall back. Trusted callers may select one of these relative directory names;
-a missing explicit selection fails. Parsed adapters supply absolute directory context.
+a missing explicit selection fails at the nearest project with any candidate, never
+crossing it to satisfy the selection in a parent. Parsed adapters supply absolute directory context.
 Configuration paths do not redefine project identity or migrate `.arch/bin`, manifests
 or mise integration. Init creates the `.arch` default only when no candidate exists.
 

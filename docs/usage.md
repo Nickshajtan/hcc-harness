@@ -24,7 +24,9 @@ Trusted integration callers may set `execute({ configurationDirectory: '.ai/arch
 or import `discoverConfiguration` from `arch-harness/core` and call
 `discoverConfiguration(cwd, '.ai/arch')`. The selector is one of the five directory names above, searched at each
 ancestor; no other candidate is used. A missing explicit selection throws, rather
-than disabling middleware. Same-root conflicts still fail with a selector.
+than disabling middleware. If the nearest project has another candidate, the missing
+selection fails there; it never crosses that project to use a parent's file.
+Same-root conflicts still fail with a selector.
 Parsed policy callers may supply absolute `configurationDirectory` alongside
 `projectRoot`; without it, package helpers default to `projectRoot/.arch`.
 Never derive either field from provider requests.
