@@ -53,6 +53,9 @@ describe('configuration', () => {
   it('fails an explicitly missing selection instead of using another directory', async () => {
     const root = await mkdtemp(join(tmpdir(), 'hcc-selection-'));
     try {
+      await expect(discoverConfiguration(root, '.hcc')).rejects.toThrow(
+        'Selected HCC configuration not found',
+      );
       await mkdir(join(root, '.arch'));
       await writeFile(join(root, '.arch/harness.toml'), 'schema=1');
       await expect(discoverConfiguration(root, '.hcc')).rejects.toThrow(
